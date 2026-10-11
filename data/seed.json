@@ -1,0 +1,75 @@
+{
+  "user": { "name": "Mariam Nasser", "role": "ADMIN", "title": "Product Operations" },
+  "settings": { "theme": "light", "layout": ["announcements", "new-members", "knowledge", "news", "moments", "social", "events"], "hiddenWidgets": [] },
+  "newMembers": [
+    { "id": "member-001", "name": "Nour El-Sayed", "role": "Product Marketing Specialist", "team": "Growth", "directManager": "Hala Mostafa", "joined": "October 2026", "message": "Joining the Growth team to help bring Si-Ware stories and solutions to more people.", "initials": "NE", "color": "#dceeff" },
+    { "id": "member-002", "name": "Adam Farouk", "role": "Embedded Software Engineer", "team": "R&D", "directManager": "Mostafa Selim", "joined": "October 2026", "message": "Joining R&D to build reliable embedded experiences for next-generation products.", "initials": "AF", "color": "#e7e4ff" },
+    { "id": "member-003", "name": "Salma Hassan", "role": "People Operations Partner", "team": "People Operations", "directManager": "Rana Maher", "joined": "September 2026", "message": "Joining People Operations to support a thoughtful employee experience across Si-Ware.", "initials": "SH", "color": "#dcf5ed" },
+    { "id": "member-004", "name": "Karim Nabil", "role": "Applications Scientist", "team": "NeoSpectra Solutions", "directManager": "Mohamed Fawzy", "joined": "September 2026", "message": "Joining the applications team to turn material insight into customer impact.", "initials": "KN", "color": "#fff0da" }
+  ],
+  "policies": [
+    { "id": "pol-001", "title": "Code of Conduct", "summary": "How we work with integrity, respect and accountability.", "owner": "People Operations", "reviewDate": "2027-01-15", "audience": "All employees", "version": "v3.2", "canonicalUrl": "/new-hires.html#policies", "category": "Workplace" },
+    { "id": "pol-002", "title": "Information Security", "summary": "Protecting Si-Ware people, research, systems and customer information.", "owner": "IT Security", "reviewDate": "2027-03-01", "audience": "All employees and contractors", "version": "v2.8", "canonicalUrl": "/new-hires.html#policies", "category": "Security" },
+    { "id": "pol-003", "title": "Attendance & Leave", "summary": "Time logging, leave requests and flexible work arrangements.", "owner": "People Operations", "reviewDate": "2026-12-01", "audience": "All employees", "version": "v4.0", "canonicalUrl": "/new-hires.html#policies", "category": "People" },
+    { "id": "pol-004", "title": "Health & Safety", "summary": "Safe workplaces, labs and ways of working.", "owner": "EHS Office", "reviewDate": "2027-02-15", "audience": "All employees and visitors", "version": "v2.1", "canonicalUrl": "/new-hires.html#policies", "category": "Safety" }
+  ],
+  "people": [
+    { "id": "person-001", "name": "People Operations", "detail": "Onboarding, workplace policy and employee support", "url": "mailto:people@si-ware.com" },
+    { "id": "person-002", "name": "IT Support Desk", "detail": "Access, equipment and technology support", "url": "#support" }
+  ],
+  "forms": [
+    { "id": "form-001", "title": "IT access request", "detail": "Request application, equipment or shared-drive access", "url": "#support" },
+    { "id": "form-002", "title": "Leave request", "detail": "Submit annual leave or other absence requests", "url": "#mohr" }
+  ],
+  "faqs": [
+    { "id": "faq-001", "title": "How do I get help with a company tool?", "detail": "Use the IT Support Desk to submit and track a request.", "url": "#support" },
+    { "id": "faq-002", "title": "Where can I find onboarding resources?", "detail": "Open the New Hires page for policies, contacts and first-week guidance.", "url": "/new-hires.html" }
+  ],
+  "serviceRequests": [
+    { "id": "request-001", "title": "Request IT support", "detail": "Report an incident or request help from the service desk.", "url": "#support" },
+    { "id": "request-002", "title": "Request an HR service", "detail": "Use MOHR for employee self-service requests.", "url": "#mohr" }
+  ],
+  "apps": [
+    { "id": "gmail", "name": "Gmail", "caption": "Corporate email", "url": "https://mail.google.com", "icon": "mail", "color": "#ea4335" },
+    { "id": "clickup", "name": "ClickUp", "caption": "Projects & tasks", "url": "https://clickup.com", "icon": "check", "color": "#7b68ee" },
+    { "id": "drive", "name": "Document Drive", "caption": "Cloud repositories", "url": "https://drive.google.com", "icon": "folder", "color": "#2f80ed" },
+    { "id": "support", "name": "IT Support Desk", "caption": "Helpdesk tickets", "url": "#support", "icon": "life", "color": "#09a995" },
+    { "id": "mohr", "name": "MOHR", "caption": "HR self-service", "url": "#mohr", "icon": "people", "color": "#f2994a" },
+    { "id": "contacts", "name": "Contacts", "caption": "Employee directory", "url": "#contacts", "icon": "phone", "color": "#2d9cdb" },
+    { "id": "org", "name": "Org Chart", "caption": "Team structure", "url": "#org", "icon": "tree", "color": "#6fcf97" },
+    { "id": "time", "name": "Time Tracker", "caption": "Attendance & timesheets", "url": "#time", "icon": "clock", "color": "#bb6bd9" },
+    { "id": "arena", "name": "Arena PLM", "caption": "Engineering parts & BOMs", "url": "#arena", "icon": "cube", "color": "#eb5757" },
+    { "id": "netsuite", "name": "NetSuite ERP", "caption": "Financials & supply chain", "url": "#netsuite", "icon": "chart", "color": "#1b9aaa" },
+    { "id": "sibrain", "name": "Si-Brain", "caption": "R&D knowledge assistant", "url": "#sibrain", "icon": "spark", "color": "#5b67d9" },
+    { "id": "sibot", "name": "Si-Bot", "caption": "Automated workflows", "url": "#sibot", "icon": "bot", "color": "#00a6a6" }
+  ],
+  "announcements": [
+    { "id": "a1", "tag": "All hands", "title": "Zest for Life 2026: nominations are now open", "body": "Celebrate the people who bring curiosity, care and craft to every Si-Ware milestone.", "date": "Oct 14", "priority": "high" },
+    { "id": "a2", "tag": "Learning", "title": "Leadership Lab: difficult conversations", "body": "A practical session for new and aspiring managers. Reserve your seat by Thursday.", "date": "Oct 17", "priority": "normal" }
+  ],
+  "sessions": [
+    { "id": "skh-001", "title": "Fundamentals of Patenting & Si-Ware Patents Portfolio", "presenter": { "name": "Bassem Mortada", "initials": "BM" }, "date": "2025-03-12", "category": "Patents", "outline": "Introduction to patents and patentability, application process and structure.", "presentationDeckUrl": "/docs/patents_part1.pdf", "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" },
+    { "id": "skh-002", "title": "Beyond the Spectrum: NIR for a more sustainable food chain", "presenter": { "name": "Nada El Dardiry", "initials": "ND" }, "date": "2025-05-27", "category": "Photonics", "outline": "How material intelligence makes measurement faster, simpler and more useful.", "presentationDeckUrl": "/docs/nir-food.pdf", "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" },
+    { "id": "skh-003", "title": "MEMS foundations: turning tiny motion into valuable data", "presenter": { "name": "Omar Magdy", "initials": "OM" }, "date": "2025-07-09", "category": "MEMS", "outline": "Sensor physics, product constraints and the road from prototype to scale.", "presentationDeckUrl": "/docs/mems-foundations.pdf", "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" },
+    { "id": "skh-004", "title": "Practical AI copilots for engineering teams", "presenter": { "name": "Yasmine Atef", "initials": "YA" }, "date": "2025-09-18", "category": "AI", "outline": "A responsible, high-leverage guide to internal assistants and retrieval.", "presentationDeckUrl": "/docs/ai-copilots.pdf", "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" }
+  ],
+  "feeds": [
+    { "id": "optical", "label": "Optical Spectroscopy", "source": "Nature", "items": [{ "title": "Spectroscopy moves closer to real-time field measurement", "age": "2h ago", "type": "Research" }, { "title": "New routes to robust compact optical sensors", "age": "1d ago", "type": "Technology" }, { "title": "Designing better data pipelines for spectral analysis", "age": "3d ago", "type": "Insights" }] },
+    { "id": "semi", "label": "Semiconductor Digest", "source": "Semiconductor Digest", "items": [{ "title": "The next wave of sensor integration", "age": "4h ago", "type": "Industry" }, { "title": "Manufacturing precision at the edge", "age": "2d ago", "type": "Technology" }] },
+    { "id": "dairy", "label": "Dairyland Labs", "source": "Dairyland Labs", "items": [{ "title": "A closer look at modern forage analytics", "age": "1d ago", "type": "Customer" }, { "title": "Quality insights for dairy producers", "age": "4d ago", "type": "Press release" }] },
+    { "id": "agriculture", "label": "MDPI Agriculture", "source": "MDPI", "items": [{ "title": "Precision agriculture through better sensing", "age": "6h ago", "type": "Journal" }, { "title": "Data-led resilience in food systems", "age": "3d ago", "type": "Research" }] },
+    { "id": "nir", "label": "Journal of NIR Spectroscopy", "source": "SAGE", "items": [{ "title": "NIR advances in material classification", "age": "9h ago", "type": "Journal" }] },
+    { "id": "rohm", "label": "ROHM Sensors / MEMS", "source": "ROHM", "items": [{ "title": "Compact sensors for smarter equipment", "age": "1d ago", "type": "Product" }] }
+  ],
+  "moments": [
+    { "title": "Cairo town hall", "kind": "PEOPLE", "color": "#d8e9ff" },
+    { "title": "Lab collaboration", "kind": "LAB", "color": "#efe2ff" },
+    { "title": "Summer offsite", "kind": "SUN", "color": "#fff0d4" },
+    { "title": "Product showcase", "kind": "SHAPE", "color": "#d7f3ea" }
+  ],
+  "events": [
+    { "day": "14", "month": "OCT", "title": "Zest for Life — nominations close", "time": "4:00 PM", "type": "Company" },
+    { "day": "17", "month": "OCT", "title": "Leadership Lab: difficult conversations", "time": "11:00 AM", "type": "Learning" },
+    { "day": "22", "month": "OCT", "title": "Q4 product all-hands", "time": "3:30 PM", "type": "Company" }
+  ]
+}

@@ -1,0 +1,33 @@
+html[data-theme="dark"]{color-scheme:dark}
+html.dark{--ink:#edf4ff;--muted:#b8c8dd;--line:#294467;--paper:#0b1728;--card:#10243e;--blue:#88b8ff;--blue2:#3269c8;--navy:#071426;--cyan:#84e3dc;--yellow:#ffd465;--shadow:0 14px 32px rgb(0 0 0 / 28%)}
+.theme-toggle{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:transparent;color:var(--ink);cursor:pointer;transition:background .2s ease,color .2s ease,transform .2s ease}
+.theme-toggle:hover{background:color-mix(in srgb,var(--blue) 10%,transparent);color:var(--blue);transform:translateY(-1px)}
+.theme-toggle:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 28%,transparent);outline-offset:2px}
+.theme-toggle-icon{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.theme-sun,.theme-rays{display:none}
+.theme-toggle-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.icon-button.notification{width:38px;height:38px;display:inline-grid;place-items:center;padding:0;color:#24598f}.icon-button.notification:after{display:none}.notification-icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}.icon-button.notification span{top:7px;right:7px;width:7px;height:7px;border:1.5px solid var(--card);box-sizing:border-box}.icon-button.notification:hover{background:#eaf3ff;color:#1557c0}.icon-button.notification:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 28%,transparent);outline-offset:2px}
+.theme-toggle[aria-pressed="true"]{color:#f4c848}.theme-toggle[aria-pressed="true"] .theme-moon{display:none}.theme-toggle[aria-pressed="true"] .theme-sun,.theme-toggle[aria-pressed="true"] .theme-rays{display:block}
+html.dark .theme-toggle{background:transparent;border:0;color:#c9dcf5}html.dark .theme-toggle:hover{background:#173757;color:#fff}
+html.dark .icon-button.notification{color:#c9dcf5}html.dark .icon-button.notification:hover{background:#173757;color:#fff}html.dark .icon-button.notification span{border-color:#10243e}
+html.dark body{background:#0b1728;color:#edf4ff}
+html.dark .topbar,html.dark .app-dock{border-color:#294467}html.dark .app-dock{background:linear-gradient(90deg,#0d1b2e,#0b1728)}
+html.dark .nav a,html.dark .section-kicker,html.dark .section-kicker h2,html.dark .profile-copy small,html.dark .app-link small{color:#b8c8dd}html.dark .nav a.active,html.dark .nav a:hover{color:#9ac4ff;border-color:#76d9e0}
+html.dark .app-link{color:#edf4ff}html.dark .app-link b{color:#edf4ff}html.dark .app-link:hover{background:#142c4a;border-color:#35597f}
+html.dark .app-icon{background:color-mix(in srgb,var(--app-color) 18%,#10243e);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--app-color) 34%,transparent)}
+html.dark .global-search,html.dark .search-control,html.dark .global-search kbd{background:#10243e;border-color:#365779;color:#edf4ff}
+html.dark .global-search input,html.dark .search-control input{color:#edf4ff}html.dark .global-search input::placeholder{color:#a8bad1}
+html.dark .widget{background:#10243e;border-color:#294967;box-shadow:0 14px 30px rgb(0 0 0 / 18%)}html.dark .widget:hover{border-color:#41698f}
+html.dark .widget-header{border-color:#294967}html.dark .widget-header h2,html.dark .news-item b,html.dark .event p,html.dark .linkedin-post b,html.dark .new-member b{color:#edf4ff}
+html.dark .widget-intro,html.dark .social-copy,html.dark .new-member small,html.dark .new-member div>span,html.dark .news-item small,html.dark .event span{color:#b8c8dd}
+html.dark .news-item,html.dark .new-member,html.dark .linkedin-post,html.dark .fb-post,html.dark .event{border-color:#294967}
+html.dark .widget-header select,html.dark .tag-filters button{background:#10243e;border-color:#365779;color:#c9dcf5}html.dark .tag-filters button.active,html.dark .topic{background:#1d3964;border-color:#5685ba;color:#d8e8ff}
+html.dark .session-table-wrap{border-color:#294967}html.dark .session-table-wrap th,html.dark .session-table-wrap tbody tr:hover{background:#132a47;color:#c9dcf5}html.dark .session-table-wrap td{border-color:#294967;color:#edf4ff}
+html.dark .appraisal-card{background:#173757;border-color:#41698f;color:#e6f1ff}html.dark .appraisal-card p{color:#bdd2ea}
+html.dark .date-block{background:#173a63;color:#9ac4ff}html.dark .plain-button,html.dark .text-link{color:#9ac4ff}
+html.dark .policy-page{background:#0b1728}html.dark .policy-topbar{border-color:#294967}html.dark .back-link{color:#9ac4ff}
+html.dark .policy-hero-aside,html.dark .policy-nav,html.dark .policy-card{background:#10243e;border-color:#294967;color:#edf4ff;box-shadow:0 14px 30px rgb(0 0 0 / 18%)}
+html.dark .policy-hero h1,html.dark .policy-card h2,html.dark .policy-callout b,html.dark .policy-nav p{color:#edf4ff}html.dark .policy-hero>div>p,html.dark .policy-card>p,html.dark .policy-nav a,html.dark .policy-checklist li,html.dark .policy-footer{color:#b8c8dd}
+html.dark .policy-link-card{background:#122b49;border-color:#365779;color:#edf4ff}html.dark .policy-link-card small,html.dark .policy-callout{color:#c6d6e9}html.dark .policy-callout{background:#173757;border-color:#41698f}
+html.dark .policy-footer{border-color:#294967}html.dark .policy-status{background:#164b47;color:#b7f0dc}html.dark .policy-record{border-color:#294967;color:#edf4ff}html.dark .policy-record-meta span{color:#c6d6e9}
+html.dark .whistleblower-widget,html.dark .whistleblower-page .policy-hero-aside,html.dark .voice-modal{background:#10243e;color:#edf4ff;border-color:#294967}html.dark .whistleblower-widget h2,html.dark .reporting-paths b,html.dark .employee-voice-action b{color:#edf4ff}html.dark .whistleblower-link{color:#9ac4ff}html.dark .voice-frame{background:#10243e}
+.policy-topbar-actions{display:flex;align-items:center;gap:14px;margin-left:auto}

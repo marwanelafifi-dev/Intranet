@@ -1,0 +1,11 @@
+.new-member-avatar{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--member-color);color:#174b91;font-size:11px;font-weight:800;letter-spacing:.02em}.all-new-members{display:grid;gap:0;margin-top:20px;border-top:1px solid var(--line)}
+.new-member-announcement{display:grid;grid-template-columns:46px minmax(0,1fr);gap:14px;padding:18px 0;border-bottom:1px solid var(--line)}
+.new-member-announcement .new-member-avatar{width:46px;height:46px;font-size:12px}
+.new-member-announcement>div{min-width:0}
+.new-member-announcement-head{display:flex;justify-content:space-between;gap:16px;align-items:start}
+.new-member-announcement-head>div{display:grid;gap:3px}
+.new-member-announcement b{font-size:14px}
+.new-member-announcement-head span,.new-member-announcement time{font-size:11px;color:var(--muted);line-height:1.45}
+.new-member-announcement time{white-space:nowrap}
+.new-member-announcement p{font-size:12px;line-height:1.55;color:#29496f;margin:10px 0 0}
+@media(max-width:760px){.new-member-announcement-head{display:grid;gap:4px}.new-member-announcement time{white-space:normal}}

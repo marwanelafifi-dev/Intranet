@@ -1,0 +1,30 @@
+/* Executive workspace refinement: restrained depth, confident type, and durable information hierarchy. */
+:root{
+  --ink:#102b4e;
+  --muted:#526a87;
+  --line:#d8e3ef;
+  --paper:#f5f8fc;
+  --card:#ffffff;
+  --blue:#1458b6;
+  --blue-dark:#103d7a;
+  --focus:#155dbf;
+}
+::selection{background:#cfe3ff;color:#102b4e}
+body{background:#f5f8fc;color:var(--ink);letter-spacing:-.008em}
+.shell{max-width:1680px}
+.topbar{height:78px;border-bottom-color:#d7e2ef}
+.nav{gap:30px}.nav a{padding-block:29px 27px;color:#48617e;font-size:12px;letter-spacing:.01em}.nav a.active,.nav a:hover{color:#124e9e;border-color:#1458b6}
+.global-search{height:42px;border-radius:8px;background:#fbfdff;border-color:#cbd9e8}.global-search:focus-within{border-color:#5b91d6;box-shadow:0 0 0 3px rgb(20 88 182 / 12%)}
+.app-dock{padding-block:18px 20px;background:linear-gradient(90deg,#f9fbfe,#f4f8fc);border-bottom-color:#d7e2ef}.app-grid{gap:10px}.app-link{padding:8px 4px 7px;border:1px solid transparent;border-radius:10px}.app-link:hover{border-color:#d5e2f0;background:#fff;transform:none}.app-link:focus-visible{border-color:#155dbf}.app-icon{width:42px;height:42px;border-radius:10px}
+.dashboard{gap:20px;padding-top:30px;padding-bottom:60px}
+.widget{border:1px solid #d7e2ef;border-radius:12px;box-shadow:none;background:#fff}.widget:hover{border-color:#c6d7e9}.widget-header{padding-bottom:13px;border-bottom:1px solid #e1e9f2}.widget-header h2,.policy-card h2,.policy-hero h1,.hero h1,.cms-head h2,.modal-top h2{font-family:Manrope,Arial,sans-serif;font-weight:800;letter-spacing:-.035em}.widget-header h2{font-size:18px}.widget-intro{color:#526a87;font-size:12px;line-height:1.6}
+.hero{background:linear-gradient(125deg,#113f7d,#155bb7 63%,#2e72c7);border-radius:14px;box-shadow:0 18px 36px rgb(16 49 94 / 15%)}.hero:before{background:linear-gradient(90deg,rgb(3 25 65 / 24%),transparent 62%)}.hero h1{font-size:clamp(32px,2.7vw,44px);line-height:1.06;letter-spacing:-.045em}.hero .primary-button{border-radius:7px;background:#fff;color:#124e9e;font-weight:800}.priority-card{border-radius:10px;box-shadow:0 12px 26px rgb(7 31 71 / 18%)}
+.new-members-widget{background:linear-gradient(180deg,#fff,#f9fbfe)}.new-member{border-color:#e1e9f2}.new-member b{font-weight:800}.new-member-avatar{box-shadow:inset 0 0 0 1px rgb(20 88 182 / 7%)}
+.news-widget,.facebook-widget,.youtube-widget,.linkedin-widget{min-height:290px}.news-item{border-color:#e3ebf3}.news-item b{font-weight:800}.news-item:hover b{color:#1458b6}.linkedin-post{border-color:#e3ebf3}.facebook-badge,.linkedin-badge{box-shadow:none}.text-link,.plain-button{font-size:11px;letter-spacing:.005em}.text-link:hover,.plain-button:hover{text-decoration:underline;text-underline-offset:4px}
+.moments-widget{padding:24px}.moments-grid{margin-top:16px}.moment{border:1px solid rgb(16 43 78 / 6%);border-radius:10px}.moment span{font-size:13px;letter-spacing:-.045em}.moment small{font-size:10px}
+.knowledge-widget{padding:28px}.knowledge-controls{margin-block:18px 15px}.search-control{border-radius:8px;background:#f8fbff;border-color:#ceddea}.tag-filters button{border-radius:999px;color:#365472}.tag-filters button.active{background:#e7f1ff;border-color:#91b9ed;color:#124e9e}.session-table-wrap{border:1px solid #dbe6f0;border-radius:10px;padding:0}.session-table-wrap th{background:#f7faff;color:#466383;font-size:11px}.session-table-wrap td{border-color:#e2eaf3}.session-table-wrap tbody tr:hover{background:#f7faff}.session-actions button{font-weight:800}
+.events-widget{padding:28px}.events-layout{margin-top:18px}.event{border-color:#e0e8f1}.date-block{border-radius:7px;background:#edf4ff}.appraisal-card{border:1px solid #cddfed;background:#f5faff;box-shadow:none}
+.cms-toggle{border:1px solid rgb(255 255 255 / 34%);border-radius:10px;background:#123f7b;box-shadow:0 12px 26px rgb(8 42 88 / 22%)}.cms-panel{box-shadow:-18px 0 44px rgb(12 43 82 / 14%)}.cms-tabs{gap:14px}.cms-tabs button{font-size:12px}.layout-row,.manager-row{border-radius:8px}.primary-button{border-radius:8px;background:#1458b6;color:#fff}
+.policy-page{background:#f5f8fc}.policy-topbar{border-bottom-color:#d6e2ef}.back-link{font-size:12px}.policy-hero{padding-block:72px 54px}.policy-hero h1{font-size:clamp(38px,4vw,56px);line-height:1.05}.policy-hero-aside{border:1px solid #cfdeef;background:#f4f8ff;box-shadow:none}.policy-nav,.policy-card{border-color:#d7e2ef;box-shadow:none}.policy-nav{border-radius:10px}.policy-card{border-radius:12px}.policy-card h2{font-size:24px}.policy-link-card{border-radius:9px;border-color:#dce6f0}.policy-link-card:hover{border-color:#98bae5;background:#f8fbff}.policy-footer{border-top-color:#d6e2ef}
+@media(max-width:1050px){.dashboard{gap:16px}.news-widget,.facebook-widget,.youtube-widget,.linkedin-widget{min-height:0}}
+@media(max-width:650px){.topbar{height:70px}.dashboard{gap:14px;padding-top:18px;padding-bottom:40px}.widget{border-radius:11px}.widget-header{padding-bottom:11px}.hero{border-radius:12px}.hero h1{font-size:34px}.knowledge-widget,.events-widget{padding:20px}.moments-widget{padding:20px}.policy-hero{padding-block:46px 34px}.policy-hero h1{font-size:36px}}

@@ -1,0 +1,1 @@
+.dashboard.layout-custom{display:flex;flex-wrap:wrap}.dashboard.layout-custom .widget{width:calc(50% - 9px)}.dashboard.layout-custom .widget-announcements,.dashboard.layout-custom .widget-knowledge,.dashboard.layout-custom .widget-whistleblower,.dashboard.layout-custom .widget-events{width:100%}@media(max-width:650px){.dashboard.layout-custom .widget{width:100%}}

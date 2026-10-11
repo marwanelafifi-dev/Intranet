@@ -1,0 +1,34 @@
+/* Wide-screen density pass: the four information cards remain inside the first viewport at 100% zoom. */
+@media(min-width:1180px){
+  .topbar{height:68px}
+  .nav a{padding-block:24px 22px}
+  .app-dock{padding-block:11px 13px}
+  .section-kicker{min-height:16px}
+  .app-grid{margin-top:8px;gap:8px}
+  .app-link{min-height:58px;padding-block:4px 2px}
+  .app-icon{width:36px;height:36px;border-radius:9px}
+  .app-link b{margin-top:3px;font-size:10px}
+  .app-link small{font-size:9px}
+  .dashboard{gap:16px;padding-top:20px;padding-bottom:44px}
+  .hero{min-height:238px;padding:28px 34px}
+  .hero h1{font-size:clamp(31px,2.35vw,40px);max-width:13ch;margin-bottom:10px}
+  .hero-copy>p:not(.eyebrow){font-size:13px;margin-bottom:15px}
+  .hero .primary-button{min-height:38px}
+  .priority-card{width:198px;min-height:0;padding:14px}
+  .priority-card h3{font-size:16px;margin:9px 0 4px}
+  .priority-card p{font-size:10px}.priority-card small{margin-top:8px}
+  .new-members-widget{padding:18px}
+  .new-members-widget .widget-header{padding-bottom:9px}
+  .new-members-widget .widget-intro{display:none}
+  .new-member-list{margin-top:8px}
+  .new-member{grid-template-columns:34px minmax(0,1fr);gap:8px;padding:6px 0}
+  .new-member-avatar{width:34px;height:34px;font-size:10px}
+  .new-member b{font-size:12px}.new-member small,.new-member div>span{font-size:10px;line-height:1.25}
+  .news-widget,.facebook-widget,.youtube-widget,.linkedin-widget{min-height:224px;padding:18px}
+  .news-widget .widget-header,.facebook-widget .widget-header,.youtube-widget .widget-header,.linkedin-widget .widget-header{padding-bottom:9px}
+  .news-list{margin-top:7px}.news-item{padding-block:7px}.news-item b{font-size:11px;line-height:1.3}.news-item small{font-size:9px}
+  .video-thumb{height:76px;margin-top:10px}.thumb-caption{bottom:9px}.thumb-caption b{font-size:11px}.social-copy{font-size:10px;margin-top:8px}
+  .fb-post{margin-top:9px;padding-top:8px}.fb-post>p{margin-block:7px;font-size:10px}.fb-art{height:53px;padding:8px}.fb-art span{font-size:11px}
+  .linkedin-post{gap:8px;margin-top:9px;padding-top:9px}.linkedin-post p{font-size:11px;line-height:1.45}.linkedin-post b{font-size:11px}
+  .text-link{margin-top:9px}
+}

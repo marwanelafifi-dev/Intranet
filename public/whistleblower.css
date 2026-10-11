@@ -1,0 +1,41 @@
+/* Informational whistleblower route until an approved, confidential intake channel is connected. */
+.whistleblower-widget{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+  padding:20px 28px;
+  background:#f8fbff;
+  border-color:#cddded;
+}
+.whistleblower-widget h2{margin:0;color:#102b4e;font-size:18px;font-weight:800;letter-spacing:-.03em}
+.whistleblower-widget p{max-width:66ch;margin:5px 0 0;color:#526a87;font-size:12px;line-height:1.5}
+.whistleblower-link{flex:0 0 auto;color:#1458b6;font-size:12px;font-weight:800;text-decoration:none}
+.whistleblower-link:hover{text-decoration:underline;text-underline-offset:4px}
+.whistleblower-link:focus-visible{outline:2px solid #155dbf;outline-offset:4px;border-radius:3px}
+.whistleblower-page .policy-hero{padding-bottom:42px}
+.whistleblower-page .policy-hero h1{max-width:14ch}
+.whistleblower-page .policy-hero>div>p{max-width:58ch}
+.whistleblower-page .policy-hero-aside{background:#edf5ff;color:#173e70}
+.whistleblower-page .policy-hero-aside b{font-family:Manrope,Arial,sans-serif;font-size:15px;letter-spacing:-.02em}
+.whistleblower-page .policy-hero-aside p{font-size:12px}
+.reporting-paths{display:grid;gap:0;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+.reporting-paths li{display:grid;grid-template-columns:minmax(170px,.55fr) 1fr;gap:24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.reporting-paths b{color:#102b4e;font-size:13px}
+.reporting-paths span,.whistleblower-page .policy-card li{color:#526a87;font-size:12px;line-height:1.55}
+.whistleblower-page .policy-card ul:not(.reporting-paths){display:grid;gap:10px;margin:0;padding-left:20px}
+.employee-voice-action{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-top:18px;padding:15px 0 0;color:#355675}
+.employee-voice-action b{display:block;color:#173e70;font-size:13px}
+.employee-voice-action p{max-width:56ch;margin:3px 0 0;font-size:12px;line-height:1.5}
+.voice-open{flex:0 0 auto;padding:10px 13px;border:0;border-radius:8px;background:#1458b6;color:#fff;font:800 12px Manrope;cursor:pointer}
+.voice-open:hover{background:#103d7a}
+.voice-open:focus-visible{outline:3px solid #155dbf;outline-offset:3px}
+.policy-hero-actions .voice-open{background:#1458b6;color:#fff}
+.voice-modal{width:min(720px,calc(100vw - 32px));height:min(720px,calc(100dvh - 32px));max-height:none;padding:0;border:0;border-radius:12px;background:#f8fbff;color:#102b4e;box-shadow:0 24px 64px rgb(10 37 72 / 28%)}
+.voice-modal::backdrop{background:rgb(8 28 58 / 58%)}
+.voice-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 20px;background:#078dc9;color:#fff}
+.voice-modal-head h2{margin:0;font:800 18px/1.25 Manrope;letter-spacing:-.02em}.voice-modal-head p{margin:4px 0 0;color:#e6f6ff;font-size:12px}
+.voice-modal-close{min-height:34px;padding:7px 10px;border:1px solid rgb(255 255 255 / 68%);border-radius:7px;background:transparent;color:#fff;font:800 11px Manrope;cursor:pointer}.voice-modal-close:hover{background:rgb(255 255 255 / 14%)}.voice-modal-close:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.voice-frame{display:block;width:100%;height:calc(100% - 82px);border:0;background:#fff}
+.whistleblower-page .policy-footer{margin-top:0;font-size:11px}
+@media(max-width:650px){.whistleblower-widget{display:grid;gap:10px;padding:18px}.reporting-paths li{grid-template-columns:1fr;gap:4px;padding:14px 0}.employee-voice-action{align-items:flex-start;flex-direction:column;gap:14px}.voice-modal{width:100vw;height:100dvh;border-radius:0}.voice-modal-head{padding:16px}.voice-modal-head h2{font-size:16px}.voice-frame{height:calc(100% - 89px)}}
