@@ -10,6 +10,7 @@ const dataFile = process.env.DATA_FILE || join(process.cwd(), 'data', 'intranet.
 const seedFile = join(process.cwd(), 'data', 'seed.json');
 const youtubeChannelId = 'UCPx_Gys4B6hSLw_JY3CkU5w';
 const youtubeChannelUrl = 'https://www.youtube.com/@Si-Ware_Systems';
+const youtubeCacheFile = join(process.cwd(), 'data', 'youtube-latest.json');
 let youtubeCache = { expiresAt: 0, payload: null };
 const json = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
 const readBody = req => new Promise((resolve, reject) => { let value = '', size = 0, finished = false; req.on('data', chunk => { size += chunk.length; if (size > 3 * 1024 * 1024) { finished = true; reject(new Error('Request body is too large')); req.destroy(); return; } if (!finished) value += chunk; }); req.on('end', () => { if (finished) return; try { resolve(JSON.parse(value || '{}')); } catch { reject(new Error('Invalid JSON')); } }); });
@@ -17,10 +18,19 @@ const isAdmin = req => req.headers['x-demo-role'] === 'ADMIN';
 const initialsFor = name => String(name || '').split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 const decodeXml = value => String(value || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 const xmlValue = (entry, tag) => decodeXml((new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`)).exec(entry)?.[1] || '').trim();
+const isYouTubePayload = payload => Array.isArray(payload?.videos) && payload.videos.length > 0;
+async function cachedYouTubeVideos() {
+  try {
+    const payload = JSON.parse(await readFile(youtubeCacheFile, 'utf8'));
+    return isYouTubePayload(payload) ? payload : null;
+  } catch {
+    return null;
+  }
+}
 async function latestYouTubeVideos() {
   if (youtubeCache.payload && Date.now() < youtubeCache.expiresAt) return youtubeCache.payload;
   try {
-    const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`, { headers: { 'user-agent': 'Si-Ware Intranet video feed' }, signal: AbortSignal.timeout(8000) });
+    const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`, { headers: { accept: 'application/atom+xml,application/xml;q=0.9,*/*;q=0.8', 'user-agent': 'Mozilla/5.0 (compatible; Si-Ware Intranet video feed)' }, signal: AbortSignal.timeout(12000) });
     if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
     const xml = await response.text();
     const videos = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].slice(0, 3).map(([, entry]) => {
@@ -30,9 +40,15 @@ async function latestYouTubeVideos() {
     if (!videos.length) throw new Error('No videos in YouTube feed');
     const payload = { channelUrl: youtubeChannelUrl, videos, updatedAt: new Date().toISOString() };
     youtubeCache = { payload, expiresAt: Date.now() + 15 * 60 * 1000 };
+    await writeFile(youtubeCacheFile, JSON.stringify(payload, null, 2));
     return payload;
   } catch {
     if (youtubeCache.payload) return youtubeCache.payload;
+    const cached = await cachedYouTubeVideos();
+    if (cached) {
+      youtubeCache = { payload: cached, expiresAt: Date.now() + 60 * 1000 };
+      return { ...cached, stale: true };
+    }
     return { channelUrl: youtubeChannelUrl, videos: [], unavailable: true };
   }
 }

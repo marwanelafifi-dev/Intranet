@@ -1,6 +1,6 @@
 {
   "user": { "name": "Mariam Nasser", "role": "ADMIN", "title": "Product Operations" },
-  "settings": { "theme": "light", "layout": ["announcements", "new-members", "knowledge", "news", "moments", "social", "events"], "hiddenWidgets": [] },
+  "settings": { "theme": "light", "layout": ["announcements", "new-members", "new-warians", "social", "news", "moments", "knowledge", "events", "whistleblower"], "layoutVersion": "structured-v5", "hiddenWidgets": [] },
   "newMembers": [
     { "id": "member-001", "name": "Nour El-Sayed", "role": "Product Marketing Specialist", "team": "Growth", "directManager": "Hala Mostafa", "joined": "October 2026", "message": "Joining the Growth team to help bring Si-Ware stories and solutions to more people.", "initials": "NE", "color": "#dceeff" },
     { "id": "member-002", "name": "Adam Farouk", "role": "Embedded Software Engineer", "team": "R&D", "directManager": "Mostafa Selim", "joined": "October 2026", "message": "Joining R&D to build reliable embedded experiences for next-generation products.", "initials": "AF", "color": "#e7e4ff" },

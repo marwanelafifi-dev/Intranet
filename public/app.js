@@ -26,8 +26,8 @@ const policyIndex = [
   { title: 'Attendance & Leave policy', detail: 'Time logging, leave requests and flexible work.', href: '/new-hires.html#policies' },
   { title: 'Health & Safety policy', detail: 'Safe workplaces, labs and ways of working.', href: '/new-hires.html#policies' }
 ];
-const dashboardLayout = ['announcements', 'new-members', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
-const dashboardLayoutVersion = 'structured-v4';
+const dashboardLayout = ['announcements', 'new-members', 'new-warians', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+const dashboardLayoutVersion = 'structured-v5';
 function normalizeState(data) {
   data.newMembers ??= [];
   data.policies ??= policyIndex.map((policy, index) => ({ id: `fallback-policy-${index}`, summary: policy.detail, canonicalUrl: policy.href, ...policy }));
@@ -95,15 +95,18 @@ async function renderYouTubeVideos() {
   try {
     const response = await fetch('/api/youtube/latest');
     if (!response.ok) throw new Error('Latest videos are unavailable');
-    const { videos = [], unavailable } = await response.json();
+    const { videos = [], unavailable, stale } = await response.json();
     if (unavailable || !videos.length) throw new Error('Latest videos are unavailable');
-    container.innerHTML = videos.map(video => `<a class="youtube-video" href="${escapeHtml(video.watchUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Watch ${escapeHtml(video.title)}" title="${escapeHtml(video.title)}"><img src="${escapeHtml(video.thumbnailUrl)}" alt="Thumbnail for ${escapeHtml(video.title)}" loading="lazy" /><span><b>${escapeHtml(video.title)}</b><small>${escapeHtml(displayYouTubeDate(video.published))}</small></span></a>`).join('');
+    container.innerHTML = `${videos.slice(0, 3).map(video => `<a class="youtube-video" href="${escapeHtml(video.watchUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Watch ${escapeHtml(video.title)}" title="${escapeHtml(video.title)}"><img src="${escapeHtml(video.thumbnailUrl)}" alt="Thumbnail for ${escapeHtml(video.title)}" loading="lazy" /><span><b>${escapeHtml(video.title)}</b><small>${escapeHtml(displayYouTubeDate(video.published))}</small></span></a>`).join('')}${stale ? '<p class="youtube-feed-status">Showing the last saved channel updates while YouTube reconnects.</p>' : ''}`;
   } catch {
     container.innerHTML = '<p class="youtube-feed-status">Latest videos are temporarily unavailable. Visit the channel to watch Si-Ware’s newest uploads.</p>';
   }
 }
 function renderEvents() { $('#event-list').innerHTML = state.events.map(item => `<article class="event"><div class="date-block"><b>${item.day}</b><small>${item.month}</small></div><div><p>${escapeHtml(item.title)}</p><span>${escapeHtml(item.time)} · ${escapeHtml(item.type)}</span></div></article>`).join(''); }
 function renderNewMembers() {
+  $('#new-members-title').textContent = 'Recently Joined';
+  $('.new-members-widget .widget-intro').textContent = 'Meet the newest colleagues who recently joined our company.';
+  $('.new-members-widget .plain-button').setAttribute('href', '/recently-joined.html');
   const members = state.newMembers.slice(0, 2);
   $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small><span>${escapeHtml(member.team)} · Joined ${escapeHtml(member.joined)}</span><span class="direct-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
 }
@@ -123,7 +126,7 @@ function searchResults(query) {
     ...collect(state.forms, 'Form', item => item.title, item => item.detail, item => item.url),
     ...collect(state.faqs, 'FAQ', item => item.title, item => item.detail, item => item.url),
     ...collect(state.serviceRequests, 'Service request', item => item.title, item => item.detail, item => item.url),
-    ...collect(state.newMembers, 'New member', item => item.name, item => `${item.role} ${item.team} ${item.directManager}`, () => '/new-hires.html#new-members'),
+    ...collect(state.newMembers, 'New member', item => item.name, item => `${item.role} ${item.team} ${item.directManager}`, () => '/recently-joined.html'),
     ...collect(state.sessions, 'Knowledge', item => item.title, item => `${item.category} ${item.presenter.name}`, () => '/#knowledge'),
     ...collect(state.apps, 'App', item => item.name, item => item.caption, item => item.url)
   ].slice(0, 10);
@@ -134,7 +137,7 @@ function renderGlobalResults() {
   container.innerHTML = results.length ? results.map(item => `<a class="search-result" href="${escapeHtml(item.href)}" ${item.external ? 'target="_blank" rel="noreferrer"' : ''} role="option"><span class="search-result-icon">${item.icon}</span><span class="search-result-copy"><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.detail)}</small></span><span class="search-result-type">${item.type}</span></a>`).join('') : '<p class="search-empty">No results yet. Try a policy, person, session or app name.</p>';
 }
 function renderLayoutList() {
-  const labels = { announcements:'Hero & announcements', 'new-members':'New Si-Warians!', news:'Industry pulse', knowledge:'Knowledge Hub sessions', whistleblower:'Whistleblower', moments:'Moments gallery', social:'Company channels', events:'Calendar & key dates' };
+  const labels = { announcements:'Hero & announcements', 'new-members':'Recently Joined', 'new-warians':'New Si-Warians!', news:'Industry pulse', knowledge:'Knowledge Hub sessions', whistleblower:'Whistleblower', moments:'Moments gallery', social:'Company channels', events:'Calendar & key dates' };
   $('#layout-list').innerHTML = state.settings.layout.map(key => `<div class="layout-row" draggable="true" data-widget-key="${key}"><span class="drag" title="Drag to reorder">⠿</span><b>${labels[key]}</b><label><input type="checkbox" ${!state.settings.hiddenWidgets.includes(key) ? 'checked' : ''}> Visible</label></div>`).join('');
   installLayoutDrag();
 }
@@ -242,5 +245,5 @@ function setupEvents() {
   $('#gallery-next').addEventListener('click', () => { state.moments.push(state.moments.shift()); renderMoments(); acknowledgeContentChange($('#moments-grid')); });
   [['#view-gallery','Gallery opening soon'],['#calendar-button','Calendar integration coming soon']].forEach(([selector, message]) => $(selector).addEventListener('click', event => { event.preventDefault(); showToast(message); }));
 }
-async function initialize() { try { state = normalizeState(await request('/api/dashboard')); placeCmsToggleInHeader(); renderAll(); setupEvents(); setupExploreNudge(); renderYouTubeVideos(); } catch (error) { document.body.innerHTML = `<main style="max-width:600px;margin:10vh auto;font-family:system-ui"><h1>Intranet unavailable</h1><p>${escapeHtml(error.message)}</p><button type="button" onclick="location.reload()">Try again</button><p>Start the local container with <code>docker compose up --build</code>.</p></main>`; } }
+async function initialize() { try { state = normalizeState(await request('/api/dashboard')); placeCmsToggleInHeader(); renderAll(); [['#facebook-link', 'Facebook'], ['#linkedin-link', 'LinkedIn']].forEach(([selector, network]) => { const link = $(selector); if (link) { link.innerHTML = 'Visit Page <span>↗</span>'; link.setAttribute('aria-label', `Visit Si-Ware ${network} page`); } }); setupEvents(); setupExploreNudge(); renderYouTubeVideos(); } catch (error) { document.body.innerHTML = `<main style="max-width:600px;margin:10vh auto;font-family:system-ui"><h1>Intranet unavailable</h1><p>${escapeHtml(error.message)}</p><button type="button" onclick="location.reload()">Try again</button><p>Start the local container with <code>docker compose up --build</code>.</p></main>`; } }
 initialize();

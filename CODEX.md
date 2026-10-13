@@ -64,6 +64,13 @@ The YouTube widget requests the official public channel RSS feed through `/api/y
 
 The Facebook and LinkedIn cards now use intranet-owned, English social summaries with one keyboard-accessible scrollbar each, preserving the four-card dashboard row. This replaces third-party embedded social chrome, which could force Arabic locale controls and a second scrollbar. Both feeds show a date on every summary; each Facebook item opens the official Facebook page, while LinkedIn’s three verified public updates (Global Innovation Index recognition, WIPO panel, and Material Perception for Physical AI) retain direct links to their official full posts. At wide desktop sizes, the redundant New Si-Warians introduction is hidden and all three YouTube entries use a one-line, keyboard-accessible preview, allowing the complete four-card row to fit in the initial viewport.
 
+## Recent dashboard changes
+
+- The dashboard separates `Recently Joined` from `New Si-Warians!`. Recently Joined shows the latest colleagues and links to the dedicated `/recently-joined.html` directory.
+- The New Si-Warians! dashboard widget and `/new-hires.html` contain onboarding guidance, first-week actions, essential policies, everyday tools and support. They no longer include the recent-people directory.
+- The default dashboard layout is versioned as `structured-v5`: hero beside Recently Joined, then New Si-Warians! guidance, company channels and Industry Pulse, Moments, Knowledge Hub, Events and Employee Voice.
+- `/api/youtube/latest` renders the latest three channel videos. Successful payloads are cached for 15 minutes and persisted in `data/youtube-latest.json`; when YouTube is unreachable, the saved payload is displayed with a reconnecting notice.
+
 ## Production follow-up
 
 - Replace demo roles with Azure AD or Google Workspace SSO and real server-side RBAC.
