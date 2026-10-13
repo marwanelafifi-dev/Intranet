@@ -1,0 +1,1 @@
+.policy-document-search{display:inline-flex;align-items:center;gap:8px}.policy-search-count{display:inline-flex;align-items:center;min-width:38px;color:var(--ink);font:11px Manrope;font-weight:800;pointer-events:none}.policy-document-search:has(.policy-search-count) input{padding-right:11px}

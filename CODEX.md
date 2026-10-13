@@ -33,7 +33,7 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 - Policy governance records with `owner`, `reviewDate`, `audience`, `version`, and `canonicalUrl` fields.
 - Shareable New Si-Warians! page at `/new-hires.html` with first-week guidance and policy content.
 - Whistleblower guidance page at `/whistleblower.html`, linked directly below Knowledge Hub sessions. Its instructions are aligned to the single Employee Voice reporting method: select “Start a confidential report” beside “Ready to start?”, describe the concern in the in-page agent, and follow its guided conversation. The local prototype does not store reports.
-- Demo Admin CMS for dashboard layout, shortcuts, announcements and Knowledge Hub publishing. API support also exists for publishing governed policy records.
+- Administration workspace for dashboard layout, Quick Launch shortcuts, announcements, Knowledge Hub sessions, governed policy records and Recently Joined people. Each area supports GUI add/edit/remove workflows, with confirmations for removal and a dashboard-layout reset.
 - Demo role switching; server-side demo admin checks for write endpoints.
 - Accessibility improvements: skip link, labelled controls, keyboard search shortcut, dialog semantics, reduced-motion support, contrast and readable-text refinements.
 
@@ -67,9 +67,20 @@ The Facebook and LinkedIn cards now use intranet-owned, English social summaries
 ## Recent dashboard changes
 
 - The dashboard separates `Recently Joined` from `New Si-Warians!`. Recently Joined shows the latest colleagues and links to the dedicated `/recently-joined.html` directory.
+- Recently Joined records support four employment segments (`Full Time`, `Part Time`, `Summer Intern`, `Graduate Intern`) plus Department and Division metadata. The dedicated directory exposes filters for all three dimensions, and the Admin CMS captures them for each new colleague.
 - The New Si-Warians! dashboard widget and `/new-hires.html` contain onboarding guidance, first-week actions, essential policies, everyday tools and support. They no longer include the recent-people directory.
 - The default dashboard layout is versioned as `structured-v5`: hero beside Recently Joined, then New Si-Warians! guidance, company channels and Industry Pulse, Moments, Knowledge Hub, Events and Employee Voice.
 - `/api/youtube/latest` renders the latest three channel videos. Successful payloads are cached for 15 minutes and persisted in `data/youtube-latest.json`; when YouTube is unreachable, the saved payload is displayed with a reconnecting notice.
+
+## Policy documents, onboarding and administration
+
+- The Administration workspace is a full-width modal workspace with Overview, Content, People, Layout and Apps tabs. It provides GUI management for announcements, Knowledge Hub sessions, policies, Recently Joined records, Quick Launch shortcuts and onboarding support portals.
+- Policy PDFs are uploaded through the Content > Policies form, stored under `/uploads/`, and rendered in an in-app full-screen document viewer. Employees can View or Download an approved PDF from the Essential policies cards; the Policy register remains informational.
+- The document viewer uses Poppler (`pdfinfo`, `pdftotext` and `pdftoppm`) to render pages and provide document search. Search shows a precise occurrence count, highlights every matching word, moves to the next match with Enter, and marks the active occurrence.
+- Global search includes matching policy document pages in addition to the existing intranet content. The server exposes `/api/documents/search`, `/api/documents/highlights` and `/api/documents/page` for the viewer and search experience.
+- Policy register metadata shows the PDF’s actual last-uploaded modified timestamp in the Cairo time zone. The timestamp is derived from the uploaded file rather than entered manually; policies without an uploaded PDF show `No file uploaded`.
+- The onboarding Need help? directory has consistent routes for IT Support, People & HR, Administration and Finance. It links to the appropriate Company Portal, SolarWinds Service Desk or MOHR route, and exposes the approved IT and People Team email contacts.
+- `supportPortals` defines the three employee destinations: Company Portal (Administration, Finance & People Team), SolarWinds Service Desk (IT Support), and MOHR (Payslips & HR topics). Administrators configure each portal’s name, description, safe destination link and SVG icon through Administration > Apps; an unconfigured portal displays `Link coming soon` to employees.
 
 ## Production follow-up
 

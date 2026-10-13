@@ -1,11 +1,16 @@
 {
   "user": { "name": "Mariam Nasser", "role": "ADMIN", "title": "Product Operations" },
   "settings": { "theme": "light", "layout": ["announcements", "new-members", "new-warians", "social", "news", "moments", "knowledge", "events", "whistleblower"], "layoutVersion": "structured-v5", "hiddenWidgets": [] },
+  "supportPortals": [
+    { "id": "portal-company", "name": "Company Portal", "description": "Administration, Finance & People Team", "url": "", "icon": "building" },
+    { "id": "portal-service-desk", "name": "SolarWinds Service Desk", "description": "IT Support", "url": "", "icon": "support" },
+    { "id": "portal-mohr", "name": "MOHR", "description": "Payslips & HR topics", "url": "", "icon": "payroll" }
+  ],
   "newMembers": [
-    { "id": "member-001", "name": "Nour El-Sayed", "role": "Product Marketing Specialist", "team": "Growth", "directManager": "Hala Mostafa", "joined": "October 2026", "message": "Joining the Growth team to help bring Si-Ware stories and solutions to more people.", "initials": "NE", "color": "#dceeff" },
-    { "id": "member-002", "name": "Adam Farouk", "role": "Embedded Software Engineer", "team": "R&D", "directManager": "Mostafa Selim", "joined": "October 2026", "message": "Joining R&D to build reliable embedded experiences for next-generation products.", "initials": "AF", "color": "#e7e4ff" },
-    { "id": "member-003", "name": "Salma Hassan", "role": "People Operations Partner", "team": "People Operations", "directManager": "Rana Maher", "joined": "September 2026", "message": "Joining People Operations to support a thoughtful employee experience across Si-Ware.", "initials": "SH", "color": "#dcf5ed" },
-    { "id": "member-004", "name": "Karim Nabil", "role": "Applications Scientist", "team": "NeoSpectra Solutions", "directManager": "Mohamed Fawzy", "joined": "September 2026", "message": "Joining the applications team to turn material insight into customer impact.", "initials": "KN", "color": "#fff0da" }
+    { "id": "member-001", "name": "Nour El-Sayed", "role": "Product Marketing Specialist", "team": "Growth", "department": "Product Marketing", "division": "Growth", "employmentType": "Full Time", "directManager": "Hala Mostafa", "joined": "October 2026", "message": "Joining the Growth team to help bring Si-Ware stories and solutions to more people.", "initials": "NE", "color": "#dceeff" },
+    { "id": "member-002", "name": "Adam Farouk", "role": "Embedded Software Engineer", "team": "R&D", "department": "Embedded Software", "division": "R&D", "employmentType": "Full Time", "directManager": "Mostafa Selim", "joined": "October 2026", "message": "Joining R&D to build reliable embedded experiences for next-generation products.", "initials": "AF", "color": "#e7e4ff" },
+    { "id": "member-003", "name": "Salma Hassan", "role": "People Operations Partner", "team": "People Operations", "department": "People Operations", "division": "People Operations", "employmentType": "Full Time", "directManager": "Rana Maher", "joined": "September 2026", "message": "Joining People Operations to support a thoughtful employee experience across Si-Ware.", "initials": "SH", "color": "#dcf5ed" },
+    { "id": "member-004", "name": "Karim Nabil", "role": "Applications Scientist", "team": "NeoSpectra Solutions", "department": "Applications", "division": "NeoSpectra Solutions", "employmentType": "Full Time", "directManager": "Mohamed Fawzy", "joined": "September 2026", "message": "Joining the applications team to turn material insight into customer impact.", "initials": "KN", "color": "#fff0da" }
   ],
   "policies": [
     { "id": "pol-001", "title": "Code of Conduct", "summary": "How we work with integrity, respect and accountability.", "owner": "People Operations", "reviewDate": "2027-01-15", "audience": "All employees", "version": "v3.2", "canonicalUrl": "/new-hires.html#policies", "category": "Workplace" },

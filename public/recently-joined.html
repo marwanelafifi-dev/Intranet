@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/accessibility-pass.css" />
     <link rel="stylesheet" href="/policy-governance.css" />
     <link rel="stylesheet" href="/new-members.css" />
+    <link rel="stylesheet" href="/recently-joined.css" />
     <link rel="stylesheet" href="/resilience.css" />
     <link rel="stylesheet" href="/professional-polish.css" />
     <link rel="stylesheet" href="/professional-corrections.css" />
@@ -44,12 +45,18 @@
           <article class="policy-card" id="recently-joined">
             <h2>Recently Joined</h2>
             <p>Meet the colleagues who recently joined our company.</p>
+            <div class="member-filter-bar" role="group" aria-label="Filter recently joined colleagues">
+              <label>Employment type<select id="member-type-filter"></select></label>
+              <label>Department<select id="member-department-filter"></select></label>
+              <label>Division<select id="member-division-filter"></select></label>
+              <span id="member-result-count" class="member-result-count" role="status"></span>
+            </div>
             <div id="all-new-members" class="all-new-members" aria-live="polite"></div>
           </article>
         </div>
       </section>
       <footer class="policy-footer"><span>Si-Ware Systems · Recently Joined</span><a href="/new-hires.html">New Si-Warians guidance</a></footer>
     </main>
-    <script type="module" src="/policies.js"></script>
+    <script type="module" src="/recently-joined.js"></script>
   </body>
 </html>

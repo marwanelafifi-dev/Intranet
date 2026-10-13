@@ -12,6 +12,10 @@
     <link rel="stylesheet" href="/brand-assets.css" />
     <link rel="stylesheet" href="/accessibility-pass.css" />
     <link rel="stylesheet" href="/policy-governance.css" />
+    <link rel="stylesheet" href="/policy-viewer.css" />
+    <link rel="stylesheet" href="/policy-search-count.css" />
+    <link rel="stylesheet" href="/policy-page-render.css" />
+    <link rel="stylesheet" href="/support-portals.css" />
     <link rel="stylesheet" href="/resilience.css" />
     <link rel="stylesheet" href="/professional-polish.css" />
     <link rel="stylesheet" href="/professional-corrections.css" />
@@ -59,10 +63,10 @@
             <h2>Essential policies</h2>
             <p>These are the policies every colleague should know from day one. Links are ready to connect to your approved document repository.</p>
             <div class="policy-grid">
-              <a class="policy-link-card" href="#"><b>Code of Conduct</b><small>How we work with integrity and respect.</small></a>
-              <a class="policy-link-card" href="#"><b>Information Security</b><small>Protecting our people, research and customers.</small></a>
-              <a class="policy-link-card" href="#"><b>Attendance &amp; Leave</b><small>Time logging, leave requests and flexible work.</small></a>
-              <a class="policy-link-card" href="#"><b>Health &amp; Safety</b><small>Keeping our workplaces and labs safe.</small></a>
+              <article class="policy-link-card"><b>Code of Conduct</b><small>How we work with integrity and respect.</small></article>
+              <article class="policy-link-card"><b>Information Security</b><small>Protecting our people, research and customers.</small></article>
+              <article class="policy-link-card"><b>Attendance &amp; Leave</b><small>Time logging, leave requests and flexible work.</small></article>
+              <article class="policy-link-card"><b>Health &amp; Safety</b><small>Keeping our workplaces and labs safe.</small></article>
             </div>
           </article>
           <article class="policy-card" id="tools">
@@ -75,12 +79,15 @@
           </article>
           <article class="policy-card" id="help">
             <h2>Need help?</h2>
-            <div class="policy-callout"><span aria-hidden="true">?</span><div><b>Start with your manager or People Operations.</b><br />For access or equipment, submit a request through the IT Support Desk. For HR topics, use MOHR or contact People Operations.</div></div>
+            <p class="policy-help-intro">Start with the route that best matches your request. If you are unsure where to go, your manager or the People Team can help you find the right owner.</p>
+            <dl class="help-directory" aria-label="Support contacts and routes"><div><dt>IT Support</dt><dd>For access, equipment or a system issue, use the <a href="#company-portals">SolarWinds Service Desk</a> or email the IT Team at <a href="mailto:ithelpdesk@si-ware.com">ithelpdesk@si-ware.com</a>.</dd></div><div><dt>People &amp; HR</dt><dd>For payslips and leave, use <a href="#company-portals">MOHR</a>. For other HR requests, use the <a href="#company-portals">Company Portal</a> or contact the People Team at <a href="mailto:human.resources@si-ware.com">human.resources@si-ware.com</a>.</dd></div><div><dt>Administration</dt><dd>Use the <a href="#company-portals">Company Portal</a> for Administration Team requests.</dd></div><div><dt>Finance</dt><dd>Use the <a href="#company-portals">Company Portal</a> for Finance Team requests.</dd></div></dl>
+            <section class="company-portals" aria-labelledby="company-portals-title"><div><h3 id="company-portals-title">Company portals</h3><p>Quick routes to the teams and services you will use most often.</p></div><div class="company-portals-grid" id="company-portals" aria-live="polite"></div></section>
           </article>
         </div>
       </section>
       <footer class="policy-footer"><span>Si-Ware Systems &middot; New Si-Warians!</span><span>Owner: People Operations &middot; Review quarterly</span></footer>
     </main>
+    <dialog class="policy-viewer" id="policy-viewer" aria-labelledby="policy-viewer-title"><div class="policy-viewer-head"><div><h2 id="policy-viewer-title">Policy document</h2><p id="policy-viewer-description">Review the current approved policy.</p></div><div class="policy-viewer-controls"><label class="policy-document-search"><span class="sr-only">Search this document</span><input id="policy-viewer-find" type="search" minlength="2" placeholder="Search this document" autocomplete="off" /></label><button type="button" class="icon-button" id="policy-viewer-close" aria-label="Close policy document">×</button></div></div><div class="policy-search-results" id="policy-search-results" hidden aria-live="polite"></div><div id="policy-viewer-frame" class="policy-rendered-page" role="region" aria-label="Policy document page"></div><a id="policy-viewer-open" class="policy-viewer-open" target="_blank" rel="noopener noreferrer">Open in a new tab</a></dialog>
     <script type="module" src="/policies.js"></script>
   </body>
 </html>

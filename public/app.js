@@ -1,7 +1,7 @@
 const $ = (selector, parent = document) => parent.querySelector(selector);
 const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
 const icon = { mail:'✉', check:'✓', folder:'▰', life:'⌁', people:'♙', phone:'⌕', tree:'⌘', clock:'◷', cube:'◇', chart:'◫', spark:'✦', bot:'◉' };
-let state, activeTag = 'All', publishType = 'announcement';
+let state, activeTag = 'All', publishType = 'announcement', activeContentType = 'announcement', editingContentId = null, editingMemberId = null, editingAppId = null, editingPortalId = null;
 function appIcon(name) {
   const paths = {
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
@@ -15,7 +15,10 @@ function appIcon(name) {
     cube: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/>',
     chart: '<path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 5-6"/>',
     spark: '<path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7Z"/><path d="m19 16 .6 1.4L21 18l-1.4.6L19 20l-.6-1.4L17 18l1.4-.6Z"/>',
-    bot: '<rect x="4" y="7" width="16" height="12" rx="4"/><path d="M12 4v3M8 13h.01M16 13h.01M9 17h6"/>'
+    bot: '<rect x="4" y="7" width="16" height="12" rx="4"/><path d="M12 4v3M8 13h.01M16 13h.01M9 17h6"/>',
+    building: '<path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M2 21h20M8 7h2M12 7h2M8 11h2M12 11h2M8 15h2M12 15h2M17 9h3v12M17 13h3"/>',
+    support: '<path d="M4 13v-1a8 8 0 0 1 16 0v1M4 13h3v5H5a1 1 0 0 1-1-1v-4ZM20 13h-3v5h2a1 1 0 0 0 1-1v-4ZM17 20c-1 1-2.7 1.5-5 1.5"/>',
+    payroll: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4M15 15h2"/>'
   };
   return `<svg class="portal-svg" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.spark}</svg>`;
 }
@@ -28,10 +31,19 @@ const policyIndex = [
 ];
 const dashboardLayout = ['announcements', 'new-members', 'new-warians', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
 const dashboardLayoutVersion = 'structured-v5';
+const memberEmploymentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
+const supportPortalDefaults = [
+  { id: 'portal-company', name: 'Company Portal', description: 'Administration, Finance & People Team', url: '', icon: 'building' },
+  { id: 'portal-service-desk', name: 'SolarWinds Service Desk', description: 'IT Support', url: '', icon: 'support' },
+  { id: 'portal-mohr', name: 'MOHR', description: 'Payslips & HR topics', url: '', icon: 'payroll' }
+];
+const displayTimestamp = value => value ? new Intl.DateTimeFormat('en', { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'Africa/Cairo' }).format(new Date(value)) : 'No file uploaded';
 function normalizeState(data) {
   data.newMembers ??= [];
+  data.newMembers = data.newMembers.map(member => ({ ...member, employmentType: memberEmploymentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time', department: member.department || member.team || 'To be confirmed', division: member.division || member.team || 'To be confirmed' }));
   data.policies ??= policyIndex.map((policy, index) => ({ id: `fallback-policy-${index}`, summary: policy.detail, canonicalUrl: policy.href, ...policy }));
   data.people ??= []; data.forms ??= []; data.faqs ??= []; data.serviceRequests ??= [];
+  data.supportPortals ??= supportPortalDefaults.map(portal => ({ ...portal }));
   data.settings ??= { hiddenWidgets: [], layout: dashboardLayout };
   data.settings.hiddenWidgets ??= [];
   if (data.settings.layout?.includes('actions')) data.settings.layout = data.settings.layout.map(item => item === 'actions' ? 'new-members' : item);
@@ -68,6 +80,7 @@ function renderAnnouncement() {
 function renderVectorIcons() {
   $$('#app-grid .app-icon').forEach((element, index) => { element.innerHTML = appIcon(state.apps[index]?.icon); });
   $$('#app-manager .manager-row .app-icon').forEach((element, index) => { element.innerHTML = appIcon(state.apps[index]?.icon); });
+  $$('#portal-manager .manager-row .app-icon').forEach((element, index) => { element.innerHTML = appIcon(state.supportPortals[index]?.icon); });
 }
 function renderNews() {
   const selector = $('#feed-selector');
@@ -108,7 +121,7 @@ function renderNewMembers() {
   $('.new-members-widget .widget-intro').textContent = 'Meet the newest colleagues who recently joined our company.';
   $('.new-members-widget .plain-button').setAttribute('href', '/recently-joined.html');
   const members = state.newMembers.slice(0, 2);
-  $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small><span>${escapeHtml(member.team)} · Joined ${escapeHtml(member.joined)}</span><span class="direct-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
+  $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small><span>${escapeHtml(member.employmentType || 'Full Time')} · Joined ${escapeHtml(member.joined)}</span><span class="member-org">${escapeHtml(member.department || member.team)} · ${escapeHtml(member.division || member.team)}</span><span class="direct-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
 }
 function renderProfile() {
   $('#profile-name').textContent = state.user.name.split(' ')[0]; $('#profile-role').textContent = state.user.title;
@@ -126,14 +139,16 @@ function searchResults(query) {
     ...collect(state.forms, 'Form', item => item.title, item => item.detail, item => item.url),
     ...collect(state.faqs, 'FAQ', item => item.title, item => item.detail, item => item.url),
     ...collect(state.serviceRequests, 'Service request', item => item.title, item => item.detail, item => item.url),
-    ...collect(state.newMembers, 'New member', item => item.name, item => `${item.role} ${item.team} ${item.directManager}`, () => '/recently-joined.html'),
+    ...collect(state.newMembers, 'New member', item => item.name, item => `${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'),
     ...collect(state.sessions, 'Knowledge', item => item.title, item => `${item.category} ${item.presenter.name}`, () => '/#knowledge'),
+    ...collect(state.supportPortals, 'Company portal', item => item.name, item => item.description, item => item.url || '/new-hires.html#help'),
     ...collect(state.apps, 'App', item => item.name, item => item.caption, item => item.url)
   ].slice(0, 10);
 }
-function renderGlobalResults() {
-  const input = $('#global-search'), container = $('#global-results'), results = searchResults(input.value);
+async function renderGlobalResults() {
+  const input = $('#global-search'), container = $('#global-results'), query = input.value, results = searchResults(query);
   container.hidden = !input.value.trim();
+  if (query.trim().length >= 2) try { const remote = await request(`/api/search?q=${encodeURIComponent(query)}`); if (input.value !== query) return; remote.filter(item => item.type === 'Document').forEach(item => results.push({ ...item, icon:'search', external:false })); } catch { /* Local search remains available if document indexing is unavailable. */ }
   container.innerHTML = results.length ? results.map(item => `<a class="search-result" href="${escapeHtml(item.href)}" ${item.external ? 'target="_blank" rel="noreferrer"' : ''} role="option"><span class="search-result-icon">${item.icon}</span><span class="search-result-copy"><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.detail)}</small></span><span class="search-result-type">${item.type}</span></a>`).join('') : '<p class="search-empty">No results yet. Try a policy, person, session or app name.</p>';
 }
 function renderLayoutList() {
@@ -141,7 +156,17 @@ function renderLayoutList() {
   $('#layout-list').innerHTML = state.settings.layout.map(key => `<div class="layout-row" draggable="true" data-widget-key="${key}"><span class="drag" title="Drag to reorder">⠿</span><b>${labels[key]}</b><label><input type="checkbox" ${!state.settings.hiddenWidgets.includes(key) ? 'checked' : ''}> Visible</label></div>`).join('');
   installLayoutDrag();
 }
-function renderAppManager() { $('#app-manager').innerHTML = state.apps.map(app => `<div class="manager-row"><span class="app-icon" style="--app-color:${app.color}">${icon[app.icon] || '◈'}</span><b>${escapeHtml(app.name)}</b><button title="Remove ${escapeHtml(app.name)}" data-app-id="${app.id}">×</button></div>`).join(''); }
+function renderAppManager() { $('#app-manager').innerHTML = state.apps.map(app => `<article class="manager-row"><span class="app-icon" style="--app-color:${app.color}">${icon[app.icon] || '◈'}</span><span><b>${escapeHtml(app.name)}</b><small>${escapeHtml(app.caption)}</small></span><div class="record-actions"><button type="button" data-edit-app="${app.id}">Edit</button><button type="button" class="danger-action" data-remove-app="${app.id}">Remove</button></div></article>`).join(''); }
+function ensurePortalAdmin() {
+  const appsTab = $('#tab-apps');
+  if (!appsTab || $('#portal-manager')) return;
+  appsTab.insertAdjacentHTML('beforeend', '<h3 class="admin-subhead">Company portals</h3><p class="cms-intro">Set each portal’s link, supporting description, and icon for the New Si-Warians! help page.</p><div id="portal-manager" class="app-manager"></div><form id="portal-form" class="admin-form"></form>');
+}
+function renderPortalManager() {
+  const manager = $('#portal-manager');
+  if (!manager) return;
+  manager.innerHTML = state.supportPortals.map(portal => `<article class="manager-row"><span class="app-icon">${appIcon(portal.icon)}</span><span><b>${escapeHtml(portal.name)}</b><small>${escapeHtml(portal.url || 'Link not configured')}</small></span><div class="record-actions"><button type="button" data-edit-portal="${portal.id}">Edit</button></div></article>`).join('');
+}
 function applyLayout() {
   const defaultLayout = dashboardLayout.join(',');
   const dashboard = $('.dashboard');
@@ -152,7 +177,7 @@ function applyLayout() {
     widget.style.order = position < 0 ? 99 : position;
   });
 }
-function renderAll() { renderApps(); renderAnnouncement(); renderNewMembers(); renderNews(); renderTags(); renderSessions(); renderMoments(); renderEvents(); renderProfile(); renderLayoutList(); renderAppManager(); renderVectorIcons(); applyLayout(); }
+function renderAll() { ensurePortalAdmin(); renderApps(); renderAnnouncement(); renderNewMembers(); renderNews(); renderTags(); renderSessions(); renderMoments(); renderEvents(); renderProfile(); renderLayoutList(); renderAppManager(); renderPortalManager(); setupNewMemberAdmin(); renderVectorIcons(); applyLayout(); }
 
 function openMedia(session, kind) {
   $('#modal-title').textContent = session.title; $('#modal-type').textContent = kind === 'watch' ? 'KNOWLEDGE HUB · RECORDING' : 'KNOWLEDGE HUB · PRESENTATION DECK';
@@ -201,22 +226,53 @@ function installLayoutDrag() {
 async function saveDashboard(message) { state = await request('/api/dashboard', { method:'PATCH', body:JSON.stringify(state) }); renderAll(); showToast(message); }
 
 function readMemberPhoto(file) {
-  if (!file) return Promise.resolve('');
+  if (!file || !file.name) return Promise.resolve('');
   if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) return Promise.reject(new Error('Choose a PNG, JPEG, WebP or GIF image.'));
   if (file.size > 2 * 1024 * 1024) return Promise.reject(new Error('Photo must be no larger than 2 MB.'));
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The photo could not be read.')); reader.readAsDataURL(file); });
 }
-function setupNewMemberAdmin() {
-  if ($('#tab-new-members')) return;
-  const stylesheet = document.createElement('link'); stylesheet.rel = 'stylesheet'; stylesheet.href = '/member-admin.css'; document.head.append(stylesheet);
-  const tab = document.createElement('button'); tab.dataset.tab = 'new-members'; tab.textContent = 'New members'; $('.cms-tabs').append(tab);
-  const panel = document.createElement('section'); panel.className = 'cms-tab'; panel.id = 'tab-new-members';
-  panel.innerHTML = `<p class="member-admin-intro">Publish a welcome announcement for a colleague who recently joined Si-Ware.</p><form id="new-member-form" class="member-admin-form"><label>Full name<input name="name" required maxlength="80" placeholder="Employee name" /></label><label>Role<input name="role" required maxlength="100" placeholder="Job title" /></label><label>Team<input name="team" required maxlength="80" placeholder="Department or team" /></label><label>Direct Manager<input name="directManager" required maxlength="80" placeholder="Manager name" /></label><label>Joined<input name="joined" required maxlength="30" placeholder="e.g. October 2026" /></label><label>Welcome message<textarea name="message" rows="3" maxlength="240" placeholder="Optional welcome note"></textarea></label><div class="photo-upload-row"><img class="member-photo-preview" id="member-photo-preview" src="/Icon.png" alt="Photo preview" hidden /><label>Employee photo<input name="photo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><small class="upload-help">Optional. PNG, JPEG, WebP or GIF, up to 2 MB.</small></label></div><button class="primary-button full" type="submit">Publish welcome</button><p class="form-status" id="new-member-status" role="status"></p></form>`;
-  $('.cms-body').append(panel);
-  const form = $('#new-member-form'), photoInput = form.elements.photo, preview = $('#member-photo-preview'), status = $('#new-member-status');
-  photoInput.addEventListener('change', async () => { try { const photoData = await readMemberPhoto(photoInput.files[0]); preview.src = photoData; preview.hidden = !photoData; status.textContent = ''; } catch (error) { photoInput.value = ''; preview.hidden = true; status.textContent = error.message; } });
-  form.addEventListener('submit', async event => { event.preventDefault(); const formData = new FormData(form), submit = $('button[type="submit"]', form); status.textContent = ''; submit.disabled = true; try { const entry = await request('/api/new-members', { method:'POST', body:JSON.stringify({ name:formData.get('name'), role:formData.get('role'), team:formData.get('team'), directManager:formData.get('directManager'), joined:formData.get('joined'), message:formData.get('message'), photoData:await readMemberPhoto(photoInput.files[0]) }) }); state.newMembers.unshift(entry); form.reset(); preview.hidden = true; renderAll(); status.textContent = 'Welcome announcement published.'; showToast('New member published'); } catch (error) { status.textContent = error.message; } finally { submit.disabled = false; } });
+function readAdminFile(file, accepted, maxSize = 10 * 1024 * 1024) {
+  if (!file || !file.name) return Promise.resolve('');
+  if (!accepted.includes(file.type)) return Promise.reject(new Error('Choose a supported file type.'));
+  if (file.size > maxSize) return Promise.reject(new Error('File must be no larger than 10 MB.'));
+  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The file could not be read.')); reader.readAsDataURL(file); });
 }
+async function uploadAdminFile(file, accepted, maxSize) {
+  if (!file || !file.name) return '';
+  const dataUrl = await readAdminFile(file, accepted, maxSize);
+  return (await request('/api/uploads', { method:'POST', body:JSON.stringify({ dataUrl, filename:file.name }) })).url;
+}
+function renderAdminOverview() {
+  const visible = state.settings.layout.filter(key => !state.settings.hiddenWidgets.includes(key)).length;
+  $('#admin-overview').innerHTML = `<div class="admin-summary"><h3>Everything in one place</h3><p>Changes are saved immediately to the employee experience.</p><dl><div><dt>${state.announcements.length}</dt><dd>announcements</dd></div><div><dt>${state.newMembers.length}</dt><dd>recent joins</dd></div><div><dt>${visible}</dt><dd>visible sections</dd></div></dl></div><div class="admin-quick-actions"><button type="button" data-go-admin="content">Manage content</button><button type="button" data-go-admin="people">Update people</button><button type="button" data-go-admin="layout">Arrange dashboard</button><button type="button" data-go-admin="apps">Manage apps</button></div>`;
+}
+function renderContentManager() {
+  const config = activeContentType === 'announcement' ? { list:state.announcements, title:x => x.title, detail:x => x.date || 'No date' } : activeContentType === 'session' ? { list:state.sessions, title:x => x.title, detail:x => `${x.presenter?.name || 'Si-Ware team'} · ${x.category || 'General'}` } : { list:state.policies, title:x => x.title, detail:x => `${x.owner || 'No owner'} · ${x.version || 'Draft'}` };
+  $('#content-manager').innerHTML = config.list.length ? config.list.map(item => `<article class="record-row"><span><b>${escapeHtml(config.title(item))}</b><small>${escapeHtml(config.detail(item))}</small></span><div class="record-actions"><button type="button" data-edit-content="${item.id}">Edit</button><button type="button" class="danger-action" data-remove-content="${item.id}">Remove</button></div></article>`).join('') : '<p class="admin-empty">Nothing here yet. Use the form below to add the first record.</p>';
+  const item = editingContentId && config.list.find(entry => entry.id === editingContentId);
+  const button = item ? 'Save changes' : `Add ${activeContentType === 'session' ? 'session' : activeContentType}`;
+  const common = `<label>Title<input name="title" required maxlength="120" value="${escapeHtml(item?.title || '')}" placeholder="Clear, employee-facing title" /></label>`;
+  const fields = activeContentType === 'announcement' ? `${common}<label>Message<textarea name="body" rows="3" required maxlength="360" placeholder="What should employees know?">${escapeHtml(item?.body || '')}</textarea></label><label>Label<input name="tag" maxlength="40" value="${escapeHtml(item?.tag || 'Company update')}" /></label>` : activeContentType === 'session' ? `${common}<label>Presenter<input name="presenter" required maxlength="80" value="${escapeHtml(item?.presenter?.name || '')}" /></label><label>Category<select name="category">${['Photonics','Patents','MEMS','AI'].map(value => `<option ${item?.category === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${escapeHtml(item?.date || new Date().toISOString().slice(0,10))}" /></label><label>Summary<textarea name="outline" rows="3" maxlength="360">${escapeHtml(item?.outline || '')}</textarea></label><label>Presentation deck (PDF)<input name="attachment" type="file" accept="application/pdf" /><small>${item?.presentationDeckUrl ? 'A deck is already attached. Choose a new file to replace it.' : 'Optional PDF, up to 10 MB.'}</small></label>` : `${common}<label>Summary<textarea name="summary" rows="3" required maxlength="360">${escapeHtml(item?.summary || '')}</textarea></label><label>Owner<input name="owner" required maxlength="80" value="${escapeHtml(item?.owner || '')}" /></label><label>Audience<input name="audience" maxlength="120" value="${escapeHtml(item?.audience || 'All employees')}" /></label><label>Version<input name="version" maxlength="20" value="${escapeHtml(item?.version || 'v1.0')}" /></label><label>Modified timestamp<input value="${escapeHtml(displayTimestamp(item?.modifiedAt))}" readonly /><small>Set automatically when the policy PDF is uploaded or replaced.</small></label><label>Policy document (PDF)<input name="attachment" type="file" accept="application/pdf" /><small>${item?.canonicalUrl?.startsWith('/uploads/') ? 'A document is already attached. Choose a new file to replace it.' : 'Upload a PDF to make it available to employees, up to 10 MB.'}</small></label>`;
+  $('#content-form').innerHTML = `<h3>${item ? 'Edit record' : 'Add record'}</h3>${fields}<div class="admin-actions"><button type="button" class="secondary-button" data-cancel-content ${item ? '' : 'hidden'}>Cancel</button><button class="primary-button" type="submit">${button}</button></div><p class="form-status" role="status"></p>`;
+}
+function renderMemberManager() {
+  $('#member-manager').innerHTML = state.newMembers.length ? state.newMembers.map(member => `<article class="record-row"><span><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)} · ${escapeHtml(member.employmentType)}</small></span><div class="record-actions"><button type="button" data-edit-member="${member.id}">Edit</button><button type="button" class="danger-action" data-remove-member="${member.id}">Remove</button></div></article>`).join('') : '<p class="admin-empty">No recently joined colleagues yet.</p>';
+  const member = editingMemberId && state.newMembers.find(entry => entry.id === editingMemberId);
+  const text = (name, label, placeholder = '') => `<label>${label}<input name="${name}" required maxlength="100" value="${escapeHtml(member?.[name] || '')}" placeholder="${placeholder}" /></label>`;
+  $('#new-member-form').innerHTML = `<h3>${member ? 'Edit colleague' : 'Add colleague'}</h3><div class="admin-form-grid">${text('name','Full name','Employee name')}${text('role','Role','Job title')}<label>Employment type<select name="employmentType">${memberEmploymentTypes.map(value => `<option ${member?.employmentType === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>${text('team','Team','Team or squad')}${text('department','Department','Department')}${text('division','Division','Division')}${text('directManager','Direct manager','Manager name')}${text('joined','Joined','e.g. October 2026')}</div><label>Welcome message<textarea name="message" rows="3" maxlength="240" placeholder="Optional welcome note">${escapeHtml(member?.message || '')}</textarea></label><label>Employee photo<input name="photo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><small>${member?.photoUrl ? 'A photo is already attached. Choose a new image to replace it.' : 'Optional PNG, JPEG, WebP or GIF, up to 2 MB.'}</small></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-member ${member ? '' : 'hidden'}>Cancel</button><button class="primary-button" type="submit">${member ? 'Save colleague' : 'Add colleague'}</button></div><p class="form-status" role="status"></p>`;
+}
+function renderAppForm() {
+  const app = editingAppId && state.apps.find(entry => entry.id === editingAppId);
+  $('#app-form').innerHTML = `<h3>${app ? 'Edit shortcut' : 'Add shortcut'}</h3><label>Name<input name="name" required maxlength="40" value="${escapeHtml(app?.name || '')}" placeholder="Shortcut name" /></label><label>Description<input name="caption" required maxlength="80" value="${escapeHtml(app?.caption || '')}" placeholder="What it helps employees do" /></label><label>Destination<input name="url" required value="${escapeHtml(app?.url || '')}" placeholder="https:// or /internal-page" /></label><label>Accent colour<input name="color" type="color" value="${escapeHtml(app?.color || '#5964db')}" /></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-app ${app ? '' : 'hidden'}>Cancel</button><button class="primary-button" type="submit">${app ? 'Save shortcut' : 'Add shortcut'}</button></div><p class="form-status" role="status"></p>`;
+}
+function renderPortalForm() {
+  const portal = editingPortalId && state.supportPortals.find(entry => entry.id === editingPortalId);
+  const form = $('#portal-form');
+  if (!form) return;
+  const iconOptions = [['building', 'Company portal'], ['support', 'IT Support'], ['payroll', 'Payslips & HR']];
+  form.innerHTML = portal ? `<h3>Edit company portal</h3><div class="admin-form-grid"><label>Name<input name="name" required maxlength="60" value="${escapeHtml(portal.name)}" /></label><label>Icon<select name="icon">${iconOptions.map(([value, label]) => `<option value="${value}" ${portal.icon === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div><label>Description<input name="description" required maxlength="100" value="${escapeHtml(portal.description)}" placeholder="What employees can do here" /></label><label>Destination link<input name="url" inputmode="url" value="${escapeHtml(portal.url || '')}" placeholder="https://portal.example.com" /><small>Use https:// for an external portal or /page for an intranet route. Leave blank while the destination is being prepared.</small></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-portal>Cancel</button><button class="primary-button" type="submit">Save portal</button></div><p class="form-status" role="status"></p>` : '<p class="form-status">Select a company portal above to configure its destination and icon.</p>';
+}
+function setupNewMemberAdmin() { renderAdminOverview(); renderContentManager(); renderMemberManager(); renderAppForm(); renderPortalForm(); }
 
 function setupEvents() {
   $('#profile-button').addEventListener('click', () => { const menu = $('#profile-menu'); menu.hidden = !menu.hidden; $('#profile-button').setAttribute('aria-expanded', String(!menu.hidden)); });
@@ -229,13 +285,23 @@ function setupEvents() {
   $('#media-modal').addEventListener('click', event => { if (event.target === $('#media-modal')) $('#media-modal').close(); });
   $('#cms-toggle').addEventListener('click', openCMS); $('#cms-close').addEventListener('click', closeCMS);
   $('.cms-tabs').addEventListener('click', event => { if (event.target.dataset.tab) switchCmsTab(event.target.dataset.tab); });
-  setupNewMemberAdmin();
   $('#layout-list').addEventListener('change', event => { const row = event.target.closest('.layout-row'); const key = row.dataset.widgetKey; state.settings.hiddenWidgets = event.target.checked ? state.settings.hiddenWidgets.filter(x => x !== key) : [...new Set([...state.settings.hiddenWidgets, key])]; applyLayout(); });
   $('#save-layout').addEventListener('click', async () => { state.settings.layout = $$('#layout-list .layout-row').map(row => row.dataset.widgetKey); await saveDashboard('Dashboard layout saved'); });
-  $('#app-manager').addEventListener('click', async event => { const button = event.target.closest('button'); if (!button) return; state.apps = state.apps.filter(app => app.id !== button.dataset.appId); await saveDashboard('Shortcut removed'); });
-  $('#add-app').addEventListener('click', async () => { const name = window.prompt('Shortcut name'); const url = name && window.prompt('Target URL', 'https://'); if (!name || !url) return; state.apps.push({ id:`custom-${Date.now()}`, name, caption:'Custom shortcut', url, icon:'spark', color:'#5964db' }); await saveDashboard('Shortcut added'); });
-  $$('.publish-switch button').forEach(button => button.addEventListener('click', () => { publishType = button.dataset.publish; $$('.publish-switch button').forEach(x => x.classList.toggle('active', x === button)); $$('.announce-only').forEach(el => el.hidden = publishType !== 'announcement'); $$('.session-only').forEach(el => el.hidden = publishType !== 'session'); }));
-  $('#publisher-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget); const title = form.get('title'); const status = $('#form-status'); try { if (publishType === 'announcement') { const entry = await request('/api/announcements', { method:'POST', body:JSON.stringify({ title, body: form.get('body') || 'A new update is available.', tag:'Company update', date:'Just now', priority:'normal' }) }); state.announcements.unshift(entry); renderAnnouncement(); } else { const name = form.get('presenter') || 'Si-Ware team'; const entry = await request('/api/sessions', { method:'POST', body:JSON.stringify({ title, presenter:{name, initials:name.split(' ').map(x=>x[0]).join('').slice(0,2)}, category:form.get('category'), date:new Date().toISOString().slice(0,10), outline:'Newly published knowledge session.', presentationDeckUrl:'/docs/new-session.pdf', recordingUrl:'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' }) }); state.sessions.unshift(entry); renderTags(); renderSessions(); } event.currentTarget.reset(); status.textContent = 'Published and saved locally.'; showToast('Content published'); } catch (error) { status.textContent = error.message; } });
+  $('#reset-layout').addEventListener('click', () => { state.settings.layout = [...dashboardLayout]; state.settings.hiddenWidgets = []; renderLayoutList(); applyLayout(); showToast('Default layout restored. Save to publish it.'); });
+  $('#admin-overview').addEventListener('click', event => { const tab = event.target.dataset.goAdmin; if (tab) switchCmsTab(tab); });
+  $('.content-type-switch').addEventListener('click', event => { const type = event.target.dataset.contentType; if (!type) return; activeContentType = type; editingContentId = null; $$('.content-type-switch button').forEach(button => button.classList.toggle('active', button.dataset.contentType === type)); renderContentManager(); });
+  $('#content-manager').addEventListener('click', async event => { const edit = event.target.dataset.editContent, remove = event.target.dataset.removeContent; const key = activeContentType === 'announcement' ? 'announcements' : activeContentType === 'session' ? 'sessions' : 'policies'; if (edit) { editingContentId = edit; renderContentManager(); return; } if (remove && window.confirm('Remove this record? This cannot be undone from the administration panel.')) { state[key] = state[key].filter(item => item.id !== remove); await saveDashboard('Content removed'); } });
+  $('#content-form').addEventListener('click', event => { if (event.target.dataset.cancelContent !== undefined) { editingContentId = null; renderContentManager(); } });
+  $('#content-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget), key = activeContentType === 'announcement' ? 'announcements' : activeContentType === 'session' ? 'sessions' : 'policies'; const existing = editingContentId && state[key].find(item => item.id === editingContentId); const attachment = form.get('attachment'); let record; if (activeContentType === 'announcement') record = { ...(existing || { id:`announcement-${Date.now()}`, date:'Just now', priority:'normal' }), title:form.get('title'), body:form.get('body'), tag:form.get('tag') || 'Company update' }; else if (activeContentType === 'session') { const presenter = form.get('presenter'), deckUrl = await uploadAdminFile(attachment, ['application/pdf']); record = { ...(existing || { id:`session-${Date.now()}`, presentationDeckUrl:'/docs/new-session.pdf', recordingUrl:'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' }), title:form.get('title'), presenter:{ name:presenter, initials:presenter.split(' ').map(part => part[0]).join('').slice(0,2) }, category:form.get('category'), date:form.get('date'), outline:form.get('outline'), ...(deckUrl ? { presentationDeckUrl:deckUrl } : {}) }; } else { const policyUrl = await uploadAdminFile(attachment, ['application/pdf']); record = { ...(existing || { id:`policy-${Date.now()}`, canonicalUrl:'/new-hires.html#policies', category:'General' }), title:form.get('title'), summary:form.get('summary'), owner:form.get('owner'), audience:form.get('audience'), version:form.get('version'), ...(policyUrl ? { canonicalUrl:policyUrl } : {}) }; } if (existing) Object.assign(existing, record); else state[key].unshift(record); editingContentId = null; await saveDashboard(existing ? 'Content updated' : 'Content added'); });
+  $('#member-manager').addEventListener('click', async event => { const edit = event.target.dataset.editMember, remove = event.target.dataset.removeMember; if (edit) { editingMemberId = edit; renderMemberManager(); return; } if (remove && window.confirm('Remove this colleague from Recently Joined?')) { state.newMembers = state.newMembers.filter(member => member.id !== remove); await saveDashboard('Recently joined colleague removed'); } });
+  $('#new-member-form').addEventListener('click', event => { if (event.target.dataset.cancelMember !== undefined) { editingMemberId = null; renderMemberManager(); } });
+  $('#new-member-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget), existing = editingMemberId && state.newMembers.find(member => member.id === editingMemberId); const name = form.get('name'), photoUrl = await uploadAdminFile(form.get('photo'), ['image/png','image/jpeg','image/webp','image/gif'], 2 * 1024 * 1024); const record = { ...(existing || { id:`member-${Date.now()}`, initials:name.split(' ').map(part => part[0]).join('').slice(0,2), color:'#dceeff' }), name, role:form.get('role'), employmentType:form.get('employmentType'), team:form.get('team'), department:form.get('department'), division:form.get('division'), directManager:form.get('directManager'), joined:form.get('joined'), message:form.get('message'), ...(photoUrl ? { photoUrl } : {}) }; if (existing) Object.assign(existing, record); else state.newMembers.unshift(record); editingMemberId = null; await saveDashboard(existing ? 'Colleague updated' : 'Recently joined colleague added'); });
+  $('#app-manager').addEventListener('click', async event => { const edit = event.target.dataset.editApp, remove = event.target.dataset.removeApp; if (edit) { editingAppId = edit; renderAppForm(); return; } if (remove && window.confirm('Remove this Quick Launch shortcut?')) { state.apps = state.apps.filter(app => app.id !== remove); await saveDashboard('Shortcut removed'); } });
+  $('#app-form').addEventListener('click', event => { if (event.target.dataset.cancelApp !== undefined) { editingAppId = null; renderAppForm(); } });
+  $('#app-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget), existing = editingAppId && state.apps.find(app => app.id === editingAppId); const record = { ...(existing || { id:`custom-${Date.now()}`, icon:'spark' }), name:form.get('name'), caption:form.get('caption'), url:form.get('url'), color:form.get('color') }; if (existing) Object.assign(existing, record); else state.apps.push(record); editingAppId = null; await saveDashboard(existing ? 'Shortcut updated' : 'Shortcut added'); });
+  $('#portal-manager').addEventListener('click', event => { const edit = event.target.dataset.editPortal; if (!edit) return; editingPortalId = edit; renderPortalForm(); document.querySelector('#portal-form')?.scrollIntoView({ behavior:'smooth', block:'nearest' }); });
+  $('#portal-form').addEventListener('click', event => { if (event.target.dataset.cancelPortal !== undefined) { editingPortalId = null; renderPortalForm(); } });
+  $('#portal-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget), portal = state.supportPortals.find(entry => entry.id === editingPortalId), url = String(form.get('url')).trim(); if (!portal) return; if (url && !/^(https?:\/\/|\/|#)/i.test(url)) { event.currentTarget.querySelector('.form-status').textContent = 'Use an https:// link or an intranet path beginning with / or #.'; return; } Object.assign(portal, { name:String(form.get('name')).trim(), description:String(form.get('description')).trim(), url, icon:String(form.get('icon')) }); editingPortalId = null; await saveDashboard('Company portal updated'); });
   $('#global-search').addEventListener('input', renderGlobalResults);
   $('#global-search').addEventListener('keydown', event => { if (event.key === 'Enter') { const first = $('#global-results .search-result'); if (first) { window.location.assign(first.href); return; } $('#session-search').value = event.target.value; $('#knowledge').scrollIntoView(); renderSessions(); } });
   document.addEventListener('click', event => { if (!event.target.closest('.global-search-wrap')) $('#global-results').hidden = true; });
