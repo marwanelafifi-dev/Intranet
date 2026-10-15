@@ -10,6 +10,17 @@ function renderMembers() {
   const filtered = members.filter(member => (!type || member.employmentType === type) && (!department || member.department === department) && (!division || member.division === division));
   const container = select('#all-new-members');
   container.innerHTML = filtered.length ? filtered.map(member => `<article class="new-member-announcement"><div class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</div><div><div class="new-member-announcement-head"><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)} · ${escapeHtml(member.department || member.team)}</span></div><time>${escapeHtml(member.employmentType || 'Full Time')} · ${escapeHtml(member.joined)}</time></div><p>${escapeHtml(member.message)}</p><span class="new-member-manager">Department: ${escapeHtml(member.department || 'To be confirmed')} · Division: ${escapeHtml(member.division || 'To be confirmed')} · Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No colleagues match these filters.</p>';
+  filtered.forEach((member, index) => {
+    if (!member.photoUrl) return;
+    const initialsAvatar = container.children[index]?.querySelector('.new-member-avatar');
+    if (!initialsAvatar) return;
+    const photo = document.createElement('img');
+    photo.className = 'new-member-avatar new-member-photo';
+    photo.src = member.photoUrl;
+    photo.alt = `Photo of ${member.name}`;
+    photo.onerror = () => photo.replaceWith(initialsAvatar);
+    initialsAvatar.replaceWith(photo);
+  });
   select('#member-result-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'colleague' : 'colleagues'}`;
 }
 

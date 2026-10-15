@@ -1,0 +1,83 @@
+/* Keep the selected record and its editor in view together on larger screens. */
+.manager-row.is-selected {
+  background: #edf5ff;
+}
+
+@media (min-width: 800px) {
+  .cms-tab.active#tab-content,
+  .cms-tab.active#tab-people,
+  .cms-tab.active#tab-apps,
+  .cms-tab.active#tab-portals {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, .78fr);
+    column-gap: 40px;
+    align-items: start;
+  }
+
+  #tab-content > .cms-intro,
+  #tab-content > .content-type-switch,
+  #tab-people > .cms-intro,
+  #tab-apps > .cms-intro,
+  #tab-portals > .cms-intro {
+    grid-column: 1 / -1;
+  }
+
+  #content-manager,
+  #member-manager,
+  #app-manager,
+  #newsi-policy-manager,
+  #portal-manager {
+    grid-column: 1;
+    max-width: none;
+    max-height: calc(100dvh - 245px);
+    margin: 0;
+    overflow-y: auto;
+    padding-right: 10px;
+    scrollbar-gutter: stable;
+  }
+
+  #content-form,
+  #new-member-form,
+  #app-form,
+  #newsi-policy-form,
+  #portal-form {
+    grid-column: 2;
+    position: sticky;
+    top: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0 0 0 28px;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+
+  #portal-form {
+    margin-top: 0;
+  }
+
+  .record-manager::-webkit-scrollbar,
+  .app-manager::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .record-manager::-webkit-scrollbar-thumb,
+  .app-manager::-webkit-scrollbar-thumb {
+    background: #a9c2e2;
+    border-radius: 999px;
+  }
+}
+
+@media (max-width: 799px) {
+  .admin-form {
+    scroll-margin-top: 18px;
+  }
+}
+
+.newsi-view { display: none; }
+.newsi-view.active { display: contents; }
+
+@media (min-width: 800px) {
+  #tab-portals > .newsi-switch { grid-column: 1 / -1; }
+  #newsi-policy-manager, #portal-manager { grid-column: 1; }
+  #newsi-policy-form, #portal-form { grid-column: 2; }
+}

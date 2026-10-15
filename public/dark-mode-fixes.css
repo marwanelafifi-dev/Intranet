@@ -1,0 +1,28 @@
+/* Loaded last so external-style feed surfaces cannot override the dark theme. */
+html.dark .social-feed-scroll,
+html.dark .linkedin-feed-scroll,
+html.dark .facebook-feed-scroll {
+  background: #0d1f36;
+  border-color: #34516f;
+  color: #edf4ff;
+  scrollbar-color: #6c8db3 #0d1f36;
+}
+
+html.dark .social-feed-scroll .network-post {
+  border-color: #294967;
+}
+
+html.dark .social-feed-scroll .network-post-meta,
+html.dark .social-feed-scroll .network-post p {
+  color: #c6d6e9;
+}
+
+html.dark .social-feed-scroll .network-post b {
+  color: #edf4ff;
+}
+
+html.dark .social-feed-scroll .network-post a,
+html.dark .linkedin-widget .text-link,
+html.dark .facebook-widget .text-link {
+  color: #9ac4ff;
+}
