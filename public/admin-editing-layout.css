@@ -26,6 +26,8 @@
   #member-manager,
   #app-manager,
   #newsi-policy-manager,
+  #newsi-checklist-manager,
+  #newsi-acknowledgement-manager,
   #portal-manager {
     grid-column: 1;
     max-width: none;
@@ -40,6 +42,8 @@
   #new-member-form,
   #app-form,
   #newsi-policy-form,
+  #newsi-checklist-form,
+  #newsi-acknowledgement-form,
   #portal-form {
     grid-column: 2;
     position: sticky;
@@ -78,6 +82,6 @@
 
 @media (min-width: 800px) {
   #tab-portals > .newsi-switch { grid-column: 1 / -1; }
-  #newsi-policy-manager, #portal-manager { grid-column: 1; }
-  #newsi-policy-form, #portal-form { grid-column: 2; }
+  #newsi-policy-manager, #newsi-checklist-manager, #newsi-acknowledgement-manager, #portal-manager { grid-column: 1; }
+  #newsi-policy-form, #newsi-checklist-form, #newsi-acknowledgement-form, #portal-form { grid-column: 2; }
 }

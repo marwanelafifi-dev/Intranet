@@ -1,10 +1,18 @@
 {
   "user": { "name": "Mariam Nasser", "role": "ADMIN", "title": "Product Operations" },
+  "policyAcknowledgementContent": { "version": 1, "actionTitle": "Action required: acknowledge Si-Ware Policies", "instructionText": "Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.", "beforeHeading": "Why this matters", "beforeText": "Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.", "confirmationLabel": "I confirm that I have read and accepted Si-Ware Policies.", "confirmationHelp": "This records the current policy versions and confirmation time.", "acceptedTitle": "Policies acknowledged", "afterText": "Your acknowledgement has been recorded for the current policy versions." },
   "settings": { "theme": "light", "layout": ["announcements", "new-members", "new-warians", "social", "news", "moments", "knowledge", "events", "whistleblower"], "layoutVersion": "structured-v5", "hiddenWidgets": [] },
   "supportPortals": [
     { "id": "portal-company", "name": "Company Portal", "description": "Administration, Finance & People Team", "url": "", "icon": "building" },
     { "id": "portal-service-desk", "name": "SolarWinds Service Desk", "description": "IT Support", "url": "", "icon": "support" },
     { "id": "portal-mohr", "name": "MOHR", "description": "Payslips & HR topics", "url": "", "icon": "payroll" }
+  ],
+  "firstWeekChecklist": [
+    { "id": "systems", "text": "Sign in to Gmail, ClickUp, Document Drive and the Time Tracker." },
+    { "id": "hr-profile", "text": "Complete your HR profile and emergency-contact information in MOHR." },
+    { "id": "manager", "text": "Meet your manager to agree your 30-day priorities and team rhythm." },
+    { "id": "orientation", "text": "Book your orientation, information-security and workplace-safety sessions." },
+    { "id": "knowledge", "text": "Save this page and explore the Knowledge Hub for your role." }
   ],
   "newMembers": [
     { "id": "member-001", "name": "Nour El-Sayed", "role": "Product Marketing Specialist", "team": "Growth", "department": "Product Marketing", "division": "Growth", "employmentType": "Full Time", "directManager": "Hala Mostafa", "joined": "October 2026", "message": "Joining the Growth team to help bring Si-Ware stories and solutions to more people.", "initials": "NE", "color": "#dceeff" },

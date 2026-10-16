@@ -1,9 +1,10 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile, access, copyFile, mkdir, unlink, stat } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
+import { readFile, writeFile, access, copyFile, mkdir, unlink, stat, rename } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { extname, join, normalize, relative } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
 
 const port = Number(process.env.PORT || 8080);
 const publicDir = join(process.cwd(), 'public');
@@ -13,12 +14,24 @@ const seedFile = join(process.cwd(), 'data', 'seed.json');
 const youtubeChannelId = 'UCPx_Gys4B6hSLw_JY3CkU5w';
 const youtubeChannelUrl = 'https://www.youtube.com/@Si-Ware_Systems';
 const youtubeCacheFile = join(process.cwd(), 'data', 'youtube-latest.json');
+const companyNewsUrl = 'https://www.si-ware.com/company/news';
+const companyNewsCacheFile = join(process.cwd(), 'data', 'company-news-latest.json');
+const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+const googleWorkspaceDomain = (process.env.GOOGLE_WORKSPACE_DOMAIN || 'si-ware.com').toLowerCase();
+const googleAdminEmails = new Set((process.env.GOOGLE_ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
+const sessions = new Map(), oauthStates = new Map();
+const acknowledgementContentDefault = { version:1, actionTitle:'Action required: acknowledge Si-Ware Policies', instructionText:'Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.', beforeHeading:'Why this matters', beforeText:'Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.', confirmationLabel:'I confirm that I have read and accepted Si-Ware Policies.', confirmationHelp:'This records the current policy versions and confirmation time.', acceptedTitle:'Policies acknowledged', afterText:'Your acknowledgement has been recorded for the current policy versions.' };
 const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
 const execFileAsync = promisify(execFile);
-let youtubeCache = { expiresAt: 0, payload: null };
+let youtubeCache = { expiresAt: 0, payload: null }, companyNewsCache = { expiresAt: 0, payload: null }, companyNewsRefresh = null;
 const json = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
-const readBody = req => new Promise((resolve, reject) => { let value = '', size = 0, finished = false; req.on('data', chunk => { size += chunk.length; if (size > 3 * 1024 * 1024) { finished = true; reject(new Error('Request body is too large')); req.destroy(); return; } if (!finished) value += chunk; }); req.on('end', () => { if (finished) return; try { resolve(JSON.parse(value || '{}')); } catch { reject(new Error('Invalid JSON')); } }); });
-const isAdmin = req => req.headers['x-demo-role'] === 'ADMIN';
+const readBody = req => new Promise((resolve, reject) => { let value = '', size = 0, finished = false; req.on('data', chunk => { size += chunk.length; if (size > 70 * 1024 * 1024) { finished = true; reject(new Error('Request body is too large')); req.destroy(); return; } if (!finished) value += chunk; }); req.on('end', () => { if (finished) return; try { resolve(JSON.parse(value || '{}')); } catch { reject(new Error('Invalid JSON')); } }); });
+const cookiesFor = req => Object.fromEntries(String(req.headers.cookie || '').split(';').map(value => value.trim().split('=').map(decodeURIComponent)).filter(([key]) => key));
+const sessionFor = req => sessions.get(cookiesFor(req).siware_session);
+const isGoogleConfigured = () => Boolean(googleClientId && googleClientSecret);
+const isAdmin = req => sessionFor(req)?.role === 'ADMIN' || (!isGoogleConfigured() && req.headers['x-demo-role'] === 'ADMIN');
+const setCookie = (res, value, maxAge = 28800) => res.setHeader('set-cookie', `siware_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.SECURE_COOKIES === 'true' ? '; Secure' : ''}`);
 const initialsFor = name => String(name || '').split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 const decodeXml = value => String(value || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 const xmlValue = (entry, tag) => decodeXml((new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`)).exec(entry)?.[1] || '').trim();
@@ -56,6 +69,55 @@ async function latestYouTubeVideos() {
     return { channelUrl: youtubeChannelUrl, videos: [], unavailable: true };
   }
 }
+const decodeHtml = value => String(value || '').replace(/&#x([\da-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16))).replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10))).replace(/&(amp|quot|apos|#39|lt|gt);/gi, (_, entity) => ({ amp:'&', quot:'"', apos:"'", '#39':"'", lt:'<', gt:'>' }[entity.toLowerCase()]));
+const plainHtml = value => decodeHtml(String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+const absoluteCompanyNewsUrl = value => new URL(decodeHtml(value), companyNewsUrl).href;
+function parseCompanyNews(html) {
+  const expression = /<img src="([^"]+)"[^>]*class="image-216 custom-size"[\s\S]*?<h3 class="link-4-copy">([\s\S]*?)<\/h3>[\s\S]*?<div class="text-size-small margin-top-small">([\s\S]*?)<\/div>[\s\S]*?<p class="paragraph-12 news_card-item-body margin-top-small">([\s\S]*?)<\/p>[\s\S]*?<a href="([^"]+)" class="arrow-link news_card_item-link w-inline-block"/g;
+  const seen = new Set(), items = [];
+  for (const match of html.matchAll(expression)) {
+    const [imageUrl, title, date, summary, url] = match.slice(1).map(plainHtml);
+    let articleUrl, coverUrl;
+    try { articleUrl = absoluteCompanyNewsUrl(url); coverUrl = absoluteCompanyNewsUrl(imageUrl); } catch { continue; }
+    if (new URL(articleUrl).hostname !== 'www.si-ware.com' || !articleUrl.includes('/our-news/') || !title || seen.has(articleUrl)) continue;
+    const parsedDate = new Date(date), dateIso = Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString().slice(0, 10);
+    items.push({ title, date, dateIso, summary, url:articleUrl, imageUrl:coverUrl }); seen.add(articleUrl);
+    if (items.length === 12) break;
+  }
+  return items;
+}
+async function cachedCompanyNews() {
+  try {
+    const payload = JSON.parse(await readFile(companyNewsCacheFile, 'utf8'));
+    return Array.isArray(payload?.items) && payload.items.length ? payload : null;
+  } catch { return null; }
+}
+async function latestCompanyNews() {
+  if (companyNewsCache.payload && Date.now() < companyNewsCache.expiresAt) return companyNewsCache.payload;
+  if (companyNewsRefresh) return companyNewsRefresh;
+
+  companyNewsRefresh = (async () => {
+    try {
+      const response = await fetch(companyNewsUrl, { headers:{ accept:'text/html,application/xhtml+xml', 'user-agent':'Mozilla/5.0 (compatible; Si-Ware Intranet news feed)' }, signal:AbortSignal.timeout(12000) });
+      if (!response.ok) throw new Error(`Company news returned ${response.status}`);
+      const items = parseCompanyNews(await response.text());
+      if (!items.length) throw new Error('No company news items found');
+      const payload = { sourceUrl:companyNewsUrl, items, updatedAt:new Date().toISOString() };
+      companyNewsCache = { payload, expiresAt:Date.now() + 15 * 60 * 1000 };
+      await writeFile(companyNewsCacheFile, JSON.stringify(payload, null, 2));
+      return payload;
+    } catch {
+      const cached = companyNewsCache.payload || await cachedCompanyNews();
+      if (cached) {
+        companyNewsCache = { payload:cached, expiresAt:Date.now() + 60 * 1000 };
+        return { ...cached, stale:true };
+      }
+      return { sourceUrl:companyNewsUrl, items:[], unavailable:true };
+    }
+  })().finally(() => { companyNewsRefresh = null; });
+
+  return companyNewsRefresh;
+}
 async function saveMemberPhoto(dataUrl, id) {
   if (!dataUrl) return '';
   const match = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl);
@@ -68,16 +130,64 @@ async function saveMemberPhoto(dataUrl, id) {
   await writeFile(join(uploadsDir, filename), content);
   return `/uploads/${filename}`;
 }
+const uploadMimeExtensions = {
+  'application/pdf':'pdf',
+  'application/vnd.ms-powerpoint':'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation':'pptx',
+  'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif',
+  'video/mp4':'mp4', 'video/webm':'webm', 'video/quicktime':'mov'
+};
+const maxMomentMediaUploadBytes = 500 * 1024 * 1024;
 async function saveAdminUpload(dataUrl, filename) {
-  const match = /^data:(application\/pdf|image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl || '');
-  if (!match) throw new Error('Upload a PDF, PNG, JPEG, WebP or GIF file');
+  const match = /^data:([a-z0-9.+/-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl || '');
+  const extension = uploadMimeExtensions[match?.[1]?.toLowerCase()];
+  if (!match || !extension) throw new Error('Upload a PDF, PowerPoint, PNG, JPEG, WebP, GIF, MP4, WebM or MOV file');
   const content = Buffer.from(match[2], 'base64');
-  if (!content.length || content.length > 10 * 1024 * 1024) throw new Error('File must be no larger than 10 MB');
-  const extension = match[1] === 'application/pdf' ? 'pdf' : { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif' }[match[1]];
+  if (!content.length || content.length > 50 * 1024 * 1024) throw new Error('File must be no larger than 50 MB');
   const safeName = String(filename || 'upload').replace(/[^a-z0-9-_]/gi, '-').slice(0, 60) || 'upload';
   const stored = `${safeName}-${Date.now()}.${extension}`;
   await mkdir(uploadsDir, { recursive: true }); await writeFile(join(uploadsDir, stored), content);
   return `/uploads/${stored}`;
+}
+async function saveAdminBinaryUpload(req, filename, mimeType) {
+  const extension = uploadMimeExtensions[String(mimeType || '').split(';')[0].trim().toLowerCase()];
+  if (!extension) throw new Error('Upload a PDF, PowerPoint, PNG, JPEG, WebP, GIF, MP4, WebM or MOV file');
+  const safeName = String(filename || 'upload').replace(/[^a-z0-9-_]/gi, '-').slice(0, 60) || 'upload';
+  const stored = `${safeName}-${Date.now()}.${extension}`;
+  const temporary = join(uploadsDir, `.${stored}.${randomUUID()}.upload`);
+  const destination = join(uploadsDir, stored);
+  await mkdir(uploadsDir, { recursive: true });
+  let size = 0;
+  try {
+    await new Promise((resolve, reject) => {
+      const output = createWriteStream(temporary, { flags: 'wx' });
+      let settled = false;
+      const finish = (handler, value) => { if (settled) return; settled = true; handler(value); };
+      const fail = error => finish(reject, error);
+      req.on('data', chunk => {
+        size += chunk.length;
+        if (size > maxMomentMediaUploadBytes) {
+          const error = new Error('Moment media must be no larger than 500 MB.');
+          error.statusCode = 413;
+          output.destroy(error);
+          req.destroy();
+          return;
+        }
+        if (!output.write(chunk)) req.pause(), output.once('drain', () => req.resume());
+      });
+      req.on('error', fail);
+      req.on('aborted', () => fail(new Error('Upload was interrupted. Please try again.')));
+      req.on('end', () => output.end());
+      output.on('error', fail);
+      output.on('finish', () => finish(resolve));
+    });
+    if (!size) throw new Error('The uploaded file is empty.');
+    await rename(temporary, destination);
+    return `/uploads/${stored}`;
+  } catch (error) {
+    await unlink(temporary).catch(() => {});
+    throw error;
+  }
 }
 function uploadedPdfPath(url) {
   try { url = new URL(url, 'http://localhost').pathname; } catch { return null; }
@@ -168,9 +278,11 @@ async function dashboard() {
   try {
     const data = JSON.parse(await readFile(dataFile, 'utf8'));
     let changed = false;
-    for (const key of ['newMembers', 'policies', 'people', 'forms', 'faqs', 'serviceRequests', 'supportPortals']) {
+    for (const key of ['newMembers', 'policies', 'people', 'forms', 'faqs', 'serviceRequests', 'supportPortals', 'firstWeekChecklist']) {
       if (!Array.isArray(data[key])) { data[key] = seed[key]; changed = true; }
     }
+    const acknowledgementContent = data.policyAcknowledgementContent || {}, hydratedAcknowledgementContent = { ...acknowledgementContentDefault, ...acknowledgementContent };
+    if (JSON.stringify(acknowledgementContent) !== JSON.stringify(hydratedAcknowledgementContent)) { data.policyAcknowledgementContent = hydratedAcknowledgementContent; changed = true; }
     const seededMembers = new Map(seed.newMembers.map(member => [member.id, member]));
     if (data.newMembers.some(member => !member.directManager || !member.employmentType || !member.department || !member.division)) {
       data.newMembers = data.newMembers.map(member => ({
@@ -194,13 +306,65 @@ async function dashboard() {
   }
 }
 async function save(data) { await writeFile(dataFile, JSON.stringify(data, null, 2)); }
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+function policyKey(policy) { return `${policy.id}:${policy.version}:${policy.canonicalUrl}`; }
+function requiredPolicies(data) { return (data.policies || []).filter(policy => policy.requiresAcknowledgement !== false); }
+function policyIdentity(req, data) {
+  const session = sessionFor(req);
+  if (session) return session;
+  if (isGoogleConfigured()) return null;
+  const user = data.user || {};
+  return { id:'local-demo-user', name:user.name || 'Local employee', email:user.email || 'local.employee@si-ware.com', role:user.role || 'EMPLOYEE', demo:true };
+}
+function acknowledgementStatus(data, employee) {
+  const policies = requiredPolicies(data), unpublished = policies.filter(policy => !/^\/uploads\/.*\.pdf$/i.test(policy.canonicalUrl || ''));
+  const key = employee.email.toLowerCase(), views = data.policyReviewViews?.[key] || {};
+  const snapshot = policies.map(policy => ({ id:policy.id, title:policy.title, version:policy.version, key:policyKey(policy), documentReady:!unpublished.includes(policy), viewedAt:views[policyKey(policy)] || '' }));
+  const acceptance = (data.policyAcknowledgements || []).find(record => record.employee.email.toLowerCase() === key && record.contentVersion === data.policyAcknowledgementContent.version && JSON.stringify(record.policies.map(item => item.key)) === JSON.stringify(snapshot.map(item => item.key)));
+  return { employee:{ name:employee.name, email:employee.email, demo:Boolean(employee.demo) }, content:{ ...acknowledgementContentDefault, ...(data.policyAcknowledgementContent || {}) }, policies:snapshot, unpublished:unpublished.map(policy => policy.title), acceptance:acceptance || null };
+}
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.pdf': 'application/pdf', '.ppt':'application/vnd.ms-powerpoint', '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime' };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
+    if (req.method === 'GET' && url.pathname === '/auth/google') {
+      if (!isGoogleConfigured()) return json(res, 503, { error:'Google Workspace SSO is not configured yet.' });
+      const state = randomUUID(), origin = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
+      oauthStates.set(state, Date.now());
+      const target = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      target.search = new URLSearchParams({ client_id:googleClientId, redirect_uri:`${origin}/auth/google/callback`, response_type:'code', scope:'openid email profile', hd:googleWorkspaceDomain, state }).toString();
+      res.writeHead(302, { location:target.toString() }); return res.end();
+    }
+    if (req.method === 'GET' && url.pathname === '/auth/google/callback') {
+      const state = url.searchParams.get('state'), created = oauthStates.get(state), code = url.searchParams.get('code'); oauthStates.delete(state);
+      if (!created || Date.now() - created > 10 * 60 * 1000 || !code) return json(res, 400, { error:'Google sign-in could not be verified.' });
+      const origin = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ code, client_id:googleClientId, client_secret:googleClientSecret, redirect_uri:`${origin}/auth/google/callback`, grant_type:'authorization_code' }) });
+      if (!tokenResponse.ok) return json(res, 401, { error:'Google sign-in was rejected.' });
+      const token = await tokenResponse.json(), userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers:{ authorization:`Bearer ${token.access_token}` } });
+      const profile = await userResponse.json(), email = String(profile.email || '').toLowerCase();
+      if (!userResponse.ok || !profile.email_verified || !email.endsWith(`@${googleWorkspaceDomain}`)) return json(res, 403, { error:'Use your approved Si-Ware Google Workspace account.' });
+      const sessionId = randomUUID(); sessions.set(sessionId, { id:String(profile.sub), email, name:profile.name || email, role:googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE' }); setCookie(res, sessionId); res.writeHead(302, { location:'/' }); return res.end();
+    }
+    if (req.method === 'GET' && url.pathname === '/api/auth/me') { const data = await dashboard(), employee = policyIdentity(req, data); return employee ? json(res, 200, employee) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
+    if (req.method === 'POST' && url.pathname === '/api/policy-acknowledgement/viewed') {
+      const data = await dashboard(), employee = policyIdentity(req, data), body = await readBody(req); if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
+      const policy = requiredPolicies(data).find(item => item.id === body.policyId && /^\/uploads\/.*\.pdf$/i.test(item.canonicalUrl || '')); if (!policy) return json(res, 422, { error:'That policy document is not ready for acknowledgement.' });
+      data.policyReviewViews ||= {}; const email = employee.email.toLowerCase(); data.policyReviewViews[email] ||= {}; data.policyReviewViews[email][policyKey(policy)] = new Date().toISOString(); await save(data); return json(res, 200, acknowledgementStatus(data, employee));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgement') { const data = await dashboard(), employee = policyIdentity(req, data); return employee ? json(res, 200, acknowledgementStatus(data, employee)) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
+    if (req.method === 'POST' && url.pathname === '/api/policy-acknowledgement') {
+      const data = await dashboard(), employee = policyIdentity(req, data), body = await readBody(req); if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
+      const status = acknowledgementStatus(data, employee), statement = status.content.confirmationLabel;
+      if (body.statement !== statement) return json(res, 422, { error:'The required confirmation statement was not received.' });
+      if (status.unpublished.length || status.policies.some(policy => !policy.viewedAt)) return json(res, 422, { error:'Open every required policy document before confirming.' });
+      if (!status.acceptance) { data.policyAcknowledgements ||= []; data.policyAcknowledgements.unshift({ id:`ack-${Date.now()}`, employee:{ id:employee.id, name:employee.name, email:employee.email }, statement, contentVersion:data.policyAcknowledgementContent.version, acceptedAt:new Date().toISOString(), policies:status.policies.map(policy => ({ id:policy.id, title:policy.title, version:policy.version, key:policy.key, viewedAt:policy.viewedAt })) }); await save(data); }
+      return json(res, 200, acknowledgementStatus(data, employee));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgements') { if (!isAdmin(req)) return json(res, 403, { error:'Admin role required' }); const data = await dashboard(), query = String(url.searchParams.get('q') || '').trim().toLowerCase(), limit = Math.min(100, Math.max(10, Number(url.searchParams.get('limit')) || 25)), requestedPage = Math.max(1, Number(url.searchParams.get('page')) || 1), matching = (data.policyAcknowledgements || []).filter(record => !query || `${record.employee.name} ${record.employee.email}`.toLowerCase().includes(query)), total = matching.length, pages = Math.max(1, Math.ceil(total / limit)), page = Math.min(requestedPage, pages), records = matching.slice((page - 1) * limit, page * limit); return json(res, 200, { records, total, page, pages, limit }); }
     if (req.method === 'GET' && url.pathname === '/api/dashboard') return json(res, 200, await dashboard());
     if (req.method === 'GET' && url.pathname === '/api/youtube/latest') return json(res, 200, await latestYouTubeVideos());
+    if (req.method === 'GET' && url.pathname === '/api/company-news') return json(res, 200, await latestCompanyNews());
     if (req.method === 'GET' && url.pathname === '/api/search') {
       const term = (url.searchParams.get('q') || '').trim().toLowerCase();
       if (!term) return json(res, 200, []);
@@ -228,6 +392,14 @@ createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/documents/highlights') {
       const page = Number(url.searchParams.get('page')); return json(res, 200, await documentHighlights(url.searchParams.get('url'), page, url.searchParams.get('q') || ''));
     }
+    if (req.method === 'GET' && url.pathname === '/api/documents/info') {
+      const file = uploadedPdfPath(url.searchParams.get('url'));
+      if (!file) return json(res, 404, { error: 'Document not found' });
+      try {
+        const { stdout } = await execFileAsync('pdfinfo', [file], { maxBuffer: 1024 * 1024 });
+        return json(res, 200, { pages: Math.max(1, Math.min(Number(/Pages:\s+(\d+)/.exec(stdout)?.[1] || 1), 80)) });
+      } catch { return json(res, 500, { error: 'Unable to read document information' }); }
+    }
     if (req.method === 'GET' && url.pathname === '/api/documents/page') {
       const file = uploadedPdfPath(url.searchParams.get('url')), page = Number(url.searchParams.get('page'));
       if (!file || !Number.isInteger(page) || page < 1) return json(res, 404, { error: 'Document page not found' });
@@ -242,6 +414,10 @@ createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/uploads') {
       if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
+      if (req.headers['x-upload-binary'] === '1') {
+        const filename = decodeURIComponent(String(req.headers['x-upload-filename'] || 'upload'));
+        return json(res, 201, { url: await saveAdminBinaryUpload(req, filename, req.headers['content-type']) });
+      }
       const item = await readBody(req);
       return json(res, 201, { url: await saveAdminUpload(item.dataUrl, item.filename) });
     }
@@ -287,6 +463,6 @@ createServer(async (req, res) => {
     if (req.method === 'HEAD') return res.end(); createReadStream(filename).pipe(res);
   } catch (error) {
     if (error.code === 'ENOENT') return json(res, 404, { error: 'Not found' });
-    console.error(error); return json(res, 500, { error: 'Server error' });
+    console.error(error); return json(res, error.statusCode || 500, { error: error.message || 'Server error' });
   }
 }).listen(port, () => console.log(`Si-Ware intranet is running at http://localhost:${port}`));

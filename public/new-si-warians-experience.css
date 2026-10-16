@@ -1,0 +1,86 @@
+.policy-hero{position:relative;overflow:hidden}.policy-hero>div{position:relative;z-index:1}.policy-hero:after{content:"";position:absolute;right:clamp(24px,7vw,112px);bottom:-72px;width:230px;height:230px;border:1px solid rgb(103 209 230 / 34%);border-radius:50%;pointer-events:none}.onboarding-signal{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:20px;color:#fff;font:700 12px/1.4 Manrope,Arial,sans-serif}.onboarding-signal span{padding:4px 8px;border:1px solid rgb(177 230 244 / 46%);border-radius:999px;color:#e6f7ff;font-size:11px;letter-spacing:.02em;text-transform:uppercase}.onboarding-hero-aside{display:grid;align-content:start;gap:8px;position:relative;z-index:1}.onboarding-hero-aside>a{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-top:4px;color:var(--blue);font:800 12px/1.4 Manrope,Arial,sans-serif;text-decoration:none}.onboarding-hero-aside>a:hover{text-decoration:underline;text-underline-offset:4px}.onboarding-hero-aside>a:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 35%,transparent);outline-offset:4px;border-radius:3px}.policy-nav a{position:relative;transition:background-color 180ms ease,color 180ms ease,padding 180ms ease}.policy-nav a[aria-current="location"]{padding-left:12px;background:#edf6ff;color:var(--blue);font-weight:800}.policy-nav a[aria-current="location"]:before{content:"";position:absolute;left:4px;top:50%;width:4px;height:4px;border-radius:50%;background:currentColor;transform:translateY(-50%)}.checklist-summary{align-items:flex-start}.checklist-next-step{max-width:23ch;padding:6px 9px;border-radius:7px;background:#edf7ff;color:#28577d;font:700 11px/1.4 Manrope,Arial,sans-serif}.policy-checklist .checklist-entry{transition:padding-left 180ms ease,background-color 180ms ease}.policy-checklist .checklist-entry:has(.checklist-item:hover){padding-left:6px;background:#f6faff}.policy-checklist .checklist-item.is-complete{animation:checklist-confirm 360ms cubic-bezier(.2,.8,.2,1)}.onboarding-tool-card{display:grid;align-content:start;min-height:142px;transition:transform 180ms ease,border-color 180ms ease,background-color 180ms ease}.onboarding-tool-card strong{align-self:end;margin-top:18px;color:var(--blue);font:800 12px/1.3 Manrope,Arial,sans-serif}.onboarding-tool-card strong:after{content:" →";margin-left:4px}.onboarding-tool-card:hover{transform:translateY(-3px)}@keyframes checklist-confirm{0%{transform:translateX(0)}45%{transform:translateX(5px)}100%{transform:translateX(0)}}html.dark .policy-nav a[aria-current="location"]{background:#1d3964;color:#dceaff}html.dark .checklist-next-step{background:#173757;color:#c6dff9}html.dark .policy-checklist .checklist-entry:has(.checklist-item:hover){background:#142d4d}html.dark .onboarding-hero-aside>a{color:#9ac4ff}@media(max-width:700px){.onboarding-signal{margin-top:16px}.checklist-next-step{display:none}.onboarding-tool-card{min-height:122px}.policy-hero:after{right:-65px;bottom:-105px;width:210px;height:210px}}@media(prefers-reduced-motion:reduce){.policy-nav a,.policy-checklist .checklist-entry,.onboarding-tool-card{transition:none}.policy-checklist .checklist-item.is-complete{animation:none}.onboarding-tool-card:hover{transform:none}}
+/* Tablet-first composition and contrast corrections. */
+.policy-hero{grid-template-columns:minmax(0,1fr) minmax(220px,300px);gap:clamp(24px,4vw,52px);padding-block:clamp(44px,6vw,64px) clamp(36px,4vw,48px)}
+.onboarding-signal{margin-top:16px;color:#173967}
+.onboarding-signal span{border-color:#b9d8fb;background:#f4f9ff;color:#1557c0}
+.policy-layout{grid-template-columns:220px minmax(0,1fr)}
+html.dark .onboarding-signal{color:#e1efff}
+html.dark .onboarding-signal span{border-color:#417ab8;background:#173757;color:#b9dcff}
+@media(max-width:1050px){.policy-hero{grid-template-columns:minmax(0,1fr);gap:20px;padding-block:48px 38px}.onboarding-hero-aside{max-width:620px}.policy-layout{grid-template-columns:200px minmax(0,1fr);gap:28px}}
+@media(max-width:820px){.policy-shell{padding-inline:20px}.policy-layout{grid-template-columns:minmax(0,1fr);gap:16px}.policy-nav{position:static;display:flex;gap:3px;overflow-x:auto}.policy-nav a{white-space:nowrap}.policy-card{min-width:0;padding:24px}}
+
+/* The welcome moment borrows the approved presentation palette without competing with the tasks below. */
+.policy-hero{isolation:isolate;background:linear-gradient(108deg,#203d84 0%,#076eb0 56%,#7ed2e2 100%)}
+.policy-hero:after{right:clamp(24px,7vw,112px);bottom:-120px;width:270px;height:270px;border:42px solid rgb(190 241 248 / 20%)}
+.policy-hero h1,.policy-hero>div>p,.onboarding-hero-aside,.onboarding-hero-aside b{color:#fff}
+.policy-hero>div>p{color:#d9f2fa}
+.onboarding-signal{color:#fff}
+.onboarding-signal span{border-color:rgb(220 250 255 / 62%);background:rgb(4 61 117 / 22%);color:#effcff}
+.onboarding-hero-aside>a{color:#effcff}
+html.dark .policy-hero{background:linear-gradient(108deg,#102556 0%,#075487 58%,#317d91 100%)}
+
+/* Exact presentation-template palette: dark blue carries copy; cyan remains a non-text accent. */
+.policy-hero{background:linear-gradient(108deg,#1a3379 0%,#006ab3 100%)}
+.policy-hero:after{border-color:rgb(110 198 218 / 38%)}
+.policy-hero>div>p{color:#fff}
+.onboarding-signal span{border-color:rgb(226 244 248 / 72%);background:rgb(26 51 121 / 30%);color:#fff}
+.onboarding-hero-aside>a{color:#fff}
+.policy-hero-actions a{background:#fff;color:#1a3379}
+.policy-hero-actions a:hover{background:#e2f4f8;color:#1a3379}
+html.dark .policy-hero{background:linear-gradient(108deg,#102556 0%,#00558e 100%)}
+
+/* Keep the emphasis and the light-theme callout legible on their actual surfaces. */
+.policy-hero h1 em{color:#e2f4f8}
+html:not(.dark) .onboarding-hero-aside{background:#e2f4f8;border-color:#b9dce5}
+html:not(.dark) .onboarding-hero-aside b{color:#1a3379}
+html:not(.dark) .onboarding-hero-aside p{color:#244e70}
+html:not(.dark) .onboarding-hero-aside>a{color:#006ab3}
+
+/* One quiet cue makes the next action obvious without turning the checklist into a dashboard. */
+.policy-checklist .checklist-entry{position:relative}
+.policy-checklist .checklist-entry.is-next-step{margin-inline:-10px;padding-inline:10px;background:#eef8fb;border-radius:10px}
+.checklist-next-badge{position:absolute;right:12px;top:50%;padding:3px 7px;border-radius:999px;background:#006ab3;color:#fff;font:800 12px/1.3 Manrope,Arial,sans-serif;transform:translateY(-50%)}
+.policy-checklist .checklist-entry.is-next-step .checklist-item{padding-right:88px}
+.policy-checklist .checklist-entry.is-next-step .checklist-item:hover{color:#1a3379}
+html.dark .policy-checklist .checklist-entry.is-next-step{background:#143b62}
+html.dark .policy-checklist .checklist-entry.is-next-step .checklist-item:hover{color:#e2f4f8}
+@media(max-width:700px){.policy-checklist .checklist-entry.is-next-step{margin-inline:-4px;padding-inline:4px}.checklist-next-badge{right:6px}.policy-checklist .checklist-entry.is-next-step .checklist-item{padding-right:80px}}
+
+/* Presentation-template composition: navy-to-cyan field with large arcs entering from above. */
+.policy-hero{background:linear-gradient(90deg,#1a3379 0%,#006ab3 52%,#6ec6da 100%)}
+.policy-hero:before,.policy-hero:after{content:"";position:absolute;z-index:0;border-radius:50%;pointer-events:none}
+.policy-hero:before{top:-590px;right:10%;width:720px;height:720px;border:46px solid rgb(226 244 248 / 25%)}
+.policy-hero:after{top:-455px;right:17%;bottom:auto;width:540px;height:540px;border:44px solid rgb(226 244 248 / 29%)}
+.policy-hero>div{max-width:600px}
+.policy-hero>div>p{max-width:48ch}
+.onboarding-hero-aside{background:rgb(226 244 248 / 92%)}
+html:not(.dark) .onboarding-hero-aside{background:rgb(226 244 248 / 92%)}
+@media(max-width:1050px){.policy-hero:before{top:-590px;right:-110px}.policy-hero:after{top:-450px;right:-55px}}
+@media(max-width:700px){.policy-hero{background:linear-gradient(135deg,#1a3379 0%,#006ab3 100%)}.policy-hero:before{top:-620px;right:-260px}.policy-hero:after{top:-500px;right:-200px}.onboarding-hero-aside{background:rgb(226 244 248 / 96%)}}
+
+/* Restore the original light onboarding hero; keep the responsive and checklist improvements above. */
+.policy-hero{isolation:auto;background:transparent}
+.policy-hero:before,.policy-hero:after{display:none}
+.policy-hero>div{max-width:none}
+.policy-hero h1{color:#173967}
+.policy-hero h1 em{color:#1557c0}
+.policy-hero>div>p{max-width:60ch;color:#506884}
+.onboarding-signal{color:#173967}
+.onboarding-signal span{border-color:#b9d8fb;background:#f4f9ff;color:#1557c0}
+.policy-hero-actions a{background:#1557c0;color:#fff}
+.policy-hero-actions a:hover{background:#0d4fae;color:#fff}
+.onboarding-hero-aside,html:not(.dark) .onboarding-hero-aside{background:#f4f8ff;border-color:#cfdeef;color:#163e75}
+.onboarding-hero-aside b,html:not(.dark) .onboarding-hero-aside b{color:#163e75}
+.onboarding-hero-aside p,html:not(.dark) .onboarding-hero-aside p{color:#506884}
+.onboarding-hero-aside>a,html:not(.dark) .onboarding-hero-aside>a{color:#1557c0}
+html.dark .policy-hero{background:transparent}
+html.dark .policy-hero h1{color:#edf4ff}
+html.dark .policy-hero h1 em{color:#9ac4ff}
+html.dark .policy-hero>div>p{color:#b8c8dd}
+html.dark .onboarding-signal{color:#e1efff}
+html.dark .onboarding-signal span{border-color:#417ab8;background:#173757;color:#b9dcff}
+html.dark .onboarding-hero-aside{background:#10243e;border-color:#294967;color:#edf4ff}
+html.dark .onboarding-hero-aside b{color:#edf4ff}
+html.dark .onboarding-hero-aside p{color:#c6d6e9}
+html.dark .onboarding-hero-aside>a{color:#9ac4ff}
+@media(max-width:700px){.policy-hero{background:transparent}.onboarding-hero-aside{background:#f4f8ff}}

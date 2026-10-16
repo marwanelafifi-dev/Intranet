@@ -23,6 +23,10 @@
     <link rel="stylesheet" href="/formal-refinement.css" />
     <link rel="stylesheet" href="/motion-finish.css" />
     <link rel="stylesheet" href="/theme-toggle.css" />
+    <link rel="stylesheet" href="/first-week-checklist.css" />
+    <link rel="stylesheet" href="/policy-acknowledgement.css" />
+    <link rel="stylesheet" href="/new-si-warians-experience.css" />
+    <link rel="stylesheet" href="/destination-pages.css" />
     <script src="/theme.js" defer></script>
   </head>
   <body class="policy-page">
@@ -35,34 +39,38 @@
         <div>
           <p class="policy-eyebrow">New Si-Warians!</p>
           <h1>Your first days, <em>made clear.</em></h1>
-          <p>Everything a new colleague needs to begin confidently: core policies, first-week actions, team support and the systems that make work happen.</p>
+          <p>Start with one meaningful action, then build momentum. Your checklist, essential policies, support routes and everyday tools are all in one place.</p>
+          <div class="onboarding-signal" aria-live="polite"><span>First-week journey</span><b id="onboarding-hero-progress">5 essential actions ahead</b></div>
           <div class="policy-hero-actions"><a href="#first-week">Start your checklist</a></div>
         </div>
-        <aside class="policy-hero-aside"><b>New here?</b><p>Share this page with a teammate before their first day. It is designed to stay current and easy to scan.</p></aside>
+        <aside class="policy-hero-aside onboarding-hero-aside"><span aria-hidden="true"></span><b>One step at a time</b><p>Choose the next task that unlocks your workday. Your progress stays visible while you explore.</p><a href="#help">Find the right support route <span aria-hidden="true">→</span></a></aside>
       </section>
       <section class="policy-layout">
         <nav class="policy-nav" aria-label="New Si-Warians page sections">
           <p>On this page</p>
-          <a href="#first-week">First-week checklist</a>
-          <a href="#policies">Essential policies</a>
-          <a href="#tools">Your everyday tools</a>
-          <a href="#help">Need help?</a>
+          <a href="#first-week" data-onboarding-nav>First-week checklist</a>
+          <a href="#policies" data-onboarding-nav>Essential policies</a>
+          <a href="#tools" data-onboarding-nav>Your everyday tools</a>
+          <a href="#help" data-onboarding-nav>Need help?</a>
         </nav>
         <div class="policy-content">
           <article class="policy-card" id="first-week">
             <h2>First-week checklist</h2>
             <p>Complete these essentials in your first five working days.</p>
-            <ul class="policy-checklist">
-              <li>Sign in to Gmail, ClickUp, Document Drive and the Time Tracker.</li>
-              <li>Complete your HR profile and emergency-contact information in MOHR.</li>
-              <li>Meet your manager to agree your 30-day priorities and team rhythm.</li>
-              <li>Book your orientation, information-security and workplace-safety sessions.</li>
-              <li>Save this page and explore the Knowledge Hub for your role.</li>
+            <div class="checklist-summary" aria-live="polite"><div><b id="checklist-progress-label">0 of 5 complete</b><small id="checklist-progress-description">Choose one task to begin. Each confirmed task is recorded once.</small></div><span class="checklist-next-step">Start with the task that gives you access.</span></div>
+            <div class="checklist-progress-track" aria-hidden="true"><span id="checklist-progress-bar"></span></div>
+            <ul class="policy-checklist" id="first-week-checklist">
+              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="systems" /><span>Sign in to Gmail, ClickUp, Document Drive and the Time Tracker.</span></label></li>
+              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="hr-profile" /><span>Complete your HR profile and emergency-contact information in MOHR.</span></label></li>
+              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="manager" /><span>Meet your manager to agree your 30-day priorities and team rhythm.</span></label></li>
+              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="orientation" /><span>Book your orientation, information-security and workplace-safety sessions.</span></label></li>
+              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="knowledge" /><span>Save this page and explore the Knowledge Hub for your role.</span></label></li>
             </ul>
           </article>
           <article class="policy-card" id="policies">
             <h2>Essential policies</h2>
             <p>These are the policies every colleague should know from day one. Links are ready to connect to your approved document repository.</p>
+            <section class="policy-acknowledgement" id="policy-acknowledgement" aria-live="polite" hidden></section>
             <div class="policy-grid">
               <article class="policy-link-card"><b>Code of Conduct</b><small>How we work with integrity and respect.</small></article>
               <article class="policy-link-card"><b>Information Security</b><small>Protecting our people, research and customers.</small></article>
@@ -74,8 +82,8 @@
             <h2>Your everyday tools</h2>
             <p>Your manager or IT will provide access. Use the dashboard Quick Launch dock once your account is active.</p>
             <div class="policy-grid">
-              <a class="policy-link-card" href="https://mail.google.com" target="_blank" rel="noreferrer"><b>Corporate email</b><small>Gmail for official communication.</small></a>
-              <a class="policy-link-card" href="/"><b>Knowledge Hub</b><small>Sessions and practical know-how from the team.</small></a>
+              <a class="policy-link-card onboarding-tool-card" href="https://mail.google.com" target="_blank" rel="noreferrer"><b>Corporate email</b><small>Gmail for official communication.</small><strong>Open Gmail</strong></a>
+              <a class="policy-link-card onboarding-tool-card" href="/#knowledge"><b>Knowledge Hub</b><small>Sessions and practical know-how from the team.</small><strong>Explore sessions</strong></a>
             </div>
           </article>
           <article class="policy-card" id="help">
@@ -88,7 +96,11 @@
       </section>
       <footer class="policy-footer"><span>Si-Ware Systems &middot; New Si-Warians!</span><span>Owner: People Operations &middot; Review quarterly</span></footer>
     </main>
-    <dialog class="policy-viewer" id="policy-viewer" aria-labelledby="policy-viewer-title"><div class="policy-viewer-head"><div><h2 id="policy-viewer-title">Policy document</h2><p id="policy-viewer-description">Review the current approved policy.</p></div><div class="policy-viewer-controls"><label class="policy-document-search"><span class="sr-only">Search this document</span><input id="policy-viewer-find" type="search" minlength="2" placeholder="Search this document" autocomplete="off" /></label><button type="button" class="icon-button" id="policy-viewer-close" aria-label="Close policy document">×</button></div></div><div class="policy-search-results" id="policy-search-results" hidden aria-live="polite"></div><div id="policy-viewer-frame" class="policy-rendered-page" role="region" aria-label="Policy document page"></div><a id="policy-viewer-open" class="policy-viewer-open" target="_blank" rel="noopener noreferrer">Open in a new tab</a></dialog>
+    <dialog class="policy-viewer" id="policy-viewer" aria-labelledby="policy-viewer-title"><div class="policy-viewer-head"><div><h2 id="policy-viewer-title">Policy document</h2><p id="policy-viewer-description">Review the current approved policy.</p></div><div class="policy-viewer-controls"><label class="policy-document-search"><span class="sr-only">Search this document</span><input id="policy-viewer-find" type="search" minlength="2" placeholder="Search this document" autocomplete="off" /></label><button type="button" class="icon-button" id="policy-viewer-close" aria-label="Close policy document">×</button></div></div><div class="policy-search-results" id="policy-search-results" hidden aria-live="polite"></div><div class="policy-page-navigation" aria-label="Document page navigation"><button type="button" id="policy-viewer-previous" aria-label="Previous page">Previous</button><span id="policy-viewer-page" aria-live="polite">Page 1 of 1</span><button type="button" id="policy-viewer-next" aria-label="Next page">Next</button></div><div id="policy-viewer-frame" class="policy-rendered-page" role="region" aria-label="Policy document page"></div><a id="policy-viewer-open" class="policy-viewer-open" target="_blank" rel="noopener noreferrer">Open in a new tab</a></dialog>
+    <dialog class="attachment-viewer" id="attachment-viewer" aria-labelledby="attachment-viewer-title"><div class="attachment-viewer-head"><h2 id="attachment-viewer-title">Attachment preview</h2><div class="attachment-viewer-actions"><a id="attachment-viewer-open" target="_blank" rel="noopener noreferrer">Open file</a><a id="attachment-viewer-download">Download</a><button type="button" class="icon-button" id="attachment-viewer-close" aria-label="Close attachment preview">×</button></div></div><div class="attachment-viewer-content" id="attachment-viewer-content"></div></dialog>
+    <dialog class="onboarding-welcome" id="policy-acknowledgement-welcome" aria-labelledby="policy-acknowledgement-welcome-title"><button class="onboarding-welcome-close" id="policy-acknowledgement-welcome-close" type="button" aria-label="Close welcome message">×</button><img src="/siware-logo.png" alt="Si-Ware Systems" /><h2 id="policy-acknowledgement-welcome-title">Thank you, <span id="policy-acknowledgement-welcome-name">colleague</span>.</h2><p>Your policy acknowledgement has been recorded.</p><p>Welcome to Si-Ware Systems - we are glad to have you with us.</p><button class="onboarding-welcome-action" id="policy-acknowledgement-welcome-continue" type="button">Continue your first week</button></dialog>
     <script type="module" src="/policies.js"></script>
+    <script src="/first-week-checklist.js" defer></script>
+    <script type="module" src="/destination-nav.js"></script>
   </body>
 </html>

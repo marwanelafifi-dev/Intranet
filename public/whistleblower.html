@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/motion-finish.css" />
     <link rel="stylesheet" href="/whistleblower.css" />
     <link rel="stylesheet" href="/theme-toggle.css" />
+    <link rel="stylesheet" href="/destination-pages.css" />
     <script src="/theme.js" defer></script>
   </head>
   <body class="policy-page whistleblower-page">
@@ -80,5 +81,6 @@
       <iframe class="voice-frame" id="voice-frame" title="Si-Ware Employee Voice chatbot" loading="lazy"></iframe>
     </dialog>
     <script>const voiceUrl='https://intranet.si-ware.com/whistleblower/si-voice-anonymous-employee-suggestion-and-complaints-bot-.html/',voiceModal=document.getElementById('voice-modal'),voiceFrame=document.getElementById('voice-frame');function openVoice(){voiceFrame.src=voiceUrl;if(!voiceModal.open)voiceModal.showModal()}function closeVoice(){voiceModal.close()}document.querySelectorAll('[data-open-voice]').forEach(button=>button.addEventListener('click',openVoice));document.getElementById('voice-modal-close').addEventListener('click',closeVoice);voiceModal.addEventListener('click',event=>{if(event.target===voiceModal)closeVoice()});voiceModal.addEventListener('close',()=>voiceFrame.removeAttribute('src'));</script>
+    <script type="module" src="/destination-nav.js"></script>
   </body>
 </html>

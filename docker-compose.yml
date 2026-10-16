@@ -6,6 +6,12 @@ services:
     environment:
       PORT: 8080
       DATA_FILE: /app/data/intranet.json
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8081}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_WORKSPACE_DOMAIN: ${GOOGLE_WORKSPACE_DOMAIN:-si-ware.com}
+      GOOGLE_ADMIN_EMAILS: ${GOOGLE_ADMIN_EMAILS:-}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
