@@ -33,6 +33,7 @@ const policyIndex = [
   { title: 'Health & Safety policy', detail: 'Safe workplaces, labs and ways of working.', href: '/new-hires.html#policies' }
 ];
 const dashboardLayout = ['announcements', 'new-members', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+const newsFirstDashboardLayout = ['company-news', 'announcements', 'new-members', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
 const dashboardLayoutVersion = 'company-news-v1';
 const memberEmploymentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
 const supportPortalDefaults = [
@@ -61,10 +62,10 @@ function normalizeState(data) {
   data.settings.hiddenWidgets ??= [];
   if (data.settings.layout?.includes('actions')) data.settings.layout = data.settings.layout.map(item => item === 'actions' ? 'new-members' : item);
   if (data.settings.layout?.includes('new-warians')) data.settings.layout = data.settings.layout.map(item => item === 'new-warians' ? 'company-news' : item);
-  if (!data.settings.layout?.length || data.settings.layoutVersion !== dashboardLayoutVersion) {
+  if (!data.settings.layout?.length || data.settings.layout.join(',') === newsFirstDashboardLayout.join(',')) {
     data.settings.layout = [...dashboardLayout];
-    data.settings.layoutVersion = dashboardLayoutVersion;
   }
+  data.settings.layoutVersion = dashboardLayoutVersion;
   if (!data.settings.layout.includes('new-members')) data.settings.layout = [...dashboardLayout];
   return data;
 }
@@ -85,7 +86,67 @@ function acknowledgeContentChange(element) {
 }
 
 function renderApps() {
-  $('#app-grid').innerHTML = state.apps.map(app => `<a class="app-link" href="${escapeHtml(app.url)}" ${app.url.startsWith('http') ? 'target="_blank" rel="noreferrer"' : ''} title="${escapeHtml(app.caption)}" style="--app-color:${app.color}"><span class="app-icon">${icon[app.icon] || '◈'}</span><b>${escapeHtml(app.name)}</b><small>${escapeHtml(app.caption)}</small></a>`).join('');
+  $('#app-grid').innerHTML = state.apps.map(app => `<a class="app-link" href="${escapeHtml(app.url)}" ${app.url.startsWith('http') ? 'target="_blank" rel="noreferrer"' : ''} style="--app-color:${app.color}"><span class="app-icon">${icon[app.icon] || '◈'}</span><b>${escapeHtml(app.name)}</b><small>${escapeHtml(app.caption)}</small></a>`).join('');
+  setupAppCarousel();
+}
+function setupAppCarousel() {
+  const grid = $('#app-grid'), previous = $('#app-carousel-prev'), next = $('#app-carousel-next'), status = $('#app-carousel-status');
+  if (!grid || !previous || !next || !status) return;
+  const itemLeft = item => item.getBoundingClientRect().left - grid.getBoundingClientRect().left + grid.scrollLeft;
+  const update = () => {
+    const items = $$('#app-grid .app-link');
+    const first = items.findIndex(item => itemLeft(item) + item.offsetWidth > grid.scrollLeft + 2);
+    const last = items.findLastIndex(item => itemLeft(item) < grid.scrollLeft + grid.clientWidth - 2);
+    previous.disabled = grid.scrollLeft <= 2;
+    next.disabled = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 2;
+    status.textContent = items.length ? `Showing applications ${Math.max(1, first + 1)} to ${Math.max(1, last + 1)} of ${items.length}` : 'No applications are available.';
+  };
+  if (!grid.dataset.carouselReady) {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let autoplayId, resumeId;
+    const step = () => {
+      const items = $$('#app-grid .app-link');
+      const current = items.reduce((closest, item, index) => Math.abs(itemLeft(item) - grid.scrollLeft) < Math.abs(itemLeft(items[closest]) - grid.scrollLeft) ? index : closest, 0);
+      return items[Math.max(0, Math.min(items.length - 1, current))];
+    };
+    const move = direction => {
+      const items = $$('#app-grid .app-link'), current = step();
+      const currentIndex = items.indexOf(current), nextIndex = Math.max(0, Math.min(items.length - 1, currentIndex + direction));
+      if (items[nextIndex]) grid.scrollTo({ left: itemLeft(items[nextIndex]), behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    };
+    const stopAutoplay = () => { window.clearInterval(autoplayId); autoplayId = undefined; };
+    const startAutoplay = () => {
+      stopAutoplay();
+      if (reducedMotion.matches || grid.scrollWidth <= grid.clientWidth + 2 || document.hidden) return;
+      autoplayId = window.setInterval(() => {
+        if (document.hidden || grid.matches(':hover') || grid.contains(document.activeElement)) return;
+        const atEnd = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 2;
+        if (atEnd) grid.scrollTo({ left: 0, behavior: 'auto' }); else move(1);
+      }, 5200);
+    };
+    const pauseForInteraction = () => {
+      stopAutoplay();
+      window.clearTimeout(resumeId);
+      resumeId = window.setTimeout(startAutoplay, 8000);
+    };
+    previous.addEventListener('click', () => { pauseForInteraction(); move(-1); });
+    next.addEventListener('click', () => { pauseForInteraction(); move(1); });
+    grid.addEventListener('scroll', update, { passive:true });
+    grid.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault(); pauseForInteraction(); move(event.key === 'ArrowLeft' ? -1 : 1);
+    });
+    grid.addEventListener('pointerdown', pauseForInteraction, { passive:true });
+    grid.addEventListener('mouseenter', stopAutoplay);
+    grid.addEventListener('mouseleave', startAutoplay);
+    grid.addEventListener('focusin', stopAutoplay);
+    grid.addEventListener('focusout', () => window.setTimeout(startAutoplay, 0));
+    document.addEventListener('visibilitychange', () => document.hidden ? stopAutoplay() : startAutoplay());
+    window.addEventListener('resize', update);
+    grid.dataset.carouselReady = 'true';
+    startAutoplay();
+  }
+  requestAnimationFrame(update);
 }
 function renderAnnouncement() {
   const items = state.announcements.slice(0, 4);
@@ -182,32 +243,15 @@ function renderNewMembers() {
   $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small><span>${escapeHtml(member.employmentType || 'Full Time')} · Joined ${escapeHtml(member.joined)}</span><span class="member-org">${escapeHtml(member.department || member.team)} · ${escapeHtml(member.division || member.team)}</span><span class="direct-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
 }
 function renderProfile() {
-  $('#profile-name').textContent = state.user.name.split(' ')[0]; $('#profile-role').textContent = state.user.title;
-  $('.avatar-user').textContent = state.user.name.split(' ').map(part => part[0]).join('').slice(0,2);
+  const accessLabel = state.user.title || (state.user.role === 'ADMIN' ? 'Full Access' : 'Employee Access');
+  const initials = state.user.name.split(' ').map(part => part[0]).join('').slice(0,2);
+  $('#profile-name').textContent = state.user.name; $('#profile-role').textContent = accessLabel;
+  const avatar = $('.avatar-user');
+  avatar.textContent = initials;
+  avatar.classList.toggle('has-photo', Boolean(state.user.avatarUrl));
+  avatar.style.backgroundImage = state.user.avatarUrl ? `url(${JSON.stringify(state.user.avatarUrl)})` : '';
+  $('#profile-button').setAttribute('aria-label', `${state.user.name}, ${accessLabel}`);
   const canAdmin = state.user.role === 'ADMIN'; $('#cms-toggle').hidden = !canAdmin; if (!canAdmin) closeCMS();
-}
-function searchResults(query) {
-  const term = query.trim().toLowerCase();
-  if (!term) return [];
-  const includes = value => String(value || '').toLowerCase().includes(term);
-  const collect = (items, type, title, detail, href) => items.filter(item => includes(`${title(item)} ${detail(item)}`)).map(item => ({ title: title(item), detail: detail(item), href: href(item), type, icon: 'search', external: String(href(item)).startsWith('http') }));
-  return [
-    ...collect(state.policies, 'Policy', item => item.title, item => `${item.summary} ${item.owner} ${item.audience} ${item.version}`, item => item.canonicalUrl),
-    ...collect(state.people, 'Person', item => item.name, item => item.detail, item => item.url),
-    ...collect(state.forms, 'Form', item => item.title, item => item.detail, item => item.url),
-    ...collect(state.faqs, 'FAQ', item => item.title, item => item.detail, item => item.url),
-    ...collect(state.serviceRequests, 'Service request', item => item.title, item => item.detail, item => item.url),
-    ...collect(state.newMembers, 'New member', item => item.name, item => `${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'),
-    ...collect(state.sessions, 'Knowledge', item => item.title, item => `${item.category} ${item.presenter.name}`, () => '/#knowledge'),
-    ...collect(state.supportPortals, 'Company portal', item => item.name, item => item.description, item => item.url || '/new-hires.html#help'),
-    ...collect(state.apps, 'App', item => item.name, item => item.caption, item => item.url)
-  ].slice(0, 10);
-}
-async function renderGlobalResults() {
-  const input = $('#global-search'), container = $('#global-results'), query = input.value, results = searchResults(query);
-  container.hidden = !input.value.trim();
-  if (query.trim().length >= 2) try { const remote = await request(`/api/search?q=${encodeURIComponent(query)}`); if (input.value !== query) return; remote.filter(item => item.type === 'Document').forEach(item => results.push({ ...item, icon:'search', external:false })); } catch { /* Local search remains available if document indexing is unavailable. */ }
-  container.innerHTML = results.length ? results.map(item => `<a class="search-result" href="${escapeHtml(item.href)}" ${item.external ? 'target="_blank" rel="noreferrer"' : ''} role="option"><span class="search-result-icon">${item.icon}</span><span class="search-result-copy"><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.detail)}</small></span><span class="search-result-type">${item.type}</span></a>`).join('') : '<p class="search-empty">No results yet. Try a policy, person, session or app name.</p>';
 }
 function renderLayoutList() {
   const labels = { announcements:'Hero & announcements', 'new-members':'Recently Joined', 'company-news':'Company news', news:'Industry pulse', knowledge:'Knowledge Hub sessions', whistleblower:'Whistleblower', moments:'Moments gallery', social:'Company channels', events:'Calendar & key dates' };
@@ -267,8 +311,19 @@ function openMedia(session, kind) {
 function closeCMS() { $('#cms-panel').classList.remove('open'); $('#cms-panel').setAttribute('aria-hidden', 'true'); }
 function openCMS() { $('#cms-panel').classList.add('open'); $('#cms-panel').setAttribute('aria-hidden', 'false'); }
 function placeCmsToggleInHeader() {
-  const toggle = $('#cms-toggle'), profile = $('#profile-button');
-  if (!toggle || !profile || toggle.classList.contains('header-cms-toggle')) return;
+  const toggle = $('#cms-toggle'), profile = $('#profile-button'), topbar = $('.topbar'), searchTrigger = $('[data-intranet-search-trigger]');
+  if (!toggle || !profile || !topbar) return;
+  let tools = $('.dashboard-header-tools');
+  if (!tools) {
+    tools = document.createElement('div');
+    tools.className = 'dashboard-header-tools';
+    const themeToggle = topbar.querySelector('[data-theme-toggle]');
+    if (themeToggle) tools.append(themeToggle);
+    tools.append(profile);
+    topbar.append(tools);
+  }
+  if (searchTrigger && !tools.contains(searchTrigger)) tools.prepend(searchTrigger);
+  if (toggle.classList.contains('header-cms-toggle')) return;
   toggle.classList.add('header-cms-toggle');
   profile.before(toggle);
 }
@@ -485,7 +540,7 @@ function setupNewMemberAdmin() { renderAdminOverview(); renderContentManager(); 
 
 function setupEvents() {
   $('#profile-button').addEventListener('click', () => { const menu = $('#profile-menu'); menu.hidden = !menu.hidden; $('#profile-button').setAttribute('aria-expanded', String(!menu.hidden)); });
-  $('#profile-menu').addEventListener('click', event => { const role = event.target.dataset.role; if (!role) return; state.user.role = role; state.user.title = role === 'ADMIN' ? 'Product Operations' : 'Employee'; $('#profile-menu').hidden = true; renderProfile(); showToast(`Switched to ${role === 'ADMIN' ? 'Admin' : 'Employee'} view`); });
+  $('#profile-menu').addEventListener('click', event => { const role = event.target.dataset.role; if (!role) return; state.user.role = role; state.user.title = role === 'ADMIN' ? 'Full Access' : 'Employee Access'; $('#profile-menu').hidden = true; renderProfile(); showToast(`Switched to ${role === 'ADMIN' ? 'Admin' : 'Employee'} view`); });
   $('#feed-selector').addEventListener('change', () => { renderNews(); acknowledgeContentChange($('#news-list')); });
   $('#session-search').addEventListener('input', () => { knowledgePage = 1; renderSessions(); });
   $('#tag-filters').addEventListener('click', event => { if (!event.target.dataset.tag) return; activeTag = event.target.dataset.tag; knowledgePage = 1; renderTags(); renderSessions(); acknowledgeContentChange($('.session-table-wrap')); });
@@ -504,7 +559,7 @@ function setupEvents() {
   $('#tab-content .content-type-switch').addEventListener('click', event => { const type = event.target.dataset.contentType; if (!type) return; activeContentType = type; editingContentId = null; $$('#tab-content .content-type-switch button').forEach(button => button.classList.toggle('active', button.dataset.contentType === type)); renderContentManager(); });
   $('.newsi-switch').addEventListener('click', event => { const view = event.target.dataset.newsiView; if (!view) return; $$('.newsi-switch button').forEach(button => button.classList.toggle('active', button.dataset.newsiView === view)); $$('.newsi-view').forEach(panel => panel.classList.toggle('active', panel.id === `newsi-${view}`)); });
   $('#content-manager').addEventListener('click', async event => { const edit = event.target.dataset.editContent, remove = event.target.dataset.removeContent; const key = activeContentType === 'announcement' ? 'announcements' : activeContentType === 'session' ? 'sessions' : activeContentType === 'moment' ? 'moments' : 'policies'; if (edit) { editingContentId = edit; renderContentManager(); return; } if (remove && window.confirm('Remove this record? This cannot be undone from the administration panel.')) { state[key] = state[key].filter(item => item.id !== remove); await saveDashboard('Content removed'); } });
-  $('#content-manager').addEventListener('submit', async event => { const form = event.target.closest('#knowledge-csv-import'); if (!form) return; event.preventDefault(); const file = form.elements.knowledgeCsv.files[0], status = form.querySelector('.form-status'), button = form.querySelector('button[type="submit"]'); if (!file) { status.textContent = 'Choose a CSV file to import.'; return; } if (file.size > 5 * 1024 * 1024) { status.textContent = 'CSV files must be 5 MB or smaller.'; return; } button.disabled = true; status.textContent = 'Checking CSV rows…'; try { const { sessions, skipped, pendingResources } = importKnowledgeCsv(await file.text()); if (!sessions.length) throw new Error(`No valid session rows were found${skipped.length ? `; ${skipped.length} row${skipped.length === 1 ? '' : 's'} need attention.` : '.'}`); const keyFor = item => `${item.title}\u0000${item.presenter?.name || ''}\u0000${item.date}`.toLowerCase(), existingByKey = new Map(state.sessions.map(item => [keyFor(item), item])); let added = 0, updated = 0; sessions.forEach((session, index) => { const key = keyFor(session), existing = existingByKey.get(key); if (existing) { Object.assign(existing, session); updated += 1; } else { const imported = { ...session, id:`session-import-${Date.now()}-${index}` }; state.sessions.unshift(imported); existingByKey.set(key, imported); added += 1; } }); await saveDashboard(`CSV import complete: ${added} added, ${updated} updated${skipped.length ? `, ${skipped.length} skipped` : ''}${pendingResources ? `; ${pendingResources} file reference${pendingResources === 1 ? '' : 's'} retained for linking` : ''}.`); } catch (error) { status.textContent = error.message || 'The CSV could not be imported.'; button.disabled = false; } });
+  $('#content-manager').addEventListener('submit', async event => { const form = event.target.closest('#knowledge-csv-import'); if (!form) return; event.preventDefault(); const file = form.elements.knowledgeCsv.files[0], status = form.querySelector('.form-status'), button = form.querySelector('button[type="submit"]'); if (!file) { status.textContent = 'Choose a CSV file to import.'; return; } if (file.size > 5 * 1024 * 1024) { status.textContent = 'CSV files must be 5 MB or smaller.'; return; } button.disabled = true; status.textContent = 'Checking CSV rows…'; try { const { sessions, skipped, pendingResources } = importKnowledgeCsv(await file.text()); if (!sessions.length) throw new Error(`No valid session rows were found${skipped.length ? `; ${skipped.length} row${skipped.length === 1 ? '' : 's'} need attention.` : '.'}`); const keyFor = item => `${item.title}\u0000${item.presenter?.name || ''}\u0000${item.date}`.toLowerCase(), existingByKey = new Map(state.sessions.map(item => [keyFor(item, state.user?.name || 'Intranet team'), item])); let added = 0, updated = 0; sessions.forEach((session, index) => { const key = keyFor(session), existing = existingByKey.get(key); if (existing) { Object.assign(existing, session); updated += 1; } else { const imported = { ...session, id:`session-import-${Date.now()}-${index}` }; state.sessions.unshift(imported); existingByKey.set(key, imported); added += 1; } }); await saveDashboard(`CSV import complete: ${added} added, ${updated} updated${skipped.length ? `, ${skipped.length} skipped` : ''}${pendingResources ? `; ${pendingResources} file reference${pendingResources === 1 ? '' : 's'} retained for linking` : ''}.`); } catch (error) { status.textContent = error.message || 'The CSV import could not be completed.'; button.disabled = false; } });
   $('#content-form').addEventListener('click', event => { if (event.target.dataset.cancelContent !== undefined) { editingContentId = null; renderContentManager(); } });
   $('#content-form').addEventListener('submit', async event => { event.preventDefault(); const formElement = event.currentTarget, form = new FormData(formElement), key = activeContentType === 'announcement' ? 'announcements' : activeContentType === 'session' ? 'sessions' : activeContentType === 'moment' ? 'moments' : 'policies'; const existing = editingContentId && state[key].find(item => item.id === editingContentId); const attachment = form.get('attachment'); let record; if (activeContentType === 'announcement') record = { ...(existing || { id:`announcement-${Date.now()}`, date:'Just now', priority:'normal' }), title:form.get('title'), body:form.get('body'), tag:form.get('tag') || 'Company update' }; else if (activeContentType === 'session') { const presenter = String(form.get('presenter')).trim(), deckUrl = await uploadAdminFile(attachment, ['application/pdf']), presentationDeckUrl = safeKnowledgeLink(form.get('presentationDeckUrl')), recordingUrl = safeKnowledgeLink(form.get('recordingUrl')), supportingMaterialsUrl = safeKnowledgeLink(form.get('supportingMaterialsUrl')); if ([presentationDeckUrl, recordingUrl, supportingMaterialsUrl].includes(null)) { formElement.querySelector('.form-status').textContent = 'Use https://, /intranet-path, or #anchor links for session resources.'; return; } record = { ...(existing || { id:`session-${Date.now()}` }), title:form.get('title'), presenter:{ name:presenter, initials:presenter.split(' ').map(part => part[0]).join('').slice(0,2) }, category:form.get('category'), date:form.get('date'), outline:form.get('outline'), presentationDeckUrl:deckUrl || presentationDeckUrl || existing?.presentationDeckUrl || '', recordingUrl:recordingUrl || '', supportingMaterialsUrl:supportingMaterialsUrl || '' }; } else if (activeContentType === 'moment') { const media = form.get('media'), status = formElement.querySelector('.form-status'), button = formElement.querySelector('button[type="submit"]'); try { if (media?.name) { button.disabled = true; button.textContent = 'Uploading media…'; status.textContent = `Uploading ${media.name}…`; } const mediaUrl = await uploadMomentMedia(media); record = { ...(existing || { id:`moment-${Date.now()}` }), title:String(form.get('title')).trim(), kind:String(form.get('kind')).trim(), color:String(form.get('color')).trim() || '#dceeff', mediaUrl:mediaUrl || existing?.mediaUrl || '', mediaFilename:media?.name || existing?.mediaFilename || attachmentFilename(mediaUrl || existing?.mediaUrl) }; } catch (error) { status.textContent = error.message || 'The media could not be uploaded. Please try again.'; button.disabled = false; button.textContent = existing ? 'Save changes' : 'Add moment'; return; } } else { const policyUrl = await uploadAdminFile(attachment, ['application/pdf']); record = { ...(existing || { id:`policy-${Date.now()}`, canonicalUrl:'/new-hires.html#policies', category:'General' }), title:form.get('title'), summary:form.get('summary'), owner:form.get('owner'), audience:form.get('audience'), version:form.get('version'), ...(policyUrl ? { canonicalUrl:policyUrl } : {}) }; } if (existing) Object.assign(existing, record); else state[key].unshift(record); editingContentId = null; await saveDashboard(existing ? 'Content updated' : 'Content added'); });
   $('#member-manager').addEventListener('click', async event => { const edit = event.target.dataset.editMember, remove = event.target.dataset.removeMember; if (edit) { editingMemberId = edit; renderMemberManager(); return; } if (remove && window.confirm('Remove this colleague from Recently Joined?')) { state.newMembers = state.newMembers.filter(member => member.id !== remove); await saveDashboard('Recently joined colleague removed'); } });
@@ -525,15 +580,11 @@ function setupEvents() {
   $('#newsi-checklist-form').addEventListener('click', event => { if (event.target.dataset.cancelChecklistItem !== undefined) { editingChecklistItemId = null; renderNewSiChecklist(); } });
   $('#newsi-acknowledgement-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget), fields = ['actionTitle','instructionText','beforeHeading','beforeText','confirmationLabel','confirmationHelp','acceptedTitle','afterText'], content = Object.fromEntries(fields.map(field => [field, String(form.get(field)).trim()])); if (fields.some(field => !content[field])) return; state.policyAcknowledgementContent = { ...content, version:(Number(state.policyAcknowledgementContent.version) || 1) + 1 }; await saveDashboard('Acknowledgement text updated; employees must confirm the revised acknowledgement.'); });
   $('#newsi-checklist-form').addEventListener('submit', async event => { event.preventDefault(); const form = new FormData(event.currentTarget), existing = editingChecklistItemId && state.firstWeekChecklist.find(item => item.id === editingChecklistItemId), text = String(form.get('text')).trim(), typedUrl = String(form.get('resourceUrl')).trim(), attachment = form.get('attachment'); if (!text) return; if (typedUrl && !/^(https?:\/\/|\/|#)/i.test(typedUrl)) { event.currentTarget.querySelector('.form-status').textContent = 'Use an https:// link or an intranet path beginning with / or #.'; return; } const attachmentUrl = await uploadAdminFile(attachment, ['application/pdf','image/png','image/jpeg','image/webp','image/gif']), legacyAttachment = existing?.resourceUrl?.startsWith('/uploads/') ? existing.resourceUrl : '', savedAttachment = attachmentUrl || existing?.attachmentUrl || legacyAttachment; const record = { ...(existing || { id:`checklist-${Date.now()}` }), text, resourceLabel:String(form.get('resourceLabel')).trim(), resourceUrl:typedUrl || (existing?.resourceUrl?.startsWith('/uploads/') ? '' : existing?.resourceUrl || ''), attachmentUrl:savedAttachment, attachmentFilename:attachment?.name || existing?.attachmentFilename || attachmentFilename(savedAttachment), attachmentLabel:String(form.get('attachmentLabel')).trim() }; if (existing) Object.assign(existing, record); else state.firstWeekChecklist.push(record); editingChecklistItemId = null; await saveDashboard(existing ? 'Checklist item updated' : 'Checklist item added'); });
-  $('#global-search').addEventListener('input', renderGlobalResults);
-  $('#global-search').addEventListener('keydown', event => { if (event.key === 'Enter') { const first = $('#global-results .search-result'); if (first) { window.location.assign(first.href); return; } $('#session-search').value = event.target.value; $('#knowledge').scrollIntoView(); renderSessions(); } });
-  document.addEventListener('click', event => { const attachment = event.target.closest('a[href^="/uploads/"]'); if (attachment && !attachment.closest('#media-modal') && !attachment.href.includes('download=1') && !event.ctrlKey && !event.metaKey && !event.shiftKey) { event.preventDefault(); openAttachmentPreview(attachment.getAttribute('href'), attachment.textContent.trim()); } if (!event.target.closest('.global-search-wrap')) $('#global-results').hidden = true; });
-  document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#global-search').focus(); } if (event.key === 'Escape') { closeCMS(); const nudge = $('#explore-nudge'); if (nudge && !nudge.hidden) { nudge.hidden = true; sessionStorage.setItem('siware-explore-nudge-v2-dismissed', 'true'); } } });
+  document.addEventListener('click', event => { const attachment = event.target.closest('a[href^="/uploads/"]'); if (attachment && !attachment.closest('#media-modal') && !attachment.href.includes('download=1') && !event.ctrlKey && !event.metaKey && !event.shiftKey) { event.preventDefault(); openAttachmentPreview(attachment.getAttribute('href'), attachment.textContent.trim()); } });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeCMS(); const nudge = $('#explore-nudge'); if (nudge && !nudge.hidden) { nudge.hidden = true; sessionStorage.setItem('siware-explore-nudge-v2-dismissed', 'true'); } } });
   $('#hero-action').addEventListener('click', () => $('#knowledge').scrollIntoView());
   $('#view-all-sessions').addEventListener('click', () => { activeTag = 'All'; knowledgePage = 1; $('#session-search').value = ''; renderTags(); renderSessions(); });
-  $('#gallery-next').addEventListener('click', () => { state.moments.push(state.moments.shift()); renderMoments(); acknowledgeContentChange($('#moments-grid')); });
-  $('#view-gallery').addEventListener('click', event => { event.preventDefault(); galleryOpen = !galleryOpen; renderMoments(); if (galleryOpen) $('#moments-gallery').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'nearest' }); });
   $('#calendar-button').addEventListener('click', event => { event.preventDefault(); showToast('Calendar integration coming soon'); });
 }
-async function initialize() { try { state = normalizeState(await request('/api/dashboard')); placeCmsToggleInHeader(); renderAll(); [['#facebook-link', 'Facebook'], ['#linkedin-link', 'LinkedIn']].forEach(([selector, network]) => { const link = $(selector); if (link) { link.innerHTML = 'Visit Page <span>↗</span>'; link.setAttribute('aria-label', `Visit Si-Ware ${network} page`); } }); setupEvents(); setupExploreNudge(); renderYouTubeVideos(); } catch (error) { document.body.innerHTML = `<main style="max-width:600px;margin:10vh auto;font-family:system-ui"><h1>Intranet unavailable</h1><p>${escapeHtml(error.message)}</p><button type="button" onclick="location.reload()">Try again</button><p>Start the local container with <code>docker compose up --build</code>.</p></main>`; } }
+async function initialize() { try { state = normalizeState(await request('/api/dashboard')); placeCmsToggleInHeader(); renderAll(); [['#facebook-link', 'Facebook'], ['#linkedin-link', 'LinkedIn']].forEach(([selector, network]) => { const link = $(selector); if (link) { link.innerHTML = 'Visit Page <span>↗</span>'; link.setAttribute('aria-label', `Visit Si-Ware ${network} page`); } }); setupEvents(); if (location.hash === '#admin') openCMS(); renderYouTubeVideos(); } catch (error) { document.body.innerHTML = `<main style="max-width:600px;margin:10vh auto;font-family:system-ui"><h1>Intranet unavailable</h1><p>${escapeHtml(error.message)}</p><button type="button" onclick="location.reload()">Try again</button><p>Start the local container with <code>docker compose up --build</code>.</p></main>`; } }
 initialize();

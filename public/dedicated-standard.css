@@ -1,0 +1,225 @@
+/* Dedicated destinations inherit the New Si-Warians workspace system. */
+:root{--ink:#102b4e;--muted:#526a87;--line:#d8e3ef;--paper:#f5f8fc;--card:#fff;--blue:#1458b6;--blue-dark:#103d7a;--focus:#155dbf;--shadow:0 10px 28px rgb(20 54 96 / 7%);--radius:12px}
+body.destination-page,body.news-page-body,body.policy-page{background:var(--paper);color:var(--ink);font-family:Manrope,Arial,sans-serif;letter-spacing:-.008em}
+.destination-page .destination-shell,.news-page-shell,.policy-shell{max-width:1080px;margin-inline:auto}
+.destination-page-header,.news-page-topbar,.policy-topbar{min-height:82px;border-bottom-color:var(--line)}
+.destination-page-header img,.news-page-topbar img,.policy-topbar .brand-logo{width:144px}
+.destination-nav-inline a{color:#48617e;font-size:11px;font-weight:700}.destination-nav-inline a:hover{background:#edf4ff;color:#124e9e}.destination-nav-inline a[aria-current="page"]{background:#1458b6;color:#fff}
+.destination-intro{padding-top:24px}.destination-intro h1,.company-news-page-intro h1{color:#173967;font-family:Manrope,Arial,sans-serif;font-weight:800;letter-spacing:-.045em}.destination-intro p,.company-news-page-intro p{color:var(--muted);line-height:1.6}.company-news-page-intro p,.destination-intro--announcements p{max-width:none;white-space:nowrap}
+.destination-item{border-color:var(--line)}.destination-item h2{color:#173967;font-weight:800}.destination-item p{color:var(--muted);line-height:1.6}.destination-meta{color:#48617e}.destination-action{color:var(--blue)}
+.announcement-provenance{margin-top:15px;padding-top:11px;border-top:1px solid var(--line);color:#526a87;font-size:11px;line-height:1.35}.announcement-provenance b{color:#173967;font-weight:800}.announcement-item .destination-meta time{color:#48617e;font-variant-numeric:tabular-nums;white-space:nowrap}
+.social-link,.knowledge-register,.company-news-list article{border-color:var(--line);border-radius:12px;background:var(--card);box-shadow:none}.social-link{color:#173967}.social-link:hover{border-color:#98bae5;background:#f8fbff}.social-link span{color:var(--muted)}.youtube-latest h2,.knowledge-register-heading h2{color:#173967;font-family:Manrope,Arial,sans-serif;font-weight:800;letter-spacing:-.035em}
+.knowledge-register-heading,.knowledge-filter-bar{border-color:var(--line)}.knowledge-register th{background:#f7faff;color:#466383}.knowledge-register td{border-color:#e2eaf3}.knowledge-register tbody tr:hover{background:#f7faff}
+.news-page-body{min-height:100vh}.news-page-topbar{border-bottom-color:var(--line)}.company-news-page-intro h1,.company-news-section-heading h2,.company-news-archive h2{color:#173967;font-family:Manrope,Arial,sans-serif;font-weight:800}.company-news-page-intro p,.company-news-list p{color:var(--muted)}.company-news-feature,.company-news-archive{border-color:var(--line)}.company-news-list article{border-color:var(--line)}.company-news-list h3 a{color:#173967}.company-news-list time{color:#48617e}
+html.dark{--ink:#edf4ff;--muted:#b8c8dd;--line:#294967;--paper:#0b1728;--card:#10243e;--blue:#9ac4ff;--blue-dark:#3269c8;--focus:#8fc1ff;--shadow:0 14px 30px rgb(0 0 0 / 18%)}
+html.dark body.destination-page,html.dark body.news-page-body,html.dark body.policy-page{background:#0b1728;color:#edf4ff}.dark .destination-page-header,.dark .news-page-topbar,.dark .policy-topbar{border-color:#294967}.dark .destination-nav-inline a{color:#b8c8dd}.dark .destination-nav-inline a:hover{background:#173757;color:#edf4ff}.dark .destination-nav-inline a[aria-current="page"]{background:#3269c8;color:#fff}
+html.dark .destination-intro h1,html.dark .company-news-page-intro h1,html.dark .company-news-section-heading h2,html.dark .company-news-archive h2,html.dark .destination-item h2,html.dark .youtube-latest h2,html.dark .knowledge-register-heading h2{color:#edf4ff}html.dark .destination-intro p,html.dark .company-news-page-intro p,html.dark .destination-item p,html.dark .social-link span,html.dark .company-news-list p,html.dark .knowledge-register-heading p{color:#b8c8dd}html.dark .destination-item,html.dark .company-news-feature,html.dark .company-news-archive{border-color:#294967}
+html.dark .social-link,html.dark .knowledge-register,html.dark .company-news-list article{border-color:#294967;background:#10243e}html.dark .social-link{color:#edf4ff}html.dark .social-link:hover{background:#173757;border-color:#41698f}html.dark .knowledge-register-heading,html.dark .knowledge-filter-bar{border-color:#294967}html.dark .knowledge-register th{background:#132a47;color:#c9dcf5}html.dark .knowledge-register td{border-color:#294967;color:#edf4ff}html.dark .knowledge-register tbody tr:hover{background:#173757}html.dark .company-news-list h3 a{color:#edf4ff}html.dark .company-news-list time,html.dark .destination-meta{color:#b8c8dd}
+html.dark .announcement-provenance{border-color:#294967;color:#c6d6e9}html.dark .announcement-provenance b{color:#edf4ff}html.dark .announcement-item .destination-meta time{color:#b8c8dd}
+/* Ensure people and confidential-reporting details retain the approved readable hierarchy. */
+html.dark .new-member-announcement b,html.dark .new-member-announcement-head time,html.dark .reporting-paths b,html.dark .employee-voice-action b{color:#edf4ff}html.dark .new-member-announcement-head span,html.dark .new-member-announcement p,html.dark .new-member-manager,html.dark .member-filter-bar label,html.dark .member-result-count{color:#c6d6e9}html.dark .new-member-announcement{border-color:#294967}html.dark .member-filter-bar{border-color:#294967}html.dark .member-filter-bar select{border-color:#365779;background:#10243e;color:#edf4ff}
+html.dark .whistleblower-page .reporting-paths span,html.dark .whistleblower-page .policy-card li,html.dark .whistleblower-page .employee-voice-action,html.dark .whistleblower-page .employee-voice-action p{color:#c6d6e9}html.dark .whistleblower-page .reporting-paths li{border-color:#294967}html.dark .whistleblower-page .policy-card li::marker{color:#9ac4ff}
+@media(max-width:1050px){.destination-page-header,.news-page-topbar,.policy-topbar{min-height:76px}}@media(max-width:650px){.destination-page .destination-shell,.news-page-shell,.policy-shell{padding-inline:20px}.destination-page-header,.news-page-topbar,.policy-topbar{min-height:68px}.destination-page-header img,.news-page-topbar img,.policy-topbar .brand-logo{width:120px}.destination-intro{padding-top:22px}.company-news-page-intro p,.destination-intro--announcements p{white-space:normal}}
+
+/* Keep full-bleed shared headers from creating a page-level horizontal scrollbar. */
+html{overflow-x:clip}body.destination-page,body.news-page-body,body.policy-page{overflow-x:clip}
+
+/* The people, onboarding and reporting destinations share the policy hero
+   template. Keep their page title aligned with the compact destination intro,
+   rather than carrying the oversized landing-page offset. */
+body.policy-page .policy-hero{padding-top:28px;padding-bottom:36px}
+body.news-page-body .company-news-page{padding-top:28px}
+@media(max-width:650px){body.policy-page .policy-hero{padding-top:24px;padding-bottom:30px}body.news-page-body .company-news-page{padding-top:24px}}
+
+/* Social channels are quick destinations, not long-form content cards. */
+.social-page-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.social-link{position:relative;display:grid;justify-items:center;align-content:center;gap:10px;min-height:148px;padding:18px 14px;text-align:center;transition:transform 180ms ease,border-color 180ms ease,background-color 180ms ease,box-shadow 180ms ease}
+.social-link-icon{display:grid;width:46px;height:46px;place-items:center;border-radius:14px;background:#edf4ff;color:#1458b6}
+.social-link-icon svg{width:24px;height:24px;fill:currentColor}.social-link--facebook .social-link-icon{background:#edf3ff;color:#1877f2}.social-link--youtube .social-link-icon{background:#fff0f1;color:#e52d36}.social-link--website .social-link-icon{background:#e9f8f6;color:#087f70}.social-link b{font-size:14px;letter-spacing:-.02em}.social-link strong{margin:0;color:#48617e;font-size:11px;font-weight:700}.social-link:hover{border-color:#8cafdb;background:#fff;box-shadow:0 10px 22px rgb(24 68 125 / 10%);transform:translateY(-2px)}.social-link:hover strong{color:#1458b6}.social-link:focus-visible{z-index:1;outline:3px solid rgb(20 88 182 / 34%);outline-offset:3px}
+html.dark .social-link-icon{background:#173757;color:#9ac4ff}html.dark .social-link--facebook .social-link-icon{background:#183b68;color:#92bdff}html.dark .social-link--youtube .social-link-icon{background:#4a2630;color:#ffb7bd}html.dark .social-link--website .social-link-icon{background:#17453f;color:#90e5d4}html.dark .social-link strong{color:#c6d6e9}html.dark .social-link:hover{background:#173757;border-color:#41698f}
+@media(max-width:650px){.social-page-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.social-link{min-height:132px;padding:16px 10px}.social-link-icon{width:42px;height:42px;border-radius:12px}.social-link b{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.social-link{transition:none}.social-link:hover{transform:none}}
+
+/* Social links form one connected directory card, not four large panels. */
+.social-page-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:0;row-gap:28px}.social-page-grid>.social-link{min-height:124px;padding:18px 14px;border:1px solid var(--line);border-inline-start:0;border-radius:0;background:var(--card);box-shadow:none;transform:none}.social-page-grid>.social-link:first-child{border-inline-start:1px solid var(--line);border-radius:14px 0 0 14px}.social-page-grid>.social-link:nth-child(4){border-radius:0 14px 14px 0}.social-page-grid>.social-link strong{display:none}.social-page-grid>.social-link:hover{background:#f6faff;border-color:var(--line);box-shadow:none;transform:none}.social-page-grid>.social-link:focus-visible{z-index:1;outline-offset:-4px}.social-page-grid>.social-link-icon{width:40px;height:40px;border-radius:12px}.social-page-grid>.social-link-icon svg{width:21px;height:21px}html.dark .social-page-grid>.social-link{border-color:#294967;background:#10243e}html.dark .social-page-grid>.social-link:hover{background:#173757}
+@media(max-width:650px){.social-page-grid{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:0;row-gap:22px}.social-page-grid>.social-link{min-height:116px;border-inline-start:1px solid var(--line);border-top:0;border-radius:0}.social-page-grid>.social-link:first-child{border-radius:14px 0 0 0}.social-page-grid>.social-link:nth-child(2){border-radius:0 14px 0 0}.social-page-grid>.social-link:nth-child(3){border-radius:0 0 0 14px}.social-page-grid>.social-link:nth-child(4){border-radius:0 0 14px 0}html.dark .social-page-grid>.social-link{border-color:#294967}}
+
+/* A single, concise entrance establishes the channel row as one directory.
+   The interaction feedback stays local to the selected destination. */
+.social-page-grid{box-shadow:0 12px 26px rgb(24 68 125 / 6%)}.social-page-grid>.social-link{transition:background-color 180ms ease,color 180ms ease,box-shadow 180ms ease;animation:social-channel-arrive 440ms cubic-bezier(.16,1,.3,1) both}.social-page-grid>.social-link:nth-child(2){animation-delay:55ms}.social-page-grid>.social-link:nth-child(3){animation-delay:110ms}.social-page-grid>.social-link:nth-child(4){animation-delay:165ms}.social-page-grid>.social-link-icon{transition:transform 180ms cubic-bezier(.16,1,.3,1),box-shadow 180ms ease,background-color 180ms ease}.social-page-grid>.social-link b{transition:color 180ms ease,transform 180ms cubic-bezier(.16,1,.3,1)}.social-page-grid>.social-link:is(:hover,:focus-visible){background:#f4f8ff}.social-page-grid>.social-link:is(:hover,:focus-visible) .social-link-icon{box-shadow:0 7px 15px rgb(24 68 125 / 14%);transform:translateY(-3px) scale(1.04)}.social-page-grid>.social-link:is(:hover,:focus-visible) b{color:#1458b6;transform:translateY(1px)}@keyframes social-channel-arrive{from{opacity:.55;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}html.dark .social-page-grid{box-shadow:0 12px 26px rgb(0 0 0 / 16%)}html.dark .social-page-grid>.social-link:is(:hover,:focus-visible){background:#173757}html.dark .social-page-grid>.social-link:is(:hover,:focus-visible) b{color:#c9e2ff}
+@media(prefers-reduced-motion:reduce){.social-page-grid>.social-link{animation:none;transition:background-color 120ms ease,color 120ms ease}.social-page-grid>.social-link-icon,.social-page-grid>.social-link b{transition:none}.social-page-grid>.social-link:is(:hover,:focus-visible) .social-link-icon,.social-page-grid>.social-link:is(:hover,:focus-visible) b{transform:none}}
+
+/* The company destination carries the actual Si-Ware mark, not a generic web icon. */
+.social-page-grid>.social-link--website .social-link-icon{background-color:#e9f8f6;background-image:url('/Icon.png');background-position:center;background-repeat:no-repeat;background-size:62%}.social-page-grid>.social-link--website .social-link-icon svg{display:none}html.dark .social-page-grid>.social-link--website .social-link-icon{background-color:#17453f}
+
+/* The dashboard command bar is the shared intranet header standard. */
+@media (min-width:1051px) {
+  .destination-page-header,
+  .news-page-topbar,
+  .policy-topbar {
+    width:100vw;
+    min-height:72px;
+    height:72px;
+    margin-left:calc(50% - 50vw);
+    padding-inline:clamp(28px,2.92vw,56px);
+    gap:16px;
+    border-bottom:0;
+  }
+
+  .destination-page-header>a:first-child,
+  .news-page-topbar>a:first-child,
+  .policy-topbar .brand {
+    flex:0 0 auto;
+    padding-right:22px;
+    border-right:1px solid var(--line);
+  }
+
+  .destination-page-header img,
+  .news-page-topbar img,
+  .policy-topbar .brand-logo { width:148px; }
+
+  .destination-page-header .destination-nav-inline,
+  .news-page-topbar .destination-nav-inline,
+  .policy-topbar .destination-nav-inline {
+    flex:1 1 auto;
+    min-width:0;
+    margin-inline:0;
+    /* Match the dashboard's compact desktop command bar so every route stays
+       visible beside the persistent search and account controls. */
+    padding:2px;
+    gap:0;
+    overflow:visible;
+    border:1px solid var(--line);
+    border-radius:9px;
+    background:color-mix(in srgb,var(--card) 88%,var(--paper));
+  }
+
+  .destination-page-header .destination-nav-inline a,
+  .news-page-topbar .destination-nav-inline a,
+  .policy-topbar .destination-nav-inline a {
+    flex:0 1 auto;
+    padding:7px 4px;
+    border:0;
+    border-radius:6px;
+    color:#4d6482;
+    font-size:10px;
+    letter-spacing:-.01em;
+  }
+
+  .destination-page-header .destination-nav-inline a[aria-current="page"],
+  .news-page-topbar .destination-nav-inline a[aria-current="page"],
+  .policy-topbar .destination-nav-inline a[aria-current="page"] { background:#eaf3ff;color:#124e9e; }
+
+  .standard-header-tools { display:flex;align-items:center;gap:10px;flex:0 0 auto;position:relative; }
+  .standard-header-tools .header-search-toggle { flex:0 0 auto;width:36px;height:36px; }
+  .header-profile svg { width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8; }
+  .standard-header-tools .theme-toggle,.standard-header-tools .notification { flex:0 0 auto;width:38px;height:38px;margin:0;border:1px solid transparent;border-radius:9px; }
+  .standard-header-tools .theme-toggle:hover,.standard-header-tools .notification:hover { border-color:var(--line);background:var(--card); }
+  .header-cms-link { display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 13px;border-radius:10px;background:#123f7b;color:#fff;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap; }
+  .header-cms-link span { color:#ffd465; }
+  .header-cms-link:hover { background:#174e96;color:#fff; }
+  .header-profile { display:flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--ink);padding:0;text-align:left; }
+  .header-profile .avatar { flex:0 0 auto;width:32px;height:32px;background:linear-gradient(135deg,#2f79d7,#1458b6); }
+  .header-profile .profile-copy { display:grid;line-height:1.05; }
+  .header-profile .profile-copy b { font-size:11px; }.header-profile .profile-copy small { color:var(--muted);font-size:10px; }
+  .shared-profile-menu { position:absolute;z-index:30;top:calc(100% + 12px);right:0;width:216px;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px rgb(20 54 96 / 14%); }
+  .shared-profile-menu b { display:block;padding:7px 8px;color:var(--muted);font:10px Manrope;text-transform:uppercase;letter-spacing:.04em; }.shared-profile-menu a,.shared-profile-menu button { display:block;width:100%;padding:9px 8px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:13px Manrope;text-align:left;text-decoration:none; }.shared-profile-menu a:hover,.shared-profile-menu button:hover { background:var(--paper); }.shared-profile-menu hr { margin:7px 0;border:0;border-top:1px solid var(--line); }
+}
+
+@media (min-width:1051px) and (max-width:1700px) {
+  .destination-page-header,.news-page-topbar,.policy-topbar { gap:9px; }
+  .destination-page-header>a:first-child,.news-page-topbar>a:first-child,.policy-topbar .brand { padding-right:14px; }
+  .destination-page-header img,.news-page-topbar img,.policy-topbar .brand-logo { width:138px; }
+  .destination-page-header .destination-nav-inline a,.news-page-topbar .destination-nav-inline a,.policy-topbar .destination-nav-inline a { padding-inline:5px;font-size:9px; }
+  .standard-header-tools { gap:7px; }
+}
+
+@media (max-width:1050px) {
+  .standard-header-tools { display:flex;align-items:center;gap:6px;margin-left:auto; }
+  .standard-header-tools .header-cms-link,.standard-header-tools .header-profile .profile-copy { display:none; }
+  .standard-header-tools .theme-toggle,.standard-header-tools .notification { width:36px;height:36px;margin:0; }
+  .header-profile { border:0;background:transparent;padding:0; }.header-profile .avatar { width:30px;height:30px; }
+}
+
+html.dark .destination-page-header>a:first-child,html.dark .news-page-topbar>a:first-child,html.dark .policy-topbar .brand{border-color:var(--line)}
+html.dark .destination-page-header .destination-nav-inline,html.dark .news-page-topbar .destination-nav-inline,html.dark .policy-topbar .destination-nav-inline{border-color:var(--line);background:#10213a}
+html.dark .destination-page-header .destination-nav-inline a,html.dark .news-page-topbar .destination-nav-inline a,html.dark .policy-topbar .destination-nav-inline a{color:#adc0d6}
+html.dark .destination-page-header .destination-nav-inline a[aria-current="page"],html.dark .news-page-topbar .destination-nav-inline a[aria-current="page"],html.dark .policy-topbar .destination-nav-inline a[aria-current="page"]{background:#1a3e70;color:#fff}
+html.dark .header-profile{color:#edf4ff}html.dark .header-cms-link{background:#174e96}html.dark .standard-header-tools .theme-toggle:hover,html.dark .standard-header-tools .notification:hover{border-color:var(--line);background:#10213a}
+html.dark .shared-profile-menu{background:#10243e;border-color:#294967;box-shadow:0 14px 30px rgb(0 0 0 / 28%)}html.dark .shared-profile-menu a,html.dark .shared-profile-menu button{color:#edf4ff}html.dark .shared-profile-menu a:hover,html.dark .shared-profile-menu button:hover{background:#173757}
+
+/* Shared compact header for every dedicated destination. */
+.destination-page-header>a:first-child,
+.news-page-topbar>a:first-child,
+.policy-topbar>.brand{display:none}
+@media (min-width:1051px) {
+  .destination-page-header,
+  .news-page-topbar,
+  .policy-topbar {
+    min-height:64px;
+    height:64px;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    grid-template-rows:1fr;
+    column-gap:12px;
+    padding-inline:clamp(24px,2.34vw,45px);
+    padding-block:0;
+  }
+
+  .destination-page-header .destination-nav-inline,
+  .news-page-topbar .destination-nav-inline,
+  .policy-topbar .destination-nav-inline { grid-column:1;grid-row:1;align-self:center;width:100%;display:flex;justify-content:space-between;gap:4px;margin:0;padding:3px;overflow:visible;border:1px solid var(--line);border-radius:9px;background:color-mix(in srgb,var(--card) 88%,var(--paper)); }
+
+  .destination-page-header .destination-nav-inline a,
+  .news-page-topbar .destination-nav-inline a,
+  .policy-topbar .destination-nav-inline a { flex:0 0 auto;padding:9px 10px;font-size:12px;line-height:1;white-space:nowrap; }
+
+  .standard-header-tools { grid-column:2;grid-row:1;justify-self:end;gap:10px; }
+  .standard-header-tools .header-search-toggle { width:34px; height:34px; }
+  .standard-header-tools .theme-toggle { width:36px; height:36px; padding:5px; }
+  .header-cms-link { min-height:34px; padding-inline:12px; border-radius:8px; font-size:10px; }
+  .header-profile { gap:6px; }
+  .header-profile .avatar { width:30px; height:30px; font-size:10px; }
+  .header-profile .profile-copy { display:none; }
+  .destination-page-header :is(.destination-nav-inline a,.theme-toggle,.header-cms-link,.header-profile):focus-visible,
+  .news-page-topbar :is(.destination-nav-inline a,.theme-toggle,.header-cms-link,.header-profile):focus-visible,
+  .policy-topbar :is(.destination-nav-inline a,.theme-toggle,.header-cms-link,.header-profile):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+}
+
+@media (min-width:1171px) and (max-width:1450px){
+  .destination-page-header .destination-nav-inline,.news-page-topbar .destination-nav-inline,.policy-topbar .destination-nav-inline{gap:2px}
+  .destination-page-header .destination-nav-inline a,.news-page-topbar .destination-nav-inline a,.policy-topbar .destination-nav-inline a{padding-inline:5px;font-size:10px}
+}
+
+@media (min-width:651px) and (max-width:1170px){
+  .destination-page-header,.news-page-topbar,.policy-topbar{height:auto;min-height:88px;grid-template-rows:44px auto;padding-block:0}
+  .destination-page-header .destination-nav-inline,.news-page-topbar .destination-nav-inline,.policy-topbar .destination-nav-inline{grid-column:1 / -1;grid-row:2;flex-wrap:wrap;justify-content:flex-start;gap:3px;margin:0;padding:5px 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent}
+  .destination-page-header .destination-nav-inline a,.news-page-topbar .destination-nav-inline a,.policy-topbar .destination-nav-inline a{padding:7px 8px;font-size:10px}
+}
+
+@media (max-width:650px){
+  .destination-page-header,.news-page-topbar,.policy-topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:44px 42px;min-height:86px;height:86px;gap:0;background:var(--paper)}
+  .destination-page-header .destination-nav-inline,.news-page-topbar .destination-nav-inline,.policy-topbar .destination-nav-inline{grid-column:1 / -1;grid-row:2;align-self:stretch;display:flex;justify-content:flex-start;gap:3px;min-width:0;max-width:100%;margin:0;padding:5px 0;overflow-x:auto;scrollbar-width:none;mask-image:none;border-top:1px solid var(--line)}
+  .destination-page-header .destination-nav-inline a,.news-page-topbar .destination-nav-inline a,.policy-topbar .destination-nav-inline a{display:block;flex:0 0 auto;padding:7px 8px;font-size:11px}
+  .standard-header-tools{grid-column:2;grid-row:1;display:flex;gap:6px;margin:0}
+  .standard-header-tools .header-search-toggle{width:32px;height:32px}
+  .standard-header-tools .header-cms-link{display:inline-flex;min-height:32px;padding-inline:9px;font-size:10px}
+}
+
+/* The dashboard's inset divider also belongs beneath every dedicated header. */
+.destination-page-header,.news-page-topbar,.policy-topbar{position:relative;border-bottom:0}
+.destination-page-header::after,.news-page-topbar::after,.policy-topbar::after{
+  content:"";
+  position:absolute;
+  right:0;
+  bottom:0;
+  left:0;
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+}
+@media (min-width:1051px){
+  .destination-page-header::after,.news-page-topbar::after,.policy-topbar::after{
+    right:clamp(24px,2.34vw,45px);
+    left:clamp(24px,2.34vw,45px);
+  }
+}
