@@ -84,3 +84,23 @@ html.dark .onboarding-hero-aside b{color:#edf4ff}
 html.dark .onboarding-hero-aside p{color:#c6d6e9}
 html.dark .onboarding-hero-aside>a{color:#9ac4ff}
 @media(max-width:700px){.policy-hero{background:transparent}.onboarding-hero-aside{background:#f4f8ff}}
+
+/* The aside is a grid item: let it shrink, then wrap its action inside the card. */
+.onboarding-hero-aside{min-width:0}
+.onboarding-hero-aside>a{width:fit-content;max-width:100%;min-width:0;flex-wrap:wrap}
+.onboarding-hero-aside>a>span:first-child{min-width:0;overflow-wrap:anywhere}
+
+.onboarding-training{scroll-margin-top:18px}
+.onboarding-video-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:22px}
+.onboarding-video-card{min-width:0;padding:16px;border:1px solid #d6e4f2;border-radius:10px;background:#f8fbff}
+.onboarding-video-card h3{margin:0 0 12px;color:#173967;font:800 15px/1.3 Manrope,Arial,sans-serif;letter-spacing:-.02em}
+.onboarding-video-frame{overflow:hidden;aspect-ratio:16/9;border-radius:7px;background:#10243e}
+.onboarding-video-frame iframe{display:block;width:100%;height:100%;border:0}
+.onboarding-video-card>a{display:inline-flex;align-items:center;gap:6px;margin-top:12px;color:#1557c0;font:800 12px/1.4 Manrope,Arial,sans-serif;text-decoration:none}
+.onboarding-video-card>a:hover{text-decoration:underline;text-underline-offset:4px}
+.onboarding-video-card>a:focus-visible{outline:3px solid rgb(21 87 192 / 28%);outline-offset:4px;border-radius:3px}
+.onboarding-video-card-wide{grid-column:1/-1}
+html.dark .onboarding-video-card{border-color:#365779;background:#122b49}
+html.dark .onboarding-video-card h3{color:#edf4ff}
+html.dark .onboarding-video-card>a{color:#9ac4ff}
+@media(max-width:700px){.onboarding-video-grid{grid-template-columns:1fr;gap:14px}.onboarding-video-card{padding:14px}.onboarding-video-card-wide{grid-column:auto}}

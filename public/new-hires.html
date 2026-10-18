@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="/theme-toggle.css" />
     <link rel="stylesheet" href="/first-week-checklist.css" />
     <link rel="stylesheet" href="/policy-acknowledgement.css" />
-    <link rel="stylesheet" href="/new-si-warians-experience.css" />
+    <link rel="stylesheet" href="/new-si-warians-experience.css?v=20261018-training-videos" />
     <link rel="stylesheet" href="/destination-pages.css" />
     <script src="/theme.js" defer></script>
   </head>
@@ -37,26 +37,27 @@
       </header>
       <section class="policy-hero">
         <div>
-          <p class="policy-eyebrow">New Si-Warians!</p>
-          <h1>Your first days, <em>made clear.</em></h1>
-          <p>Start with one meaningful action, then build momentum. Your checklist, essential policies, support routes and everyday tools are all in one place.</p>
-          <div class="onboarding-signal" aria-live="polite"><span>First-week journey</span><b id="onboarding-hero-progress">5 essential actions ahead</b></div>
-          <div class="policy-hero-actions"><a href="#first-week">Start your checklist</a></div>
+          <p class="policy-eyebrow" data-newsi-copy="heroEyebrow">New Si-Warians!</p>
+          <h1><span data-newsi-copy="heroLead">Your first days,</span> <em data-newsi-copy="heroAccent">made clear.</em></h1>
+          <p data-newsi-copy="heroText">Start with one meaningful action, then build momentum. Your checklist, essential policies, support routes and everyday tools are all in one place.</p>
+          <div class="onboarding-signal" aria-live="polite"><span data-newsi-copy="heroJourneyLabel">First-week journey</span><b id="onboarding-hero-progress">5 essential actions ahead</b></div>
+          <div class="policy-hero-actions"><a href="#first-week" data-newsi-copy="heroAction">Start your checklist</a></div>
         </div>
-        <aside class="policy-hero-aside onboarding-hero-aside"><span aria-hidden="true"></span><b>One step at a time</b><p>Choose the next task that unlocks your workday. Your progress stays visible while you explore.</p><a href="#help">Find the right support route <span aria-hidden="true">→</span></a></aside>
+        <aside class="policy-hero-aside onboarding-hero-aside"><span aria-hidden="true"></span><b data-newsi-copy="asideTitle">One step at a time</b><p data-newsi-copy="asideText">Choose the next task that unlocks your workday. Your progress stays visible while you explore.</p><a href="#help"><span data-newsi-copy="asideAction">Find the right support route</span> <span aria-hidden="true">→</span></a></aside>
       </section>
       <section class="policy-layout">
         <nav class="policy-nav" aria-label="New Si-Warians page sections">
-          <p>On this page</p>
-          <a href="#first-week" data-onboarding-nav>First-week checklist</a>
-          <a href="#policies" data-onboarding-nav>Essential policies</a>
-          <a href="#tools" data-onboarding-nav>Your everyday tools</a>
-          <a href="#help" data-onboarding-nav>Need help?</a>
+          <p data-newsi-copy="navTitle">On this page</p>
+          <a href="#first-week" data-onboarding-nav data-newsi-copy="navChecklist">First-week checklist</a>
+          <a href="#policies" data-onboarding-nav data-newsi-copy="navPolicies">Essential policies</a>
+          <a href="#training" data-onboarding-nav data-newsi-copy="navTraining">Training videos</a>
+          <a href="#tools" data-onboarding-nav data-newsi-copy="navTools">Your everyday tools</a>
+          <a href="#help" data-onboarding-nav data-newsi-copy="navHelp">Need help?</a>
         </nav>
         <div class="policy-content">
           <article class="policy-card" id="first-week">
-            <h2>First-week checklist</h2>
-            <p>Complete these essentials in your first five working days.</p>
+            <h2 data-newsi-copy="checklistTitle">First-week checklist</h2>
+            <p data-newsi-copy="checklistText">Complete these essentials in your first five working days.</p>
             <div class="checklist-summary" aria-live="polite"><div><b id="checklist-progress-label">0 of 5 complete</b><small id="checklist-progress-description">Choose one task to begin. Each confirmed task is recorded once.</small></div><span class="checklist-next-step">Start with the task that gives you access.</span></div>
             <div class="checklist-progress-track" aria-hidden="true"><span id="checklist-progress-bar"></span></div>
             <ul class="policy-checklist" id="first-week-checklist">
@@ -68,8 +69,8 @@
             </ul>
           </article>
           <article class="policy-card" id="policies">
-            <h2>Essential policies</h2>
-            <p>These are the policies every colleague should know from day one. Links are ready to connect to your approved document repository.</p>
+            <h2 data-newsi-copy="policiesTitle">Essential policies</h2>
+            <p data-newsi-copy="policiesText">These are the policies every colleague should know from day one. Links are ready to connect to your approved document repository.</p>
             <section class="policy-acknowledgement" id="policy-acknowledgement" aria-live="polite" hidden></section>
             <div class="policy-grid">
               <article class="policy-link-card"><b>Code of Conduct</b><small>How we work with integrity and respect.</small></article>
@@ -78,28 +79,49 @@
               <article class="policy-link-card"><b>Health &amp; Safety</b><small>Keeping our workplaces and labs safe.</small></article>
             </div>
           </article>
+          <article class="policy-card onboarding-training" id="training">
+            <h2 data-newsi-copy="trainingTitle">Security Awareness &amp; Admin Portal Training Sessions</h2>
+            <p data-newsi-copy="trainingText">Watch the security awareness session in the language that works best for you, then complete the Admin Portal training.</p>
+            <div class="onboarding-video-grid">
+              <section class="onboarding-video-card">
+                <h3 data-newsi-copy="securityEnglishTitle">Security Awareness — English</h3>
+                <div class="onboarding-video-frame"><iframe data-newsi-video="securityEnglishUrl" src="https://www.youtube-nocookie.com/embed/-vAz1vze0gY?rel=0" title="Security Awareness — English" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+                <a data-newsi-video-open="securityEnglishUrl" href="https://youtu.be/-vAz1vze0gY?si=5qmxYw_vtWcqG1Lj" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">→</span></a>
+              </section>
+              <section class="onboarding-video-card">
+                <h3 data-newsi-copy="securityArabicTitle">Security Awareness — Arabic</h3>
+                <div class="onboarding-video-frame"><iframe data-newsi-video="securityArabicUrl" src="https://www.youtube-nocookie.com/embed/AT-ADrolGzY?rel=0" title="Security Awareness — Arabic" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+                <a data-newsi-video-open="securityArabicUrl" href="https://www.youtube.com/watch?v=AT-ADrolGzY" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">→</span></a>
+              </section>
+              <section class="onboarding-video-card onboarding-video-card-wide">
+                <h3 data-newsi-copy="adminPortalTrainingTitle">Admin Portal Training Session</h3>
+                <div class="onboarding-video-frame"><iframe data-newsi-video="adminPortalTrainingUrl" src="https://www.youtube-nocookie.com/embed/hS3WbTg_y_E?rel=0" title="Admin Portal Training Session" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+                <a data-newsi-video-open="adminPortalTrainingUrl" href="https://www.youtube.com/watch?v=hS3WbTg_y_E" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">→</span></a>
+              </section>
+            </div>
+          </article>
           <article class="policy-card" id="tools">
-            <h2>Your everyday tools</h2>
-            <p>Your manager or IT will provide access. Use the dashboard Quick Launch dock once your account is active.</p>
+            <h2 data-newsi-copy="toolsTitle">Your everyday tools</h2>
+            <p data-newsi-copy="toolsText">Your manager or IT will provide access. Use the dashboard Quick Launch dock once your account is active.</p>
             <div class="policy-grid">
-              <a class="policy-link-card onboarding-tool-card" href="https://mail.google.com" target="_blank" rel="noreferrer"><b>Corporate email</b><small>Gmail for official communication.</small><strong>Open Gmail</strong></a>
-              <a class="policy-link-card onboarding-tool-card" href="/#knowledge"><b>Knowledge Hub</b><small>Sessions and practical know-how from the team.</small><strong>Explore sessions</strong></a>
+              <a class="policy-link-card onboarding-tool-card" href="https://mail.google.com" target="_blank" rel="noreferrer"><b data-newsi-copy="emailTitle">Corporate email</b><small data-newsi-copy="emailText">Gmail for official communication.</small><strong data-newsi-copy="emailAction">Open Gmail</strong></a>
+              <a class="policy-link-card onboarding-tool-card" href="/#knowledge"><b data-newsi-copy="knowledgeTitle">Knowledge Hub</b><small data-newsi-copy="knowledgeText">Sessions and practical know-how from the team.</small><strong data-newsi-copy="knowledgeAction">Explore sessions</strong></a>
             </div>
           </article>
           <article class="policy-card" id="help">
-            <h2>Need help?</h2>
-            <p class="policy-help-intro">Start with the route that best matches your request. If you are unsure where to go, your manager or the People Team can help you find the right owner.</p>
-            <dl class="help-directory" aria-label="Support contacts and routes"><div><dt>IT Support</dt><dd>For access, equipment or a system issue, use the <a href="#company-portals">SolarWinds Service Desk</a> or email the IT Team at <a href="mailto:ithelpdesk@si-ware.com">ithelpdesk@si-ware.com</a>.</dd></div><div><dt>People &amp; HR</dt><dd>For payslips and leave, use <a href="#company-portals">MOHR</a>. For other HR requests, use the <a href="#company-portals">Company Portal</a> or contact the People Team at <a href="mailto:human.resources@si-ware.com">human.resources@si-ware.com</a>.</dd></div><div><dt>Administration</dt><dd>Use the <a href="#company-portals">Company Portal</a> for Administration Team requests.</dd></div><div><dt>Finance</dt><dd>Use the <a href="#company-portals">Company Portal</a> for Finance Team requests.</dd></div></dl>
-            <section class="company-portals" aria-labelledby="company-portals-title"><div><h3 id="company-portals-title">Company portals</h3><p>Quick routes to the teams and services you will use most often.</p></div><div class="company-portals-grid" id="company-portals" aria-live="polite"></div></section>
+            <h2 data-newsi-copy="helpTitle">Need help?</h2>
+            <p class="policy-help-intro" data-newsi-copy="helpText">Start with the route that best matches your request. If you are unsure where to go, your manager or the People Team can help you find the right owner.</p>
+            <dl class="help-directory" aria-label="Support contacts and routes"><div><dt data-newsi-copy="itTitle">IT Support</dt><dd>For access, equipment or a system issue, use the <a href="#company-portals">SolarWinds Service Desk</a> or email the IT Team at <a href="mailto:ithelpdesk@si-ware.com">ithelpdesk@si-ware.com</a>.</dd></div><div><dt data-newsi-copy="peopleTitle">People &amp; HR</dt><dd>For payslips and leave, use <a href="#company-portals">MOHR</a>. For other HR requests, use the <a href="#company-portals">Company Portal</a> or contact the People Team at <a href="mailto:human.resources@si-ware.com">human.resources@si-ware.com</a>.</dd></div><div><dt data-newsi-copy="administrationTitle">Administration</dt><dd>Use the <a href="#company-portals">Company Portal</a> for Administration Team requests.</dd></div><div><dt data-newsi-copy="financeTitle">Finance</dt><dd>Use the <a href="#company-portals">Company Portal</a> for Finance Team requests.</dd></div></dl>
+            <section class="company-portals" aria-labelledby="company-portals-title"><div><h3 id="company-portals-title" data-newsi-copy="portalsTitle">Company portals</h3><p data-newsi-copy="portalsText">Quick routes to the teams and services you will use most often.</p></div><div class="company-portals-grid" id="company-portals" aria-live="polite"></div></section>
           </article>
         </div>
       </section>
-      <footer class="policy-footer"><span>Si-Ware Systems &middot; New Si-Warians!</span><span>Owner: People Operations &middot; Review quarterly</span></footer>
+      <footer class="policy-footer"><span data-newsi-copy="footerLeft">Si-Ware Systems &middot; New Si-Warians!</span><span data-newsi-copy="footerRight">Owner: People Operations &middot; Review quarterly</span></footer>
     </main>
     <dialog class="policy-viewer" id="policy-viewer" aria-labelledby="policy-viewer-title"><div class="policy-viewer-head"><div><h2 id="policy-viewer-title">Policy document</h2><p id="policy-viewer-description">Review the current approved policy.</p></div><div class="policy-viewer-controls"><label class="policy-document-search"><span class="sr-only">Search this document</span><input id="policy-viewer-find" type="search" minlength="2" placeholder="Search this document" autocomplete="off" /></label><button type="button" class="icon-button" id="policy-viewer-close" aria-label="Close policy document">×</button></div></div><div class="policy-search-results" id="policy-search-results" hidden aria-live="polite"></div><div class="policy-page-navigation" aria-label="Document page navigation"><button type="button" id="policy-viewer-previous" aria-label="Previous page">Previous</button><span id="policy-viewer-page" aria-live="polite">Page 1 of 1</span><button type="button" id="policy-viewer-next" aria-label="Next page">Next</button></div><div id="policy-viewer-frame" class="policy-rendered-page" role="region" aria-label="Policy document page"></div><a id="policy-viewer-open" class="policy-viewer-open" target="_blank" rel="noopener noreferrer">Open in a new tab</a></dialog>
     <dialog class="attachment-viewer" id="attachment-viewer" aria-labelledby="attachment-viewer-title"><div class="attachment-viewer-head"><h2 id="attachment-viewer-title">Attachment preview</h2><div class="attachment-viewer-actions"><a id="attachment-viewer-open" target="_blank" rel="noopener noreferrer">Open file</a><a id="attachment-viewer-download">Download</a><button type="button" class="icon-button" id="attachment-viewer-close" aria-label="Close attachment preview">×</button></div></div><div class="attachment-viewer-content" id="attachment-viewer-content"></div></dialog>
     <dialog class="onboarding-welcome" id="policy-acknowledgement-welcome" aria-labelledby="policy-acknowledgement-welcome-title"><button class="onboarding-welcome-close" id="policy-acknowledgement-welcome-close" type="button" aria-label="Close welcome message">×</button><img src="/siware-logo.png" alt="Si-Ware Systems" /><h2 id="policy-acknowledgement-welcome-title">Thank you, <span id="policy-acknowledgement-welcome-name">colleague</span>.</h2><p>Your policy acknowledgement has been recorded.</p><p>Welcome to Si-Ware Systems - we are glad to have you with us.</p><button class="onboarding-welcome-action" id="policy-acknowledgement-welcome-continue" type="button">Continue your first week</button></dialog>
-    <script type="module" src="/policies.js"></script>
+    <script type="module" src="/policies.js?v=20261018-training-videos"></script>
     <script src="/first-week-checklist.js" defer></script>
     <script type="module" src="/destination-nav.js"></script>
   </body>

@@ -11,6 +11,7 @@
     "whistleblower whistleblower whistleblower whistleblower";
 }
 .news-widget{grid-area:news}.facebook-widget{grid-area:facebook}.youtube-widget{grid-area:youtube}.linkedin-widget{grid-area:linkedin}.moments-widget{grid-area:moments}.knowledge-widget{grid-area:knowledge}.whistleblower-widget{grid-area:whistleblower}.events-widget{grid-area:events}.company-news-widget{grid-area:company-news}
+.moments-gallery-link{white-space:nowrap}
 .moments-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:150px;gap:10px}.moment:first-child{grid-row:auto}.moment{min-width:0}.moment small{font-size:10px;text-align:center}
 .linkedin-badge{display:grid;place-items:center;width:22px;height:22px;border-radius:5px;background:#0a66c2;color:#fff;font-size:11px;font-weight:800}.linkedin-post{display:grid;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.linkedin-post b{font-size:12px;line-height:1.4}.linkedin-post p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.linkedin-post span{display:block;width:32px;height:3px;background:#0a66c2;border-radius:3px}
 @media(max-width:1050px){.dashboard{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"hero hero" "new-members new-members" "company-news company-news" "linkedin facebook" "youtube news" "moments moments" "knowledge knowledge" "events events" "whistleblower whistleblower"}.moments-grid{grid-template-rows:130px}}

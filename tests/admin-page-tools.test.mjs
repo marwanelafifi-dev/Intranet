@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { editablePageViews, pageSnapshot, applyPageSnapshot, pageChanged } from '../public/admin-page-tools.js';
+
+assert.ok(editablePageViews.includes('knowledge'));
+assert.ok(editablePageViews.includes('people'));
+assert.deepEqual(pageSnapshot({}, 'newsi'), { policies:null, firstWeekChecklist:null, supportPortals:null, policyAcknowledgementContent:null, newSiPageContent:null });
+const current = { sessions:[{ id:'one', title:'Session' }], knowledgePageContent:{ title:'Knowledge' }, moments:[{ id:'m1' }] };
+const before = pageSnapshot(current, 'knowledge');
+current.sessions.push({ id:'two', title:'Second session' });
+assert.equal(before.sessions.length, 1);
+assert.equal(pageChanged({ ...current, sessions:before.sessions }, current, 'knowledge'), true);
+applyPageSnapshot(current, 'knowledge', before);
+assert.deepEqual(current.sessions, before.sessions);
+assert.deepEqual(current.moments, [{ id:'m1' }]);
+assert.deepEqual(pageSnapshot({}, 'people'), { newMembers:null, recentlyJoinedPageContent:null });
+const defaults = JSON.parse(readFileSync(new URL('../data/admin-defaults.json', import.meta.url), 'utf8'));
+assert.equal(defaults.sessions.length, 17);
+assert.ok(defaults.sessions.every(session => session.id.startsWith('session-')));
+assert.equal(new Set(defaults.sessions.map(session => session.title.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase())).size, 17);
+assert.equal(defaults.newSiPageContent.heroLead, 'Your first days,');
+process.stdout.write('Admin page tool tests passed.\n');

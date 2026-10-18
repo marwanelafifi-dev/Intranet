@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Sign in · Si-Ware Intranet</title>
+    <link rel="stylesheet" href="/login.css" />
+    <script src="/theme.js" defer></script>
+    <script src="/login.js" defer></script>
+  </head>
+  <body>
+    <main class="login-shell">
+      <section class="login-intro" aria-label="Si-Ware Intranet">
+        <a class="brand" href="https://www.si-ware.com/" aria-label="Si-Ware Systems"><img src="/siware-logo.png" alt="Si-Ware Systems" /></a>
+        <div class="intro-copy"><h1>Your work, in one considered place.</h1><p>Find company updates, everyday tools, knowledge, and the resources that move Si-Ware forward.</p></div>
+        <p class="intro-note">Internal workspace · Access is limited to approved Si-Ware accounts.</p>
+      </section>
+      <section class="login-card" aria-labelledby="sign-in-heading">
+        <div class="login-mark" aria-hidden="true"></div>
+        <h2 id="sign-in-heading">Welcome to the intranet</h2>
+        <p>Use your approved Si-Ware Workspace account to continue.</p>
+        <a id="google-sign-in" class="sign-in-button" href="/auth/google">Continue with Google Workspace <span aria-hidden="true">→</span></a>
+        <p class="status" id="login-status" role="status"></p>
+        <p class="privacy">Sign-in is handled by your organization’s identity provider. The intranet never stores your password.</p>
+      </section>
+    </main>
+  </body>
+</html>

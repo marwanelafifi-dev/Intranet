@@ -1,0 +1,703 @@
+{
+  "apps": [
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "caption": "Corporate email",
+      "url": "https://mail.google.com",
+      "icon": "mail",
+      "color": "#ea4335"
+    },
+    {
+      "id": "clickup",
+      "name": "ClickUp",
+      "caption": "Projects & tasks",
+      "url": "https://clickup.com",
+      "icon": "check",
+      "color": "#7b68ee"
+    },
+    {
+      "id": "drive",
+      "name": "Document Drive",
+      "caption": "Cloud repositories",
+      "url": "https://drive.google.com",
+      "icon": "folder",
+      "color": "#2f80ed"
+    },
+    {
+      "id": "support",
+      "name": "IT Support Desk",
+      "caption": "Helpdesk tickets",
+      "url": "#support",
+      "icon": "life",
+      "color": "#09a995"
+    },
+    {
+      "id": "mohr",
+      "name": "MOHR",
+      "caption": "HR self-service",
+      "url": "#mohr",
+      "icon": "people",
+      "color": "#f2994a"
+    },
+    {
+      "id": "contacts",
+      "name": "Contacts",
+      "caption": "Employee directory",
+      "url": "#contacts",
+      "icon": "phone",
+      "color": "#2d9cdb"
+    },
+    {
+      "id": "org",
+      "name": "Org Chart",
+      "caption": "Team structure",
+      "url": "#org",
+      "icon": "tree",
+      "color": "#6fcf97"
+    },
+    {
+      "id": "time",
+      "name": "Time Tracker",
+      "caption": "Attendance & timesheets",
+      "url": "#time",
+      "icon": "clock",
+      "color": "#bb6bd9"
+    },
+    {
+      "id": "arena",
+      "name": "Arena PLM",
+      "caption": "Engineering parts & BOMs",
+      "url": "#arena",
+      "icon": "cube",
+      "color": "#eb5757"
+    },
+    {
+      "id": "netsuite",
+      "name": "NetSuite ERP",
+      "caption": "Financials & supply chain",
+      "url": "#netsuite",
+      "icon": "chart",
+      "color": "#1b9aaa"
+    },
+    {
+      "id": "sibrain",
+      "name": "Si-Brain",
+      "caption": "R&D knowledge assistant",
+      "url": "#sibrain",
+      "icon": "spark",
+      "color": "#5b67d9"
+    },
+    {
+      "id": "sibot",
+      "name": "Si-Bot",
+      "caption": "Automated workflows",
+      "url": "#sibot",
+      "icon": "bot",
+      "color": "#00a6a6"
+    }
+  ],
+  "announcements": [
+    {
+      "id": "a1",
+      "tag": "All hands",
+      "title": "Zest for Life 2026: nominations are now open",
+      "body": "Celebrate the people who bring curiosity, care and craft to every Si-Ware milestone.",
+      "date": "Oct 14",
+      "priority": "high"
+    },
+    {
+      "id": "a2",
+      "tag": "Learning",
+      "title": "Leadership Lab: difficult conversations",
+      "body": "A practical session for new and aspiring managers. Reserve your seat by Thursday.",
+      "date": "Oct 17",
+      "priority": "normal"
+    }
+  ],
+  "socialLinks": {
+    "linkedinUrl": "https://www.linkedin.com/company/si-ware-systems/?locale=en_US",
+    "facebookUrl": "https://www.facebook.com/SiWareSystems/",
+    "youtubeUrl": "https://www.youtube.com/@Si-Ware_Systems",
+    "websiteUrl": "https://www.si-ware.com",
+    "cards": [
+      { "id": "linkedin", "title": "LinkedIn", "url": "https://www.linkedin.com/company/si-ware-systems/?locale=en_US", "icon": "linkedin", "actionLabel": "Visit channel" },
+      { "id": "facebook", "title": "Facebook", "url": "https://www.facebook.com/SiWareSystems/", "icon": "facebook", "actionLabel": "Visit channel" },
+      { "id": "youtube", "title": "YouTube", "url": "https://www.youtube.com/@Si-Ware_Systems", "icon": "youtube", "actionLabel": "Visit channel" },
+      { "id": "website", "title": "Si-Ware website", "url": "https://www.si-ware.com", "icon": "website", "actionLabel": "Visit website" }
+    ]
+  },
+  "moments": [
+    {
+      "title": "Cairo town hall",
+      "kind": "PEOPLE",
+      "color": "#d8e9ff"
+    },
+    {
+      "title": "Lab collaboration",
+      "kind": "LAB",
+      "color": "#efe2ff"
+    },
+    {
+      "title": "Summer offsite",
+      "kind": "SUN",
+      "color": "#fff0d4"
+    },
+    {
+      "title": "Product showcase",
+      "kind": "SHAPE",
+      "color": "#d7f3ea"
+    }
+  ],
+  "momentsPageContent": null,
+  "sessions": [
+    {
+      "id": "session-1792271614033-0",
+      "title": "Si-ware Knowledge Hub Intro",
+      "presenter": {
+        "name": "Tarek Zeinah",
+        "initials": "TZ"
+      },
+      "category": "General",
+      "date": "2025-02-26",
+      "outline": "Overview on the training programm objectives",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Si-Ware knowledge Hub (SKH) Overview_2025-02-26_V1.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250226-081430_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-1",
+      "title": "Photonics West & CRA-W Visit Highlights",
+      "presenter": {
+        "name": "Dr. Mazen Erfan",
+        "initials": "DM"
+      },
+      "category": "General",
+      "date": "2025-02-26",
+      "outline": "- Photonics West Events Introduction: An overview of the key events at Photonics West.\n\n- Photonics West Industrial Exhibition Overview: A look at the innovative solutions showcased at the exhibition.\n\n- Snaps from Photonics West Conferences Oral Talks & Poster Session: Highlights from the conference sessions.\n\n- CRA-W Visit Highlights: Insights from our CRA-W visit, focusing on the Milk Integration use case.- \"",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Photonics West & CRA-W Visit Highlights_2025-02-26_V3.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250226-082053_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-2",
+      "title": "Fundamentals of Patenting & Si-Ware Patents Portfolio | Part 1",
+      "presenter": {
+        "name": "Bassem Mortada",
+        "initials": "BM"
+      },
+      "category": "General",
+      "date": "2025-03-12",
+      "outline": "Introduction to Patents & Patentability\nPatent Application Process\nPatent Structure & Components\nPatent Enforcement & Litigation\nSi-Ware Patents Portfolio Overview",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Fundamentals of Patenting & Si-Ware Patents Portfolio.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "PART 1.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-3",
+      "title": "Fundamentals of Patenting & Si-Ware Patents Portfolio | Part 2",
+      "presenter": {
+        "name": "Bassem Mortada",
+        "initials": "BM"
+      },
+      "category": "General",
+      "date": "2025-04-16",
+      "outline": "Si-Ware Patents Portfolio Overview (Contd.)\nHands on Excercise",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Fundamentals of Patenting & Si-Ware Patents Portfolio.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "PART 2.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-4",
+      "title": "GSA Overview and Research Trends in Optical Spectrometers\nPart 1",
+      "presenter": {
+        "name": "Dr. Yasser Sabry",
+        "initials": "DY"
+      },
+      "category": "General",
+      "date": "2025-05-21",
+      "outline": "Part 1: GSA\nThis segment provides an overview of the GSA organization, its mission, and recent activities in Egypt. Attendees will gain insights into the role GSA plays in fostering collaboration and innovation within the field, with a particular focus on its impact on the Egyptian research landscape.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "GSA Overview and Research Trends in Optical Spectrometers",
+      "recordingUrl": "",
+      "recordingFilename": "Part1: GSA Overview.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "GSA"
+    },
+    {
+      "id": "session-1792271614033-5",
+      "title": "GSA Overview and Research Trends in Optical Spectrometers\nPart 2",
+      "presenter": {
+        "name": "Dr. Yasser Sabry",
+        "initials": "DY"
+      },
+      "category": "General",
+      "date": "2025-05-21",
+      "outline": "Part 2: Optical Spectrometers\nThe second half of the session delves into the optical spectrometers, covering:\n\n- Overview of typical architectures of optical spectrometers\n- Research trends in compact and chip-scale devices\n- A forward-looking vision for future developments and applications in the field.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "GSA Overview and Research Trends in Optical Spectrometers",
+      "recordingUrl": "",
+      "recordingFilename": "Part2: Research Trends in Optical Spectrometers.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-6",
+      "title": "Dr. Amr Osama's PhD Defense Presentation on Lithium Niobate Microsystems",
+      "presenter": {
+        "name": "Dr. Amr Osama",
+        "initials": "DA"
+      },
+      "category": "General",
+      "date": "2025-05-25",
+      "outline": "Lithium niobate (LiNbO₃) is a key ferroelectric material with remarkable optical and acoustic properties, making it essential for applications in telecommunications, sensing, and quantum technologies. The emergence of thin film lithium niobate (TFLN) has enhanced its integration potential, allowing the development of high-performance photonic and acoustic devices.\n\nIn microwave photonics, ultra-compact electro-optic modulators (EOMs) on Z-cut LN utilize spiral waveguides and top-bottom electrode configurations, achieving efficient modulation within a tiny footprint. In the RF acoustic domain, monolithically integrated wireless sensors incorporate high-Q Lamb wave resonators with meander dipole antennas, representing the first suspended LN Lamb wave devices for wireless sensing. These advancements leverage simple lithography steps for fabrication, enabling innovative solutions in photonics and acoustics.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "PhD research presentation.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250525-065510_Recording_3840x2400.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-7",
+      "title": "Project Management Essentials – Knowledge Areas and Processes - Part 1",
+      "presenter": {
+        "name": "Mohamed Shoaib, Omar Farouk & Moataz Samir",
+        "initials": "MS"
+      },
+      "category": "General",
+      "date": "2025-06-18",
+      "outline": "This comprehensive session provides a structured overview of the key knowledge areas and processes that underpin effective project management. It is designed to equip team members with practical insights to successfully contribute to project execution from start to finish.\nSession Outline:\n- Introduction to Project Management\n- Integration Management – Part 1\n- Scope Management\n- Time Management\n- Cost Management\n- Procurement Management",
+      "presentationDeckUrl": "",
+      "presentationFilename": "(SKH) Project Management Essentials – Knowledge Areas and Processes",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250618-065545_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-8",
+      "title": "Project Management Essentials – Knowledge Areas and Processes - Part 2",
+      "presenter": {
+        "name": "Mohamed Shoaib, Omar Farouk & Moataz Samir",
+        "initials": "MS"
+      },
+      "category": "General",
+      "date": "2025-06-25",
+      "outline": "- Resource Management\n- Stakeholder Management\n- Risk Management\n- Quality Management\n- Communications Management\n- Integration Management – Part 2",
+      "presentationDeckUrl": "",
+      "presentationFilename": "",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250625-071407_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-9",
+      "title": "Smarter Workflows with Excel & Google Sheets - Part 1",
+      "presenter": {
+        "name": "Moez Elmasry",
+        "initials": "ME"
+      },
+      "category": "General",
+      "date": "2025-08-27",
+      "outline": "This workshop will focus on practical spreadsheet techniques to improve efficiency, accuracy, and clarity in daily workflow. Whether you're new to spreadsheets or already using them, this session will offer some valuable tips, live demonstrations, and hands-on activities. \n\nSession Outline: \nWelcome & Objectives \nSpreadsheet Basics \nFunctions & Productivity Tricks",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Smarter Workflows With Excel & Google Sheets Part 1.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250827-065952_Recording_1920x1200.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Solved Examples During Session\nWorkshop Practice Material"
+    },
+    {
+      "id": "session-1792271614033-10",
+      "title": "Smarter Workflows with Excel & Google Sheets - Part 2",
+      "presenter": {
+        "name": "Presenter not specified",
+        "initials": "PN"
+      },
+      "category": "General",
+      "date": "2025-11-19",
+      "outline": "This workshop will focus on practical spreadsheet techniques to improve efficiency, accuracy, and clarity in daily workflow. Whether you're new to spreadsheets or already using them, this session will offer some valuable tips, live demonstrations, and hands-on activities. \n\nThis is Part 2 of the 1st workshop we took. Please review the material before the workshop. For those who missed the 1st one. Please go through Part 1 material before the workshop because the mini-project would need you to consider both workshops content. \n\nSession Outline: \nQuick Recap on Workshop 1 \n\nFunctions & Productivity Tricks Part 2 \n\nCharts & Visualization \n\nMini Project (Group Work) \n\nWrap-up & Resources",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Smarter Workflows With Excel & Google Sheets.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Supporting material"
+    },
+    {
+      "id": "session-1792271614033-11",
+      "title": "NIR Rome Conference Highlights",
+      "presenter": {
+        "name": "Ahmed Shebl",
+        "initials": "AS"
+      },
+      "category": "General",
+      "date": "2025-09-10",
+      "outline": "This session will provide an in-depth look at key takeaways from the NIR Rome Conference, a leading event in the field of Near-Infrared Spectroscopy, with firsthand insights shared by Ahmed Shebl, who attended the conference. \n\n\nSession Outline \nConference Overview: History, major exhibitors, topics, and main sessions \nEmerging Applications and Technology Tracks \nCompetitor Intelligence: Who’s doing what \nSi-Ware’s Contribution: Products presented, posters, and participation \nNotable Research Highlights and Interesting Papers",
+      "presentationDeckUrl": "",
+      "presentationFilename": "NIR-Rome Highlights 2025.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250910-071259_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Supporting material"
+    },
+    {
+      "id": "session-1792271614033-12",
+      "title": "Techniques and Sensors for the Detection of Low Concentrations of Hazardous Gases Using Advanced Spectroscopy Techniques",
+      "presenter": {
+        "name": "Dr. Oscar Manrique",
+        "initials": "DO"
+      },
+      "category": "General",
+      "date": "2025-10-16",
+      "outline": "Overview of advanced sensor technologies and spectroscopy methods for detecting hazardous gases",
+      "presentationDeckUrl": "",
+      "presentationFilename": "ERASMUS AUC.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251016-065607_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-13",
+      "title": "InCabin Europe Conference",
+      "presenter": {
+        "name": "Moez Elmasry",
+        "initials": "ME"
+      },
+      "category": "General",
+      "date": "2025-10-29",
+      "outline": "This session will provide a look at key takeaways from the InCabin Europe Conference, it is an automotive related event gathering OEM, Tier 1 and supply chain engineers working on safety, comfort and productivity solutions for current and future in-cabin applications with firsthand insights shared by Moez ElMassry, who attended the conference. \n\nSession Outline \nEvent Overview \nEmerging Applications and Technology Tracks \nSi-Ware’s Demo \nSummary",
+      "presentationDeckUrl": "",
+      "presentationFilename": "InCabin Event Summary.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251029-065629_Recording_3840x2160.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-14",
+      "title": "MEMS Function Orientation",
+      "presenter": {
+        "name": "Yasseen Nada",
+        "initials": "YN"
+      },
+      "category": "General",
+      "date": "2025-12-17",
+      "outline": "This session provides a structured and accessible introduction to MEMS function, going through the MEMS chip as being a core component within Si-Ware different products. It aims to give participants an overview and a clearer understanding of Si-Ware's MEMS chip. \n\nSession Outline: \n\nIntroduction to MEMS: Definition of Micro Electro Mechanical Systems and the typical flow from idea to testing. \nMEMS as a Core Component: Overview of its role in the Full Stack Ownership and its interaction within the Optical Core Module. \nThe MEMS Function Team & Responsibilities: Introduction to team members, main responsibilities (production, yield, supplier management), and specific roles like chip design and foundry qualification. \nKey Tools and Equipment: Details on the software (ANSYS, MATLAB) and hardware used, including the development centers in Paris and Toulouse. \nSi-Ware MEMS Chip Deep Dive: Explanation of the chip components, the Interferometer Ray Path, Critical Optical Interfaces, and the specific process layers and flow.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "MEMS_Function_Session_SKH_17_Dec_2025.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251217-080519_Recording_3840x2160.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-15",
+      "title": "Smart Robotic solutions for industrial inspection and healthcare monitoring",
+      "presenter": {
+        "name": "Dr. Abdallah Fathy",
+        "initials": "DA"
+      },
+      "category": "General",
+      "date": "2025-12-23",
+      "outline": "Dr. Abdallah Fathy is an Assistant Professor of Electronics and Communications Engineering at ElSewedy University of Technology – Polytechnic of Egypt with over 15 years of combined academic and industrial experience. He earned his B.Sc., M.Sc., and Ph.D. from Ain Shams University and has taught and supervised projects across communications, signal processing, optics, electronics, and robotics at the German University in Cairo and Elsewedy University of Technology.\n\nIntroduction to ElSewedy University of Technology – Polytechnic of Egypt\n\nOverview and demo of previous robotics projects\n\nThis year’s project and potential collaboration with Si-Ware",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Smart Robotic Solutions for Industrial Inspection and Healthcare Monitoring.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251223-120832_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Smart Robotic Solutions for Industrial Inspection.pdf"
+    },
+    {
+      "id": "session-1792271614033-16",
+      "title": "Electronics Function Orientation",
+      "presenter": {
+        "name": "Mina Gad",
+        "initials": "MG"
+      },
+      "category": "General",
+      "date": "2026-02-11",
+      "outline": "This session will provide a clear introduction to electronics, their role across Si-Ware’s products, and the responsibilities of the Electronics Function team. Participants will gain insight into key tools, equipment, and critical components that shape our systems.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Electronics_Function_Session_SKH_11_Feb_2026.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20260211-081020_Recording_1920x1200.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    }
+  ],
+  "knowledgePageContent": null,
+  "events": [
+    {
+      "day": "14",
+      "month": "OCT",
+      "title": "Zest for Life — nominations close",
+      "time": "4:00 PM",
+      "type": "Company"
+    },
+    {
+      "day": "17",
+      "month": "OCT",
+      "title": "Leadership Lab: difficult conversations",
+      "time": "11:00 AM",
+      "type": "Learning"
+    },
+    {
+      "day": "22",
+      "month": "OCT",
+      "title": "Q4 product all-hands",
+      "time": "3:30 PM",
+      "type": "Company"
+    }
+  ],
+  "whistleblowerConfig": {
+    "heroTitle": "Raise a concern with care.",
+    "heroText": "Use this confidential channel to raise a concern, complaint or suggestion about workplace conduct, safety, financial integrity or another serious matter. Begin in your own words when you are ready; Si-Ware Employee Voice will guide you through the reporting process.",
+    "safetyTitle": "Your safety matters.",
+    "safetyText": "Use the route that feels appropriate to you. If there is an immediate safety risk, follow the applicable local emergency and site-security procedures.",
+    "voiceUrl": "https://intranet.si-ware.com/whistleblower/si-voice-anonymous-employee-suggestion-and-complaints-bot-.html/"
+  },
+  "newMembers": [
+    {
+      "id": "member-001",
+      "name": "Nour El-Sayed",
+      "role": "Product Marketing Specialist",
+      "team": "Growth",
+      "department": "Product Marketing",
+      "division": "Growth",
+      "employmentType": "Full Time",
+      "directManager": "Hala Mostafa",
+      "joined": "October 2026",
+      "message": "Joining the Growth team to help bring Si-Ware stories and solutions to more people.",
+      "initials": "NE",
+      "color": "#dceeff"
+    },
+    {
+      "id": "member-002",
+      "name": "Adam Farouk",
+      "role": "Embedded Software Engineer",
+      "team": "R&D",
+      "department": "Embedded Software",
+      "division": "R&D",
+      "employmentType": "Full Time",
+      "directManager": "Mostafa Selim",
+      "joined": "October 2026",
+      "message": "Joining R&D to build reliable embedded experiences for next-generation products.",
+      "initials": "AF",
+      "color": "#e7e4ff"
+    },
+    {
+      "id": "member-003",
+      "name": "Salma Hassan",
+      "role": "People Operations Partner",
+      "team": "People Operations",
+      "department": "People Operations",
+      "division": "People Operations",
+      "employmentType": "Full Time",
+      "directManager": "Rana Maher",
+      "joined": "September 2026",
+      "message": "Joining People Operations to support a thoughtful employee experience across Si-Ware.",
+      "initials": "SH",
+      "color": "#dcf5ed"
+    },
+    {
+      "id": "member-004",
+      "name": "Karim Nabil",
+      "role": "Applications Scientist",
+      "team": "NeoSpectra Solutions",
+      "department": "Applications",
+      "division": "NeoSpectra Solutions",
+      "employmentType": "Full Time",
+      "directManager": "Mohamed Fawzy",
+      "joined": "September 2026",
+      "message": "Joining the applications team to turn material insight into customer impact.",
+      "initials": "KN",
+      "color": "#fff0da"
+    }
+  ],
+  "recentlyJoinedPageContent": null,
+  "policies": [
+    {
+      "id": "pol-001",
+      "title": "Code of Conduct",
+      "summary": "How we work with integrity, respect and accountability.",
+      "owner": "People Operations",
+      "department": "People Operations",
+      "reviewDate": "2027-01-15",
+      "audience": "All employees",
+      "version": "v3.2",
+      "canonicalUrl": "/new-hires.html#policies",
+      "category": "Workplace"
+    },
+    {
+      "id": "pol-002",
+      "title": "Information Security",
+      "summary": "Protecting Si-Ware people, research, systems and customer information.",
+      "owner": "IT Security",
+      "department": "Information Technology",
+      "reviewDate": "2027-03-01",
+      "audience": "All employees and contractors",
+      "version": "v2.8",
+      "canonicalUrl": "/new-hires.html#policies",
+      "category": "Security"
+    },
+    {
+      "id": "pol-003",
+      "title": "Attendance & Leave",
+      "summary": "Time logging, leave requests and flexible work arrangements.",
+      "owner": "People Operations",
+      "department": "People Operations",
+      "reviewDate": "2026-12-01",
+      "audience": "All employees",
+      "version": "v4.0",
+      "canonicalUrl": "/new-hires.html#policies",
+      "category": "People"
+    },
+    {
+      "id": "pol-004",
+      "title": "Health & Safety",
+      "summary": "Safe workplaces, labs and ways of working.",
+      "owner": "EHS Office",
+      "department": "Environment, Health & Safety",
+      "reviewDate": "2027-02-15",
+      "audience": "All employees and visitors",
+      "version": "v2.1",
+      "canonicalUrl": "/new-hires.html#policies",
+      "category": "Safety"
+    }
+  ],
+  "firstWeekChecklist": [
+    {
+      "id": "systems",
+      "text": "Sign in to Gmail, ClickUp, Document Drive and the Time Tracker."
+    },
+    {
+      "id": "hr-profile",
+      "text": "Complete your HR profile and emergency-contact information in MOHR."
+    },
+    {
+      "id": "manager",
+      "text": "Meet your manager to agree your 30-day priorities and team rhythm."
+    },
+    {
+      "id": "orientation",
+      "text": "Book your orientation, information-security and workplace-safety sessions."
+    },
+    {
+      "id": "knowledge",
+      "text": "Save this page and explore the Knowledge Hub for your role."
+    }
+  ],
+  "supportPortals": [
+    {
+      "id": "portal-company",
+      "name": "Company Portal",
+      "description": "Administration, Finance & People Team",
+      "url": "",
+      "icon": "building"
+    },
+    {
+      "id": "portal-service-desk",
+      "name": "SolarWinds Service Desk",
+      "description": "IT Support",
+      "url": "",
+      "icon": "support"
+    },
+    {
+      "id": "portal-mohr",
+      "name": "MOHR",
+      "description": "Payslips & HR topics",
+      "url": "",
+      "icon": "payroll"
+    }
+  ],
+  "policyAcknowledgementContent": {
+    "version": 1,
+    "actionTitle": "Action required: acknowledge Si-Ware Policies",
+    "instructionText": "Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.",
+    "beforeHeading": "Why this matters",
+    "beforeText": "Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.",
+    "confirmationLabel": "I confirm that I have read and accepted Si-Ware Policies.",
+    "confirmationHelp": "This records the current policy versions and confirmation time.",
+    "acceptedTitle": "Policies acknowledged",
+    "afterText": "Your acknowledgement has been recorded for the current policy versions."
+  },
+  "newSiPageContent": {
+    "heroEyebrow": "New Si-Warians!",
+    "heroLead": "Your first days,",
+    "heroAccent": "made clear.",
+    "heroText": "Start with one meaningful action, then build momentum. Your checklist, essential policies, support routes and everyday tools are all in one place.",
+    "heroJourneyLabel": "First-week journey",
+    "heroAction": "Start your checklist",
+    "asideTitle": "One step at a time",
+    "asideText": "Choose the next task that unlocks your workday. Your progress stays visible while you explore.",
+    "asideAction": "Find the right support route",
+    "navTitle": "On this page",
+    "navChecklist": "First-week checklist",
+    "navPolicies": "Essential policies",
+    "navTraining": "Training videos",
+    "navTools": "Your everyday tools",
+    "navHelp": "Need help?",
+    "checklistTitle": "First-week checklist",
+    "checklistText": "Complete these essentials in your first five working days.",
+    "policiesTitle": "Essential policies",
+    "policiesText": "These are the policies every colleague should know from day one. Links are ready to connect to your approved document repository.",
+    "trainingTitle": "Security Awareness & Admin Portal Training Sessions",
+    "trainingText": "Watch the security awareness session in the language that works best for you, then complete the Admin Portal training.",
+    "securityEnglishTitle": "Security Awareness — English",
+    "securityArabicTitle": "Security Awareness — Arabic",
+    "adminPortalTrainingTitle": "Admin Portal Training Session",
+    "securityEnglishUrl": "https://youtu.be/-vAz1vze0gY?si=5qmxYw_vtWcqG1Lj",
+    "securityArabicUrl": "https://www.youtube.com/watch?v=AT-ADrolGzY",
+    "adminPortalTrainingUrl": "https://www.youtube.com/watch?v=hS3WbTg_y_E",
+    "toolsTitle": "Your everyday tools",
+    "toolsText": "Your manager or IT will provide access. Use the dashboard Quick Launch dock once your account is active.",
+    "emailTitle": "Corporate email",
+    "emailText": "Gmail for official communication.",
+    "emailAction": "Open Gmail",
+    "knowledgeTitle": "Knowledge Hub",
+    "knowledgeText": "Sessions and practical know-how from the team.",
+    "knowledgeAction": "Explore sessions",
+    "helpTitle": "Need help?",
+    "helpText": "Start with the route that best matches your request. If you are unsure where to go, your manager or the People Team can help you find the right owner.",
+    "itTitle": "IT Support",
+    "peopleTitle": "People & HR",
+    "administrationTitle": "Administration",
+    "financeTitle": "Finance",
+    "portalsTitle": "Company portals",
+    "portalsText": "Quick routes to the teams and services you will use most often.",
+    "footerLeft": "Si-Ware Systems · New Si-Warians!",
+    "footerRight": "Owner: People Operations · Review quarterly"
+  },
+  "settings": {
+    "theme": "light",
+    "layout": [
+      "announcements",
+      "new-members",
+      "new-warians",
+      "social",
+      "news",
+      "moments",
+      "knowledge",
+      "events",
+      "whistleblower"
+    ],
+    "layoutVersion": "structured-v5",
+    "hiddenWidgets": []
+  }
+}

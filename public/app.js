@@ -1,4 +1,4 @@
-import { renderNewsShifter } from './news-shifter.js';
+import { renderNewsShifter } from './news-shifter.js?v=20261017-current-administration';
 
 const $ = (selector, parent = document) => parent.querySelector(selector);
 const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
@@ -85,8 +85,9 @@ function acknowledgeContentChange(element) {
   window.setTimeout(() => element.classList.remove('is-updating'), 460);
 }
 
+function appIconMarkup(app) { return app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" />` : (icon[app.icon] || '◈'); }
 function renderApps() {
-  $('#app-grid').innerHTML = state.apps.map(app => `<a class="app-link" href="${escapeHtml(app.url)}" ${app.url.startsWith('http') ? 'target="_blank" rel="noreferrer"' : ''} style="--app-color:${app.color}"><span class="app-icon">${icon[app.icon] || '◈'}</span><b>${escapeHtml(app.name)}</b><small>${escapeHtml(app.caption)}</small></a>`).join('');
+  $('#app-grid').innerHTML = state.apps.map(app => `<a class="app-link" href="${escapeHtml(app.url)}" ${app.url.startsWith('http') ? 'target="_blank" rel="noreferrer"' : ''} style="--app-color:${app.color}"><span class="app-icon">${appIconMarkup(app)}</span><b>${escapeHtml(app.name)}</b><small>${escapeHtml(app.caption)}</small></a>`).join('');
   setupAppCarousel();
 }
 function setupAppCarousel() {
@@ -148,12 +149,22 @@ function setupAppCarousel() {
   }
   requestAnimationFrame(update);
 }
+function announcementPreview(value, title = '') {
+  const paragraphs = String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .split(/\n{2,}|\r\n{2,}/)
+    .map(part => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const normalizedTitle = String(title || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const text = paragraphs.find(part => part.length > 45 && part.toLowerCase() !== normalizedTitle && !/^dear\b/i.test(part)) || paragraphs.find(part => part.toLowerCase() !== normalizedTitle) || '';
+  return text.length > 86 ? `${text.slice(0, 83).trimEnd()}…` : text;
+}
 function renderAnnouncement() {
-  const items = state.announcements.slice(0, 4);
-  $('#announcement-spotlight').innerHTML = items.length ? items.map(item => `<article class="priority-announcement"><div><span>${escapeHtml(item.tag || 'Company update')}</span><time>${escapeHtml(item.date || 'Just now')}</time></div><h3>${escapeHtml(item.title)}</h3></article>`).join('') : '<p class="priority-empty">No announcements have been published yet.</p>';
+  const items = state.announcements.filter(item => item.hidden !== true && item.hidden !== 'true').slice(0, 4);
+  $('#announcement-spotlight').innerHTML = items.length ? items.map(item => `<article class="priority-announcement" data-open-announcement="${escapeHtml(item.id)}" tabindex="0" role="link" aria-label="View full announcement: ${escapeHtml(item.title)}"><div><span>${escapeHtml(item.tag || 'Company update')}</span><time>${escapeHtml(item.date || 'Just now')}</time></div><h3>${escapeHtml(item.title)}</h3><small class="priority-targeting">${escapeHtml(item.department || 'All departments')} · ${escapeHtml(item.audience || 'All employees')}</small><small class="priority-preview">${escapeHtml(announcementPreview(item.body || item.message || item.description || item.bodyHtml, item.title))}</small><div class="priority-footer"><span class="priority-open">View full announcement <b aria-hidden="true">→</b></span><small class="priority-author">Posted by ${escapeHtml(item.postedBy || 'Intranet team')}</small></div></article>`).join('') : '<p class="priority-empty">No announcements have been published yet.</p>';
 }
 function renderVectorIcons() {
-  $$('#app-grid .app-icon').forEach((element, index) => { element.innerHTML = appIcon(state.apps[index]?.icon); });
+  $$('#app-grid .app-icon').forEach((element, index) => { if (!state.apps[index]?.iconUrl) element.innerHTML = appIcon(state.apps[index]?.icon); });
   $$('#app-manager .manager-row .app-icon').forEach((element, index) => { element.innerHTML = appIcon(state.apps[index]?.icon); });
   $$('#portal-manager .manager-row .app-icon').forEach((element, index) => { element.innerHTML = appIcon(state.supportPortals[index]?.icon); });
 }
@@ -235,12 +246,27 @@ async function renderYouTubeVideos() {
   }
 }
 function renderEvents() { $('#event-list').innerHTML = state.events.map(item => `<article class="event"><div class="date-block"><b>${item.day}</b><small>${item.month}</small></div><div><p>${escapeHtml(item.title)}</p><span>${escapeHtml(item.time)} · ${escapeHtml(item.type)}</span></div></article>`).join(''); }
+function memberContactIcon(type) {
+  const icons = {
+    email: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="m4.5 7 7.5 5.5L19.5 7"></path></svg>',
+    phone: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.1 3.8h2.8l1.3 4-2 1.5c1.1 2.2 2.9 4 5.1 5.1l1.5-2 4 1.3v2.8c0 1-.8 1.7-1.8 1.7C11.6 18.2 5.8 12.4 5.8 5.6c0-1 .3-1.8 1.3-1.8Z"></path></svg>',
+    linkedin: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 10v6M8 7.5v.1M11.5 16v-3.3a2.2 2.2 0 0 1 4.4 0V16M11.5 10v6"></path></svg>'
+  };
+  return icons[type] || '';
+}
+function compactMemberContacts(member) {
+  const links = [], name = escapeHtml(member.name);
+  if (member.companyEmail) links.push(`<a class="member-contact-icon" href="mailto:${escapeHtml(member.companyEmail)}" aria-label="Email ${name}">${memberContactIcon('email')}<span class="sr-only">Email</span></a>`);
+  if (member.phone) links.push(`<a class="member-contact-icon" href="tel:${escapeHtml(String(member.phone).replace(/[^+\d().\-\s]/g, ''))}" aria-label="Call ${name}">${memberContactIcon('phone')}<span class="sr-only">Phone</span></a>`);
+  if (/^https?:\/\/(?:[\w-]+\.)*linkedin\.com\//i.test(String(member.linkedinUrl || ''))) links.push(`<a class="member-contact-icon" href="${escapeHtml(member.linkedinUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${name}'s LinkedIn profile">${memberContactIcon('linkedin')}<span class="sr-only">LinkedIn</span></a>`);
+  return links.length ? `<nav class="member-contact-links member-contact-links-compact" aria-label="Contact ${name}">${links.join('')}</nav>` : '';
+}
 function renderNewMembers() {
   $('#new-members-title').textContent = 'Recently Joined';
   $('.new-members-widget .widget-intro').textContent = 'Meet the newest colleagues who recently joined our company.';
   $('.new-members-widget .plain-button').setAttribute('href', '/recently-joined.html');
   const members = state.newMembers.slice(0, 2);
-  $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small><span>${escapeHtml(member.employmentType || 'Full Time')} · Joined ${escapeHtml(member.joined)}</span><span class="member-org">${escapeHtml(member.department || member.team)} · ${escapeHtml(member.division || member.team)}</span><span class="direct-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
+  $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><div class="member-name-line"><b>${escapeHtml(member.name)}</b>${compactMemberContacts(member)}</div><small>${escapeHtml(member.role)} · ${escapeHtml(member.division || member.team || 'To be confirmed')}</small><span class="direct-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span><span>${escapeHtml(member.employmentType || 'Full Time')} · Joined ${escapeHtml(member.joined)}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
 }
 function renderProfile() {
   const accessLabel = state.user.title || (state.user.role === 'ADMIN' ? 'Full Access' : 'Employee Access');
@@ -251,7 +277,11 @@ function renderProfile() {
   avatar.classList.toggle('has-photo', Boolean(state.user.avatarUrl));
   avatar.style.backgroundImage = state.user.avatarUrl ? `url(${JSON.stringify(state.user.avatarUrl)})` : '';
   $('#profile-button').setAttribute('aria-label', `${state.user.name}, ${accessLabel}`);
-  const canAdmin = state.user.role === 'ADMIN'; $('#cms-toggle').hidden = !canAdmin; if (!canAdmin) closeCMS();
+  const canOpenAdminPanel = hasAdminPanelAccess(state.user); $('#cms-toggle').hidden = !canOpenAdminPanel; if (!canOpenAdminPanel) closeCMS();
+}
+function hasAdminPanelAccess(user) {
+  if (!user || user.role === 'EMPLOYEE') return false;
+  return Array.isArray(user.permissions) && user.permissions.some(permission => ['content.edit', 'audit.view'].includes(permission));
 }
 function renderLayoutList() {
   const labels = { announcements:'Hero & announcements', 'new-members':'Recently Joined', 'company-news':'Company news', news:'Industry pulse', knowledge:'Knowledge Hub sessions', whistleblower:'Whistleblower', moments:'Moments gallery', social:'Company channels', events:'Calendar & key dates' };
@@ -372,7 +402,15 @@ function installLayoutDrag() {
     row.addEventListener('dragover', event => { event.preventDefault(); const box = row.getBoundingClientRect(); if (event.clientY < box.top + box.height / 2) row.before(dragged); else row.after(dragged); });
   });
 }
-async function saveDashboard(message) { state = await request('/api/dashboard', { method:'PATCH', body:JSON.stringify(state) }); renderAll(); showToast(message); }
+async function saveDashboard(message) {
+  try {
+    state = await request('/api/admin/dashboard', { method:'PATCH', body:JSON.stringify({ data:state, version:state._version }) });
+    renderAll(); showToast(message);
+  } catch (error) {
+    if (/changed elsewhere/i.test(error.message)) { showToast('Someone else changed this content. Refresh the page before saving again.'); return; }
+    showToast(error.message || 'The change could not be saved.');
+  }
+}
 
 function readMemberPhoto(file) {
   if (!file || !file.name) return Promise.resolve('');
@@ -512,14 +550,14 @@ function renderMemberManager() {
 }
 function renderAppForm() {
   const app = editingAppId && state.apps.find(entry => entry.id === editingAppId);
-  $('#app-form').innerHTML = `<h3>${app ? 'Edit shortcut' : 'Add shortcut'}</h3><label>Name<input name="name" required maxlength="40" value="${escapeHtml(app?.name || '')}" placeholder="Shortcut name" /></label><label>Description<input name="caption" required maxlength="80" value="${escapeHtml(app?.caption || '')}" placeholder="What it helps employees do" /></label><label>Destination<input name="url" required value="${escapeHtml(app?.url || '')}" placeholder="https:// or /internal-page" /></label><label>Accent colour<input name="color" type="color" value="${escapeHtml(app?.color || '#5964db')}" /></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-app ${app ? '' : 'hidden'}>Cancel</button><button class="primary-button" type="submit">${app ? 'Save shortcut' : 'Add shortcut'}</button></div><p class="form-status" role="status"></p>`;
+  $('#app-form').innerHTML = `<h3>${app ? 'Edit shortcut' : 'Add shortcut'}</h3><label>Name<input name="name" required maxlength="40" value="${escapeHtml(app?.name || '')}" placeholder="Shortcut name" /></label><label>Description<input name="caption" required maxlength="80" value="${escapeHtml(app?.caption || '')}" placeholder="What it helps employees do" /></label><label>URL<input name="url" required value="${escapeHtml(app?.url || '')}" placeholder="https:// or /internal-page" /></label><label>Accent colour<input name="color" type="color" value="${escapeHtml(app?.color || '#5964db')}" /></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-app ${app ? '' : 'hidden'}>Cancel</button><button class="primary-button" type="submit">${app ? 'Save shortcut' : 'Add shortcut'}</button></div><p class="form-status" role="status"></p>`;
 }
 function renderPortalForm() {
   const portal = editingPortalId && state.supportPortals.find(entry => entry.id === editingPortalId);
   const form = $('#portal-form');
   if (!form) return;
   const iconOptions = [['building', 'Company portal'], ['support', 'IT Support'], ['payroll', 'Payslips & HR']];
-  form.innerHTML = portal ? `<h3>Edit company portal</h3><div class="admin-form-grid"><label>Name<input name="name" required maxlength="60" value="${escapeHtml(portal.name)}" /></label><label>Icon<select name="icon">${iconOptions.map(([value, label]) => `<option value="${value}" ${portal.icon === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div><label>Description<input name="description" required maxlength="100" value="${escapeHtml(portal.description)}" placeholder="What employees can do here" /></label><label>Destination link<input name="url" inputmode="url" value="${escapeHtml(portal.url || '')}" placeholder="https://portal.example.com" /><small>Use https:// for an external portal or /page for an intranet route. Leave blank while the destination is being prepared.</small></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-portal>Cancel</button><button class="primary-button" type="submit">Save portal</button></div><p class="form-status" role="status"></p>` : '<p class="form-status">Select a company portal above to configure its destination and icon.</p>';
+  form.innerHTML = portal ? `<h3>Edit company portal</h3><div class="admin-form-grid"><label>Name<input name="name" required maxlength="60" value="${escapeHtml(portal.name)}" /></label><label>Icon<select name="icon">${iconOptions.map(([value, label]) => `<option value="${value}" ${portal.icon === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div><label>Description<input name="description" required maxlength="100" value="${escapeHtml(portal.description)}" placeholder="What employees can do here" /></label><label>URL<input name="url" inputmode="url" value="${escapeHtml(portal.url || '')}" placeholder="https://portal.example.com" /><small>Use https:// for an external portal or /page for an intranet route. Leave blank while the destination is being prepared.</small></label><div class="admin-actions"><button type="button" class="secondary-button" data-cancel-portal>Cancel</button><button class="primary-button" type="submit">Save portal</button></div><p class="form-status" role="status"></p>` : '<p class="form-status">Select a company portal above to configure its destination and icon.</p>';
 }
 function renderNewSiPolicies() {
   const manager = $('#newsi-policy-manager'), form = $('#newsi-policy-form'); if (!manager || !form) return;
@@ -550,7 +588,7 @@ function setupEvents() {
   $('#media-modal').addEventListener('click', event => { if (event.target === $('#media-modal')) $('#media-modal').close(); });
   $('#media-modal').addEventListener('cancel', event => { event.preventDefault(); $('#media-modal').close(); });
   $('#media-modal').addEventListener('close', () => { $('#media-modal video')?.pause(); });
-  $('#cms-toggle').addEventListener('click', openCMS); $('#cms-close').addEventListener('click', closeCMS);
+  $('#cms-toggle').addEventListener('click', () => { location.href = '/admin.html'; }); $('#cms-close').addEventListener('click', closeCMS);
   $('.cms-tabs').addEventListener('click', event => { if (event.target.dataset.tab) switchCmsTab(event.target.dataset.tab); });
   $('#layout-list').addEventListener('change', event => { const row = event.target.closest('.layout-row'); const key = row.dataset.widgetKey; state.settings.hiddenWidgets = event.target.checked ? state.settings.hiddenWidgets.filter(x => x !== key) : [...new Set([...state.settings.hiddenWidgets, key])]; applyLayout(); });
   $('#save-layout').addEventListener('click', async () => { state.settings.layout = $$('#layout-list .layout-row').map(row => row.dataset.widgetKey); await saveDashboard('Dashboard layout saved'); });
@@ -586,5 +624,7 @@ function setupEvents() {
   $('#view-all-sessions').addEventListener('click', () => { activeTag = 'All'; knowledgePage = 1; $('#session-search').value = ''; renderTags(); renderSessions(); });
   $('#calendar-button').addEventListener('click', event => { event.preventDefault(); showToast('Calendar integration coming soon'); });
 }
-async function initialize() { try { state = normalizeState(await request('/api/dashboard')); placeCmsToggleInHeader(); renderAll(); [['#facebook-link', 'Facebook'], ['#linkedin-link', 'LinkedIn']].forEach(([selector, network]) => { const link = $(selector); if (link) { link.innerHTML = 'Visit Page <span>↗</span>'; link.setAttribute('aria-label', `Visit Si-Ware ${network} page`); } }); setupEvents(); if (location.hash === '#admin') openCMS(); renderYouTubeVideos(); } catch (error) { document.body.innerHTML = `<main style="max-width:600px;margin:10vh auto;font-family:system-ui"><h1>Intranet unavailable</h1><p>${escapeHtml(error.message)}</p><button type="button" onclick="location.reload()">Try again</button><p>Start the local container with <code>docker compose up --build</code>.</p></main>`; } }
+async function initialize() { if (location.hash === '#admin') { location.replace('/admin.html'); return; } try { state = normalizeState(await request('/api/dashboard')); const identity = await request('/api/auth/me').catch(() => null); state.user.permissions = Array.isArray(identity?.permissions) ? identity.permissions : []; placeCmsToggleInHeader(); renderAll(); [['#facebook-link', 'Facebook'], ['#linkedin-link', 'LinkedIn']].forEach(([selector, network]) => { const link = $(selector); if (link) { link.innerHTML = 'Visit Page <span>↗</span>'; link.setAttribute('aria-label', `Visit Si-Ware ${network} page`); } }); setupEvents(); renderYouTubeVideos(); } catch (error) { document.body.innerHTML = `<main style="max-width:600px;margin:10vh auto;font-family:system-ui"><h1>Intranet unavailable</h1><p>${escapeHtml(error.message)}</p><button type="button" onclick="location.reload()">Try again</button><p>Start the local container with <code>docker compose up --build</code>.</p></main>`; } }
+document.addEventListener('click', event => { const card = event.target.closest('[data-open-announcement]'); if (card) location.assign(`/announcements.html?announcement=${encodeURIComponent(card.dataset.openAnnouncement)}`); });
+document.addEventListener('keydown', event => { const card = event.target.closest?.('[data-open-announcement]'); if (card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); location.assign(`/announcements.html?announcement=${encodeURIComponent(card.dataset.openAnnouncement)}`); } });
 initialize();

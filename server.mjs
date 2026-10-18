@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile, access, copyFile, mkdir, unlink, stat, rename } from 'node:fs/promises';
+import { readFile, writeFile, access, copyFile, mkdir, unlink, stat, rename, readdir } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { extname, join, normalize, relative } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -11,6 +11,7 @@ const publicDir = join(process.cwd(), 'public');
 const uploadsDir = join(process.cwd(), 'data', 'uploads');
 const dataFile = process.env.DATA_FILE || join(process.cwd(), 'data', 'intranet.json');
 const seedFile = join(process.cwd(), 'data', 'seed.json');
+const adminDefaultsFile = join(process.cwd(), 'data', 'admin-defaults.json');
 const youtubeChannelId = 'UCPx_Gys4B6hSLw_JY3CkU5w';
 const youtubeChannelUrl = 'https://www.youtube.com/@Si-Ware_Systems';
 const youtubeCacheFile = join(process.cwd(), 'data', 'youtube-latest.json');
@@ -32,6 +33,78 @@ const sessionFor = req => sessions.get(cookiesFor(req).siware_session);
 const isGoogleConfigured = () => Boolean(googleClientId && googleClientSecret);
 const isAdmin = req => sessionFor(req)?.role === 'ADMIN' || (!isGoogleConfigured() && req.headers['x-demo-role'] === 'ADMIN');
 const setCookie = (res, value, maxAge = 28800) => res.setHeader('set-cookie', `siware_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.SECURE_COOKIES === 'true' ? '; Secure' : ''}`);
+const rolePermissions = {
+  EMPLOYEE: [],
+  CONTENT_EDITOR: ['content.edit', 'content.publish', 'media.manage'],
+  AUDIT_VIEWER: ['audit.view'],
+  ADMIN: ['content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage']
+};
+const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 280);
+const adminDefaultKeys = ['apps','announcements','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','whistleblowerConfig','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','settings'];
+const contentChangeLabels = {
+  user: 'Intranet profile',
+  apps: 'Main Apps · app links',
+  announcements: 'Announcements',
+  socialLinks: 'Social Media · channels',
+  moments: 'Moments · cards',
+  momentsPageContent: 'Moments · page text',
+  sessions: 'Knowledge Hub · sessions',
+  knowledgePageContent: 'Knowledge Hub · page text',
+  events: 'Events & key dates',
+  whistleblowerConfig: 'Whistleblower · guidance',
+  newMembers: 'Recently Joined · colleagues',
+  recentlyJoinedPageContent: 'Recently Joined · page text',
+  policies: 'New Si-Warians · policies',
+  firstWeekChecklist: 'New Si-Warians · first-week checklist',
+  supportPortals: 'New Si-Warians · support portals',
+  policyAcknowledgementContent: 'New Si-Warians · acknowledgement',
+  newSiPageContent: 'New Si-Warians · page text',
+  settings: 'Appearance'
+};
+const changedContentLabels = keys => [...new Set(keys.map(key => contentChangeLabels[key] || key))];
+const knowledgeSessionName = value => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+function duplicateKnowledgeSessionName(items) {
+  if (!Array.isArray(items)) return 'Invalid session list';
+  const names = new Set();
+  for (const item of items) {
+    const name = knowledgeSessionName(item?.title);
+    if (!name) return 'A Knowledge Hub session needs a title';
+    if (names.has(name)) return String(item.title).trim();
+    names.add(name);
+  }
+  return '';
+}
+const actorFor = (req, data) => {
+  const session = sessionFor(req);
+  if (session) return session;
+  // Local development remains available only when no identity provider has been configured.
+  if (!isGoogleConfigured() && req.headers['x-demo-role'] === 'ADMIN') return { id:'local-admin', name:data.user?.name || 'Local administrator', email:'local.admin@si-ware.com', role:'ADMIN', demo:true };
+  if (!isGoogleConfigured()) return { id:'local-demo-user', name:data.user?.name || 'Local employee', email:data.user?.email || 'local.employee@si-ware.com', role:rolePermissions[data.user?.role] ? data.user.role : 'EMPLOYEE', demo:true };
+  return null;
+};
+const can = (actor, permission) => Boolean(actor && rolePermissions[actor.role]?.includes(permission));
+function requirePermission(req, res, data, permission) {
+  const actor = actorFor(req, data);
+  if (!can(actor, permission)) { auditEvent(data, actor, { action:'access.denied', resource:permission, route:new URL(req.url, 'http://localhost').pathname, outcome:'denial' }); save(data).catch(() => {}); json(res, actor ? 403 : 401, { error: actor ? 'You do not have permission for this action.' : 'Sign in is required.' }); return null; }
+  return actor;
+}
+function redact(value) {
+  if (Array.isArray(value)) return value.slice(0, 20).map(redact);
+  if (!value || typeof value !== 'object') return typeof value === 'string' ? safeText(value) : value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !/(password|token|cookie|secret|authorization|dataurl)/i.test(key)).slice(0, 20).map(([key, item]) => [key, redact(item)]));
+}
+function auditEvent(data, actor, event) {
+  data.auditEvents ||= [];
+  data.auditEvents.unshift({ id: randomUUID(), category:'audit', occurredAt:new Date().toISOString(), serverReceivedAt:new Date().toISOString(), actor: actor ? { id:actor.id, name:safeText(actor.name), email:safeText(actor.email), role:actor.role } : null, outcome:'success', ...redact(event) });
+  data.auditEvents = data.auditEvents.slice(0, 20000);
+}
+function activityEvent(data, actor, event) {
+  data.activityEvents ||= [];
+  if (data.activityEvents.some(entry => entry.id === event.id)) return false;
+  data.activityEvents.unshift({ id:event.id, category:'activity', occurredAt:event.occurredAt, serverReceivedAt:new Date().toISOString(), actor:{ id:actor.id, name:safeText(actor.name), role:actor.role }, action:safeText(event.action), component:safeText(event.component), route:safeText(event.route).replace(/\?.*/, ''), metadata:redact(event.metadata || {}) });
+  data.activityEvents = data.activityEvents.slice(0, 20000);
+  return true;
+}
 const initialsFor = name => String(name || '').split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 const decodeXml = value => String(value || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 const xmlValue = (entry, tag) => decodeXml((new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`)).exec(entry)?.[1] || '').trim();
@@ -134,6 +207,11 @@ const uploadMimeExtensions = {
   'application/pdf':'pdf',
   'application/vnd.ms-powerpoint':'ppt',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation':'pptx',
+  'application/msword':'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx',
+  'application/vnd.ms-excel':'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'xlsx',
+  'text/plain':'txt',
   'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif',
   'video/mp4':'mp4', 'video/webm':'webm', 'video/quicktime':'mov'
 };
@@ -188,6 +266,15 @@ async function saveAdminBinaryUpload(req, filename, mimeType) {
     await unlink(temporary).catch(() => {});
     throw error;
   }
+}
+async function mediaInventory(data) {
+  await mkdir(uploadsDir, { recursive:true });
+  const payload = JSON.stringify(data);
+  const files = await readdir(uploadsDir, { withFileTypes:true });
+  return Promise.all(files.filter(entry => entry.isFile() && !entry.name.startsWith('.')).map(async entry => {
+    const file = join(uploadsDir, entry.name), info = await stat(file), url = `/uploads/${entry.name}`;
+    return { name:entry.name, url, size:info.size, modifiedAt:info.mtime.toISOString(), inUse:payload.includes(url) };
+  }));
 }
 function uploadedPdfPath(url) {
   try { url = new URL(url, 'http://localhost').pathname; } catch { return null; }
@@ -275,15 +362,23 @@ async function documentHighlights(url, page, query) {
 }
 async function dashboard() {
   const seed = JSON.parse(await readFile(seedFile, 'utf8'));
+  const adminDefaults = JSON.parse(await readFile(adminDefaultsFile, 'utf8'));
   try {
     const data = JSON.parse(await readFile(dataFile, 'utf8'));
     let changed = false;
     for (const key of ['newMembers', 'policies', 'people', 'forms', 'faqs', 'serviceRequests', 'supportPortals', 'firstWeekChecklist']) {
       if (!Array.isArray(data[key])) { data[key] = seed[key]; changed = true; }
     }
+    const socialLinks = { ...(seed.socialLinks || {}), ...(data.socialLinks || {}) };
+    if (JSON.stringify(data.socialLinks || {}) !== JSON.stringify(socialLinks)) { data.socialLinks = socialLinks; changed = true; }
+    const whistleblowerConfig = { ...(seed.whistleblowerConfig || {}), ...(data.whistleblowerConfig || {}) };
+    if (JSON.stringify(data.whistleblowerConfig || {}) !== JSON.stringify(whistleblowerConfig)) { data.whistleblowerConfig = whistleblowerConfig; changed = true; }
     const acknowledgementContent = data.policyAcknowledgementContent || {}, hydratedAcknowledgementContent = { ...acknowledgementContentDefault, ...acknowledgementContent };
     if (JSON.stringify(acknowledgementContent) !== JSON.stringify(hydratedAcknowledgementContent)) { data.policyAcknowledgementContent = hydratedAcknowledgementContent; changed = true; }
+    const newSiPageContent = { ...(seed.newSiPageContent || {}), ...(adminDefaults.newSiPageContent || {}), ...(data.newSiPageContent || {}) };
+    if (JSON.stringify(data.newSiPageContent || {}) !== JSON.stringify(newSiPageContent)) { data.newSiPageContent = newSiPageContent; changed = true; }
     const seededMembers = new Map(seed.newMembers.map(member => [member.id, member]));
+    const seededPolicies = new Map((seed.policies || []).map(policy => [policy.id, policy]));
     if (data.newMembers.some(member => !member.directManager || !member.employmentType || !member.department || !member.division)) {
       data.newMembers = data.newMembers.map(member => ({
         ...member,
@@ -294,10 +389,19 @@ async function dashboard() {
       }));
       changed = true;
     }
+    if (data.policies.some(policy => !policy.department)) {
+      data.policies = data.policies.map(policy => ({ ...policy, department:policy.department || seededPolicies.get(policy.id)?.department || policy.owner || 'All departments' }));
+      changed = true;
+    }
     const expectedLayout = seed.settings.layout;
     if (!data.settings) { data.settings = seed.settings; changed = true; }
     else if (data.settings.layout?.includes('actions')) { data.settings.layout = data.settings.layout.map(item => item === 'actions' ? 'new-members' : item); changed = true; }
     else if (!data.settings.layout?.includes('new-members')) { data.settings.layout = expectedLayout; changed = true; }
+    if (!Number.isInteger(data._version)) { data._version = 1; changed = true; }
+    if (!Array.isArray(data.auditEvents)) { data.auditEvents = []; changed = true; }
+    if (!Array.isArray(data.activityEvents)) { data.activityEvents = []; changed = true; }
+    if (!Array.isArray(data.accessUsers)) { data.accessUsers = []; changed = true; }
+    data.adminSettings ||= { auditRetentionDays:365, activityRetentionDays:90, layoutHistory:[] };
     if (changed) await save(data);
     return withPolicyModifiedDates(data);
   } catch {
@@ -305,9 +409,30 @@ async function dashboard() {
     return withPolicyModifiedDates(seed);
   }
 }
-async function save(data) { await writeFile(dataFile, JSON.stringify(data, null, 2)); }
+function withAnnouncementAudit(data) {
+  if (!Array.isArray(data.announcements)) return;
+  const defaultAuthor = data.user?.name || 'Intranet team';
+  data.announcements = data.announcements.map(item => {
+    const idTimestamp = String(item.id || '').match(/(\d{11,})$/)?.[1];
+    const publishedAt = item.publishedAt || (idTimestamp ? new Date(Number(idTimestamp)).toISOString() : new Date().toISOString());
+    return { ...item, postedBy:item.postedBy || defaultAuthor, publishedAt };
+  });
+}
+async function save(data) {
+  const temporary = `${dataFile}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(data, null, 2));
+  await rename(temporary, dataFile);
+}
 function policyKey(policy) { return `${policy.id}:${policy.version}:${policy.canonicalUrl}`; }
 function requiredPolicies(data) { return (data.policies || []).filter(policy => policy.requiresAcknowledgement !== false); }
+function publishedPolicyUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw, 'http://localhost');
+    return (raw.startsWith('/') || /^https?:\/\//i.test(raw)) && ['http:', 'https:'].includes(parsed.protocol);
+  } catch { return false; }
+}
 function policyIdentity(req, data) {
   const session = sessionFor(req);
   if (session) return session;
@@ -316,7 +441,7 @@ function policyIdentity(req, data) {
   return { id:'local-demo-user', name:user.name || 'Local employee', email:user.email || 'local.employee@si-ware.com', role:user.role || 'EMPLOYEE', demo:true };
 }
 function acknowledgementStatus(data, employee) {
-  const policies = requiredPolicies(data), unpublished = policies.filter(policy => !/^\/uploads\/.*\.pdf$/i.test(policy.canonicalUrl || ''));
+  const policies = requiredPolicies(data), unpublished = policies.filter(policy => !publishedPolicyUrl(policy.canonicalUrl));
   const key = employee.email.toLowerCase(), views = data.policyReviewViews?.[key] || {};
   const snapshot = policies.map(policy => ({ id:policy.id, title:policy.title, version:policy.version, key:policyKey(policy), documentReady:!unpublished.includes(policy), viewedAt:views[policyKey(policy)] || '' }));
   const acceptance = (data.policyAcknowledgements || []).find(record => record.employee.email.toLowerCase() === key && record.contentVersion === data.policyAcknowledgementContent.version && JSON.stringify(record.policies.map(item => item.key)) === JSON.stringify(snapshot.map(item => item.key)));
@@ -327,29 +452,120 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascr
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
+    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower)\.html$/i.test(url.pathname);
+    if (isGoogleConfigured() && !sessionFor(req) && req.method === 'GET' && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
     if (req.method === 'GET' && url.pathname === '/auth/google') {
       if (!isGoogleConfigured()) return json(res, 503, { error:'Google Workspace SSO is not configured yet.' });
       const state = randomUUID(), origin = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
-      oauthStates.set(state, Date.now());
+      const returnTo = String(url.searchParams.get('returnTo') || '/');
+      oauthStates.set(state, { createdAt:Date.now(), returnTo:/^\/(?!\/)/.test(returnTo) ? returnTo : '/' });
       const target = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       target.search = new URLSearchParams({ client_id:googleClientId, redirect_uri:`${origin}/auth/google/callback`, response_type:'code', scope:'openid email profile', hd:googleWorkspaceDomain, state }).toString();
       res.writeHead(302, { location:target.toString() }); return res.end();
     }
     if (req.method === 'GET' && url.pathname === '/auth/google/callback') {
-      const state = url.searchParams.get('state'), created = oauthStates.get(state), code = url.searchParams.get('code'); oauthStates.delete(state);
-      if (!created || Date.now() - created > 10 * 60 * 1000 || !code) return json(res, 400, { error:'Google sign-in could not be verified.' });
+      const state = url.searchParams.get('state'), stateRecord = oauthStates.get(state), code = url.searchParams.get('code'); oauthStates.delete(state);
+      if (!stateRecord || Date.now() - stateRecord.createdAt > 10 * 60 * 1000 || !code) return json(res, 400, { error:'Google sign-in could not be verified.' });
       const origin = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ code, client_id:googleClientId, client_secret:googleClientSecret, redirect_uri:`${origin}/auth/google/callback`, grant_type:'authorization_code' }) });
       if (!tokenResponse.ok) return json(res, 401, { error:'Google sign-in was rejected.' });
       const token = await tokenResponse.json(), userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers:{ authorization:`Bearer ${token.access_token}` } });
       const profile = await userResponse.json(), email = String(profile.email || '').toLowerCase();
       if (!userResponse.ok || !profile.email_verified || !email.endsWith(`@${googleWorkspaceDomain}`)) return json(res, 403, { error:'Use your approved Si-Ware Google Workspace account.' });
-      const sessionId = randomUUID(); sessions.set(sessionId, { id:String(profile.sub), email, name:profile.name || email, role:googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE' }); setCookie(res, sessionId); res.writeHead(302, { location:'/' }); return res.end();
+      const current = await dashboard();
+      const assigned = current.accessUsers.find(user => String(user.email || '').toLowerCase() === email)?.role;
+      const sessionId = randomUUID(); sessions.set(sessionId, { id:String(profile.sub), email, name:profile.name || email, role:assigned || (googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE') }); setCookie(res, sessionId); auditEvent(current, sessions.get(sessionId), { action:'authentication.login', resource:'session', route:stateRecord.returnTo, outcome:'success' }); await save(current); res.writeHead(302, { location:stateRecord.returnTo }); return res.end();
     }
-    if (req.method === 'GET' && url.pathname === '/api/auth/me') { const data = await dashboard(), employee = policyIdentity(req, data); return employee ? json(res, 200, employee) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
+    if (req.method === 'POST' && url.pathname === '/auth/logout') {
+      const data = await dashboard(), actor = actorFor(req, data), sessionId = cookiesFor(req).siware_session;
+      if (sessionId) sessions.delete(sessionId);
+      setCookie(res, '', 0);
+      if (actor) { auditEvent(data, actor, { action:'authentication.logout', resource:'session', route:'/', outcome:'success' }); await save(data); }
+      return json(res, 200, { ok:true });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/auth/me') { const data = await dashboard(), employee = actorFor(req, data); return employee ? json(res, 200, { ...employee, permissions:rolePermissions[employee.role] || [] }) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
+    if (req.method === 'POST' && url.pathname === '/api/activity') {
+      const data = await dashboard(), actor = actorFor(req, data), body = await readBody(req);
+      if (!actor) return json(res, 401, { error:'Sign in is required.' });
+      const events = Array.isArray(body.events) ? body.events.slice(0, 50) : [];
+      const accepted = events.filter(event => /^[a-zA-Z0-9-]{16,80}$/.test(String(event.id || '')) && /^[a-z0-9._-]{2,80}$/i.test(String(event.action || '')) && /^[a-z0-9._-]{2,80}$/i.test(String(event.component || '')) && /^\//.test(String(event.route || ''))).filter(event => activityEvent(data, actor, event)).length;
+      if (accepted) await save(data);
+      return json(res, 202, { accepted });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/summary') {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!can(actor, 'audit.view') && !can(actor, 'content.edit')) { auditEvent(data, actor, { action:'access.denied', resource:'admin.summary', route:'/admin.html', outcome:'denial' }); save(data).catch(() => {}); return json(res, actor ? 403 : 401, { error:actor ? 'You do not have permission for the administration workspace.' : 'Sign in is required.' }); }
+      const audit = can(actor, 'audit.view') ? data.auditEvents.slice(0, 8) : [], activity = can(actor, 'audit.view') ? data.activityEvents.slice(0, 8) : [];
+      return json(res, 200, { version:data._version, counts:{ announcements:data.announcements?.length || 0, people:data.newMembers?.length || 0, apps:data.apps?.length || 0, media:(await mediaInventory(data)).length, audits:data.auditEvents.length, activity:data.activityEvents.length }, audit, activity, settings:data.adminSettings, actor });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'audit.view'); if (!actor) return;
+      const source = url.searchParams.get('category') === 'activity' ? data.activityEvents : data.auditEvents;
+      const query = safeText(url.searchParams.get('q')).toLowerCase(), outcome = safeText(url.searchParams.get('outcome'));
+      const page = Math.max(1, Number(url.searchParams.get('page')) || 1), limit = Math.min(100, Math.max(10, Number(url.searchParams.get('limit')) || 25));
+      const filtered = source.filter(event => (!query || JSON.stringify(event).toLowerCase().includes(query)) && (!outcome || event.outcome === outcome));
+      return json(res, 200, { records:filtered.slice((page - 1) * limit, page * limit), total:filtered.length, page, pages:Math.max(1, Math.ceil(filtered.length / limit)) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/audit/export') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'audit.export'); if (!actor) return;
+      const rows = data.auditEvents.map(event => [event.id, event.occurredAt, event.category, event.actor?.email || '', event.action || '', event.resource || '', event.outcome || ''].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+      auditEvent(data, actor, { action:'audit.export', resource:'audit-events', route:'/admin.html', outcome:'success' }); await save(data);
+      res.writeHead(200, { 'content-type':'text/csv; charset=utf-8', 'content-disposition':'attachment; filename="siware-audit.csv"' }); return res.end(`id,occurred_at,category,actor,action,resource,outcome\n${rows}`);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/media') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'media.manage'); if (!actor) return;
+      return json(res, 200, await mediaInventory(data));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/access') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'access.manage'); if (!actor) return;
+      return json(res, 200, { users:data.accessUsers, roles:Object.keys(rolePermissions) });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/access') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'access.manage'); if (!actor) return;
+      const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), role = String(body.role || '');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !rolePermissions[role]) return json(res, 422, { error:'Provide a valid email address and supported role.' });
+      const current = data.accessUsers.find(user => user.email === email);
+      const accessAdmins = new Set(data.accessUsers.filter(user => user.role === 'ADMIN').map(user => user.email));
+      googleAdminEmails.forEach(adminEmail => accessAdmins.add(adminEmail));
+      const adminCount = accessAdmins.size;
+      if (current?.role === 'ADMIN' && role !== 'ADMIN' && adminCount <= 1) return json(res, 422, { error:'The last administrator cannot be removed or demoted.' });
+      if (current) current.role = role; else data.accessUsers.push({ id:randomUUID(), email, name:safeText(body.name) || email, role });
+      data._version += 1; auditEvent(data, actor, { action:'access.role.updated', resource:email, route:'/admin.html', outcome:'success', changes:{ role } }); await save(data);
+      return json(res, 200, { users:data.accessUsers });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/defaults') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'content.edit'); if (!actor) return;
+      const defaults = JSON.parse(await readFile(adminDefaultsFile, 'utf8'));
+      return json(res, 200, { defaults:Object.fromEntries(adminDefaultKeys.map(key => [key, defaults[key] ?? null])) });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/dashboard') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'content.edit'); if (!actor) return;
+      const body = await readBody(req), next = body.data;
+      if (!next || typeof next !== 'object' || Array.isArray(next)) return json(res, 422, { error:'A dashboard payload is required.' });
+      if (Number(body.version) !== data._version) return json(res, 409, { error:'This content changed elsewhere. Refresh before saving.', version:data._version });
+      if (Object.hasOwn(next, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(next.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
+      const protectedKeys = new Set(['auditEvents', 'activityEvents', 'accessUsers', 'adminSettings', '_version']);
+      const changedKeys = Object.keys(next).filter(key => !protectedKeys.has(key) && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
+      changedKeys.forEach(key => { data[key] = next[key]; });
+      if (changedKeys.includes('settings')) { data.adminSettings.layoutHistory ||= []; data.adminSettings.layoutHistory.unshift({ at:new Date().toISOString(), by:actor.email, settings:data.settings }); data.adminSettings.layoutHistory = data.adminSettings.layoutHistory.slice(0, 12); }
+      const changedContent = changedContentLabels(changedKeys);
+      withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent } }); await save(data);
+      return json(res, 200, await withPolicyModifiedDates(data));
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/settings') {
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'settings.manage'); if (!actor) return;
+      const body = await readBody(req), auditRetentionDays = Number(body.auditRetentionDays), activityRetentionDays = Number(body.activityRetentionDays);
+      if (!Number.isInteger(auditRetentionDays) || !Number.isInteger(activityRetentionDays) || auditRetentionDays < 30 || activityRetentionDays < 7 || auditRetentionDays > 3650 || activityRetentionDays > 3650) return json(res, 422, { error:'Choose retention periods within the supported limits.' });
+      data.adminSettings.auditRetentionDays = auditRetentionDays; data.adminSettings.activityRetentionDays = activityRetentionDays;
+      const now = Date.now(), auditCutoff = now - auditRetentionDays * 86400000, activityCutoff = now - activityRetentionDays * 86400000;
+      data.auditEvents = data.auditEvents.filter(event => new Date(event.occurredAt).getTime() >= auditCutoff);
+      data.activityEvents = data.activityEvents.filter(event => new Date(event.occurredAt).getTime() >= activityCutoff);
+      data._version += 1; auditEvent(data, actor, { action:'audit.retention.updated', resource:'retention-policy', route:'/admin.html', outcome:'success', changes:{ auditRetentionDays, activityRetentionDays } }); await save(data);
+      return json(res, 200, data.adminSettings);
+    }
     if (req.method === 'POST' && url.pathname === '/api/policy-acknowledgement/viewed') {
       const data = await dashboard(), employee = policyIdentity(req, data), body = await readBody(req); if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
-      const policy = requiredPolicies(data).find(item => item.id === body.policyId && /^\/uploads\/.*\.pdf$/i.test(item.canonicalUrl || '')); if (!policy) return json(res, 422, { error:'That policy document is not ready for acknowledgement.' });
+      const policy = requiredPolicies(data).find(item => item.id === body.policyId && publishedPolicyUrl(item.canonicalUrl)); if (!policy) return json(res, 422, { error:'That policy document is not ready for acknowledgement.' });
       data.policyReviewViews ||= {}; const email = employee.email.toLowerCase(); data.policyReviewViews[email] ||= {}; data.policyReviewViews[email][policyKey(policy)] = new Date().toISOString(); await save(data); return json(res, 200, acknowledgementStatus(data, employee));
     }
     if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgement') { const data = await dashboard(), employee = policyIdentity(req, data); return employee ? json(res, 200, acknowledgementStatus(data, employee)) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
@@ -362,7 +578,11 @@ createServer(async (req, res) => {
       return json(res, 200, acknowledgementStatus(data, employee));
     }
     if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgements') { if (!isAdmin(req)) return json(res, 403, { error:'Admin role required' }); const data = await dashboard(), query = String(url.searchParams.get('q') || '').trim().toLowerCase(), limit = Math.min(100, Math.max(10, Number(url.searchParams.get('limit')) || 25)), requestedPage = Math.max(1, Number(url.searchParams.get('page')) || 1), matching = (data.policyAcknowledgements || []).filter(record => !query || `${record.employee.name} ${record.employee.email}`.toLowerCase().includes(query)), total = matching.length, pages = Math.max(1, Math.ceil(total / limit)), page = Math.min(requestedPage, pages), records = matching.slice((page - 1) * limit, page * limit); return json(res, 200, { records, total, page, pages, limit }); }
-    if (req.method === 'GET' && url.pathname === '/api/dashboard') return json(res, 200, await dashboard());
+    if (req.method === 'GET' && url.pathname === '/api/dashboard') {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (isGoogleConfigured() && !actor) return json(res, 401, { error:'Sign in is required.' });
+      return json(res, 200, { ...data, user:actor ? { name:actor.name, email:actor.email, role:actor.role, title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user });
+    }
     if (req.method === 'GET' && url.pathname === '/api/youtube/latest') return json(res, 200, await latestYouTubeVideos());
     if (req.method === 'GET' && url.pathname === '/api/company-news') return json(res, 200, await latestCompanyNews());
     if (req.method === 'GET' && url.pathname === '/api/search') {
@@ -409,17 +629,18 @@ createServer(async (req, res) => {
     }
     if (req.method === 'PATCH' && url.pathname === '/api/dashboard') {
       if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
-      const data = await dashboard(), patch = await readBody(req);
-      Object.assign(data, patch); await save(data); return json(res, 200, await withPolicyModifiedDates(data));
+      const data = await dashboard(), patch = await readBody(req), actor = actorFor(req, data);
+      if (Object.hasOwn(patch, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(patch.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
+      Object.assign(data, patch); withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:'content.updated.legacy', resource:'dashboard', route:'/', outcome:'success' }); await save(data); return json(res, 200, await withPolicyModifiedDates(data));
     }
     if (req.method === 'POST' && url.pathname === '/api/uploads') {
-      if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
+      const data = await dashboard(), actor = requirePermission(req, res, data, 'media.manage'); if (!actor) return;
       if (req.headers['x-upload-binary'] === '1') {
         const filename = decodeURIComponent(String(req.headers['x-upload-filename'] || 'upload'));
-        return json(res, 201, { url: await saveAdminBinaryUpload(req, filename, req.headers['content-type']) });
+        const uploaded = await saveAdminBinaryUpload(req, filename, req.headers['content-type']); auditEvent(data, actor, { action:'media.uploaded', resource:uploaded, route:'/admin.html', outcome:'success' }); await save(data); return json(res, 201, { url: uploaded });
       }
       const item = await readBody(req);
-      return json(res, 201, { url: await saveAdminUpload(item.dataUrl, item.filename) });
+      const uploaded = await saveAdminUpload(item.dataUrl, item.filename); auditEvent(data, actor, { action:'media.uploaded', resource:uploaded, route:'/admin.html', outcome:'success' }); await save(data); return json(res, 201, { url: uploaded });
     }
     if (req.method === 'POST' && url.pathname === '/api/new-members') {
       if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
@@ -438,6 +659,7 @@ createServer(async (req, res) => {
       const item = await readBody(req), data = await dashboard();
       if (!item.title || typeof item.title !== 'string') return json(res, 422, { error: 'A title is required' });
       const key = url.pathname.includes('sessions') ? 'sessions' : url.pathname.includes('policies') ? 'policies' : 'announcements';
+      if (key === 'sessions' && data.sessions.some(session => knowledgeSessionName(session.title) === knowledgeSessionName(item.title))) return json(res, 409, { error:'A Knowledge Hub session with this title already exists. Use a different title or edit the existing session.' });
       if (key === 'policies') {
         const required = ['owner', 'audience', 'version'];
         if (required.some(field => !item[field])) return json(res, 422, { error: 'Policy owner, audience and version are required' });
@@ -448,6 +670,7 @@ createServer(async (req, res) => {
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method not allowed' });
     if (url.pathname.startsWith('/uploads/')) {
+      if (isGoogleConfigured() && !sessionFor(req)) return json(res, 401, { error:'Sign in is required.' });
       const uploadName = url.pathname.slice('/uploads/'.length);
       const uploadFile = normalize(join(uploadsDir, uploadName));
       if (relative(uploadsDir, uploadFile).startsWith('..')) return json(res, 403, { error: 'Forbidden' });
@@ -459,8 +682,13 @@ createServer(async (req, res) => {
     const requested = url.pathname === '/' ? '/index.html' : url.pathname;
     const filename = normalize(join(publicDir, requested));
     if (!filename.startsWith(publicDir)) return json(res, 403, { error: 'Forbidden' });
-    await access(filename); res.writeHead(200, { 'content-type': types[extname(filename)] || 'application/octet-stream' });
-    if (req.method === 'HEAD') return res.end(); createReadStream(filename).pipe(res);
+    await access(filename); const contentType = types[extname(filename)] || 'application/octet-stream';
+    if (req.method === 'HEAD') { res.writeHead(200, { 'content-type':contentType }); return res.end(); }
+    if (extname(filename) === '.html') {
+      const themeBootstrap = `<script>try{const theme=localStorage.getItem('siware-theme-preference')==='dark'?'dark':'light',root=document.documentElement;root.classList.toggle('dark',theme==='dark');root.dataset.theme=theme;root.style.colorScheme=theme}catch(_){}</script><link rel="stylesheet" href="/page-transition.css" /><script src="/activity.js" defer></script>`;
+      const document = await readFile(filename, 'utf8'); res.writeHead(200, { 'content-type':contentType }); return res.end(document.replace(/<head(\s[^>]*)?>/i, `$&${themeBootstrap}`));
+    }
+    res.writeHead(200, { 'content-type':contentType }); createReadStream(filename).pipe(res);
   } catch (error) {
     if (error.code === 'ENOENT') return json(res, 404, { error: 'Not found' });
     console.error(error); return json(res, error.statusCode || 500, { error: error.message || 'Server error' });

@@ -52,6 +52,9 @@ html.dark .social-link-icon{background:#173757;color:#9ac4ff}html.dark .social-l
 /* The company destination carries the actual Si-Ware mark, not a generic web icon. */
 .social-page-grid>.social-link--website .social-link-icon{background-color:#e9f8f6;background-image:url('/Icon.png');background-position:center;background-repeat:no-repeat;background-size:62%}.social-page-grid>.social-link--website .social-link-icon svg{display:none}html.dark .social-page-grid>.social-link--website .social-link-icon{background-color:#17453f}
 
+/* Channel management supports a changing number of official destinations. */
+.social-page-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;box-shadow:none}.social-page-grid>.social-link,.social-page-grid>.social-link:first-child,.social-page-grid>.social-link:nth-child(4){min-height:132px;border:1px solid var(--line);border-radius:12px}.social-page-grid>.social-link--instagram .social-link-icon{background:#f8eaff;color:#b52b8f}.social-page-grid>.social-link--x .social-link-icon,.social-page-grid>.social-link--generic .social-link-icon{background:#edf4ff;color:#173967}html.dark .social-page-grid>.social-link--instagram .social-link-icon{background:#45264b;color:#ffc2ed}html.dark .social-page-grid>.social-link--x .social-link-icon,html.dark .social-page-grid>.social-link--generic .social-link-icon{background:#173757;color:#c9e2ff}
+
 /* The dashboard command bar is the shared intranet header standard. */
 @media (min-width:1051px) {
   .destination-page-header,
@@ -115,15 +118,14 @@ html.dark .social-link-icon{background:#173757;color:#9ac4ff}html.dark .social-l
   .header-profile svg { width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8; }
   .standard-header-tools .theme-toggle,.standard-header-tools .notification { flex:0 0 auto;width:38px;height:38px;margin:0;border:1px solid transparent;border-radius:9px; }
   .standard-header-tools .theme-toggle:hover,.standard-header-tools .notification:hover { border-color:var(--line);background:var(--card); }
-  .header-cms-link { display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 13px;border-radius:10px;background:#123f7b;color:#fff;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap; }
-  .header-cms-link span { color:#ffd465; }
+  .header-cms-link { display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 13px;border-radius:10px;background:#123f7b;color:#fff;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap; }
   .header-cms-link:hover { background:#174e96;color:#fff; }
   .header-profile { display:flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--ink);padding:0;text-align:left; }
   .header-profile .avatar { flex:0 0 auto;width:32px;height:32px;background:linear-gradient(135deg,#2f79d7,#1458b6); }
   .header-profile .profile-copy { display:grid;line-height:1.05; }
   .header-profile .profile-copy b { font-size:11px; }.header-profile .profile-copy small { color:var(--muted);font-size:10px; }
   .shared-profile-menu { position:absolute;z-index:30;top:calc(100% + 12px);right:0;width:216px;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px rgb(20 54 96 / 14%); }
-  .shared-profile-menu b { display:block;padding:7px 8px;color:var(--muted);font:10px Manrope;text-transform:uppercase;letter-spacing:.04em; }.shared-profile-menu a,.shared-profile-menu button { display:block;width:100%;padding:9px 8px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:13px Manrope;text-align:left;text-decoration:none; }.shared-profile-menu a:hover,.shared-profile-menu button:hover { background:var(--paper); }.shared-profile-menu hr { margin:7px 0;border:0;border-top:1px solid var(--line); }
+  .shared-profile-menu b { display:block;padding:7px 8px;color:var(--muted);font:10px Manrope;text-transform:uppercase;letter-spacing:.04em; }.shared-profile-menu a,.shared-profile-menu button { display:block;width:100%;padding:9px 8px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:13px Manrope;text-align:left;text-decoration:none; }.shared-profile-menu a[hidden]{display:none}.shared-profile-menu a:hover,.shared-profile-menu button:hover { background:var(--paper); }.shared-profile-menu hr { margin:7px 0;border:0;border-top:1px solid var(--line); }
 }
 
 @media (min-width:1051px) and (max-width:1700px) {
@@ -136,10 +138,15 @@ html.dark .social-link-icon{background:#173757;color:#9ac4ff}html.dark .social-l
 
 @media (max-width:1050px) {
   .standard-header-tools { display:flex;align-items:center;gap:6px;margin-left:auto; }
-  .standard-header-tools .header-cms-link,.standard-header-tools .header-profile .profile-copy { display:none; }
+  .standard-header-tools .header-profile .profile-copy { display:none; }
   .standard-header-tools .theme-toggle,.standard-header-tools .notification { width:36px;height:36px;margin:0; }
   .header-profile { border:0;background:transparent;padding:0; }.header-profile .avatar { width:30px;height:30px; }
 }
+
+.header-cms-link { display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 12px;border:1px solid transparent;border-radius:9px;background:#123f7b;color:#fff;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap;transition:background-color 160ms ease,border-color 160ms ease; }
+.header-cms-link:hover { background:#174e96;color:#fff; }
+.header-cms-link:focus-visible { outline:3px solid rgb(21 87 192 / 28%);outline-offset:2px; }
+.header-cms-link[hidden] { display:none; }
 
 html.dark .destination-page-header>a:first-child,html.dark .news-page-topbar>a:first-child,html.dark .policy-topbar .brand{border-color:var(--line)}
 html.dark .destination-page-header .destination-nav-inline,html.dark .news-page-topbar .destination-nav-inline,html.dark .policy-topbar .destination-nav-inline{border-color:var(--line);background:#10213a}

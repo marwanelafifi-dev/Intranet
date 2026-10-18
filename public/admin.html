@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Administration · Si-Ware Intranet</title>
+    <link rel="stylesheet" href="/admin.css" />
+    <link rel="stylesheet" href="/admin-editor.css?v=20261018-preview-first-newsi" />
+    <link rel="stylesheet" href="/admin-sidebar.css?v=20261018-footer-continuity" />
+    <link rel="stylesheet" href="/admin-page-tools.css?v=20261018-standard-command-bar" />
+    <link rel="stylesheet" href="/admin-dark.css?v=20261018-knowledge-remove-confirmation" />
+    <link rel="stylesheet" href="/admin-header.css?v=20261018-back-to-intranet" />
+    <script src="/theme.js?v=20261017-admin-theme-sync" defer></script>
+    <script type="module" src="/admin.js?v=20261018-training-video-editor-top"></script>
+  </head>
+  <body>
+    <a class="skip" href="#admin-main">Skip to content</a>
+    <header class="admin-global-header">
+      <a class="admin-global-brand" href="/" aria-label="Si-Ware intranet home"><img src="/siware-logo.png" alt="Si-Ware Systems" /><span>INTRANET</span></a>
+      <div class="admin-global-actions">
+        <button class="admin-header-search" id="admin-header-search" type="button" aria-label="Search administration" aria-expanded="false" aria-controls="admin-header-search-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button>
+        <button class="admin-theme-toggle" data-theme-toggle type="button" aria-label="Enable dark mode" aria-pressed="false"></button>
+        <a class="admin-current-area" href="/" aria-label="Back to intranet">Back to intranet</a>
+        <div class="admin-account">
+          <button class="admin-account-toggle" id="admin-account-toggle" type="button" aria-expanded="false" aria-controls="admin-account-menu"><span class="admin-account-avatar" id="admin-avatar">ME</span><span class="admin-account-copy"><b id="admin-user">Administrator</b><small id="admin-role">Administrator</small></span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button>
+          <div class="admin-account-menu" id="admin-account-menu" hidden><a href="/" target="_blank" rel="noopener">View intranet ↗</a><button id="header-sign-out" type="button">Sign out</button></div>
+        </div>
+      </div>
+      <div class="admin-header-search-panel" id="admin-header-search-panel" hidden><label for="admin-header-search-input">Search administration</label><input id="admin-header-search-input" type="search" placeholder="Find a section…" autocomplete="off" /><div id="admin-header-search-results" role="listbox" aria-label="Administration sections"></div></div>
+    </header>
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="admin-sidebar-heading">
+          <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-controls="admin-navigation" aria-expanded="true" title="Collapse navigation">
+            <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>
+            <span>Collapse</span>
+          </button>
+        </div>
+        <nav id="admin-navigation" aria-label="Administration navigation">
+          <p>Workspace</p>
+          <button class="active" data-view="overview">Overview</button>
+          <p>Manage</p>
+          <button data-view="content">Content</button>
+          <div class="admin-subnav" aria-label="Content pages">
+            <button data-view="apps">Main Apps</button>
+            <button data-view="announcements">Announcements</button>
+            <button data-view="social">Social Media</button>
+            <button data-view="moments">Moments</button>
+            <button data-view="knowledge">Knowledge Hub</button>
+            <button data-view="events">Events &amp; key dates</button>
+            <button data-view="whistleblower">Whistleblower</button>
+            <button data-view="people">Recently Joined</button>
+            <button data-view="newsi">New Si-Warians</button>
+          </div>
+          <button data-view="appearance">Appearance</button><button data-view="media">Media</button>
+          <p>Governance</p>
+          <button data-view="access">Users &amp; access</button><button data-view="activity">Activity &amp; audit</button><button data-view="settings">Settings</button>
+        </nav>
+        <div class="sidebar-footer"><a href="/" target="_blank" rel="noopener">View intranet <span aria-hidden="true">↗</span></a><button id="sign-out">Sign out</button></div>
+      </aside>
+      <main id="admin-main" tabindex="-1">
+        <header class="admin-topbar"><div><h1 id="page-title">Overview</h1></div><div class="topbar-actions"><button class="mobile-sign-out" id="mobile-sign-out">Sign out</button></div></header>
+        <div class="admin-page-tools" id="admin-page-tools" hidden role="toolbar" aria-label="Page actions"><div class="admin-page-tools-actions"></div></div>
+        <div id="flash" class="flash" role="status" aria-live="polite"></div>
+        <section class="admin-view active" id="view-overview"></section>
+        <section class="admin-view" id="view-content"></section>
+        <section class="admin-view" id="view-announcements"></section>
+        <section class="admin-view" id="view-social"></section>
+        <section class="admin-view" id="view-knowledge"></section>
+        <section class="admin-view" id="view-events"></section>
+        <section class="admin-view" id="view-whistleblower"></section>
+        <section class="admin-view" id="view-moments"></section>
+        <section class="admin-view" id="view-people"></section>
+        <section class="admin-view" id="view-newsi"></section>
+        <section class="admin-view" id="view-apps"></section>
+        <section class="admin-view" id="view-appearance"></section>
+        <section class="admin-view" id="view-media"></section>
+        <section class="admin-view" id="view-access"></section>
+        <section class="admin-view" id="view-activity"></section>
+        <section class="admin-view" id="view-settings"></section>
+      </main>
+    </div>
+  </body>
+</html>

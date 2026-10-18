@@ -1,3 +1,6 @@
 node_modules/
+.impeccable/
 data/intranet.json
 data/company-news-latest.json
+data/uploads/*
+!data/uploads/.gitkeep

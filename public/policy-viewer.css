@@ -2,3 +2,4 @@
 .policy-viewer:not([open]){display:none}.policy-viewer[open]{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}
 .policy-viewer-active{overflow:hidden!important}
 .policy-viewer[open]{position:fixed;inset:0;margin:0;width:100dvw;height:100dvh;max-width:none;max-height:none}
+.policy-card-actions a{color:var(--blue);font:800 11px Manrope;text-decoration:underline;text-underline-offset:3px}.policy-card-actions a:focus-visible{outline:3px solid rgb(10 120 167 / 28%);outline-offset:3px;border-radius:3px}

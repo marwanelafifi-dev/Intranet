@@ -1,6 +1,26 @@
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
 const displayTimestamp = value => new Intl.DateTimeFormat('en', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Cairo' }).format(new Date(value));
 const isPdf = url => /^\/uploads\/.*\.pdf(?:$|[?#])/i.test(url || '');
+const isPolicyLink = url => /^(https?:\/\/|\/)/i.test(String(url || '').trim());
+function youtubeVideoId(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    const host = url.hostname.replace(/^www\./i, '').toLowerCase();
+    const fromPath = url.pathname.split('/').filter(Boolean).pop() || '';
+    const id = host === 'youtu.be' ? fromPath : url.searchParams.get('v') || (/^\/(?:embed|shorts)\//.test(url.pathname) ? fromPath : '');
+    return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : '';
+  } catch { return ''; }
+}
+function renderNewSiTrainingVideos(content = {}) {
+  document.querySelectorAll('[data-newsi-video]').forEach(frame => {
+    const id = youtubeVideoId(content[frame.dataset.newsiVideo]);
+    if (id) frame.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+  });
+  document.querySelectorAll('[data-newsi-video-open]').forEach(link => {
+    const id = youtubeVideoId(content[link.dataset.newsiVideoOpen]);
+    if (id) link.href = `https://www.youtube.com/watch?v=${id}`;
+  });
+}
 let policySearchMatches = [], policySearchIndex = -1, policyViewerPage = 1, policyViewerPageCount = 1, policyViewerUrl = '', policyPageObserver, policyAcknowledgement;
 function companyPortalIcon(name) {
   const paths = {
@@ -17,7 +37,8 @@ function renderCompanyPortals(portals = []) {
     const rawUrl = String(portal.url || '').trim();
     const url = /^(https?:\/\/|\/|#)/i.test(rawUrl) ? rawUrl : '';
     const external = /^https?:\/\//i.test(url);
-    const content = `<span class="company-portal-icon">${companyPortalIcon(portal.icon)}</span><span class="company-portal-copy"><b>${escapeHtml(portal.name)}</b><small>${escapeHtml(portal.description)}</small>${url ? '<span class="company-portal-action">Open portal <span aria-hidden="true">→</span></span>' : '<span class="company-portal-pending">Link coming soon</span>'}</span>`;
+    const portalIcon = portal.iconUrl ? `<img src="${escapeHtml(portal.iconUrl)}" alt="" />` : companyPortalIcon(portal.icon);
+    const content = `<span class="company-portal-icon">${portalIcon}</span><span class="company-portal-copy"><b>${escapeHtml(portal.name)}</b><small>${escapeHtml(portal.description)}</small>${url ? '<span class="company-portal-action">Open portal <span aria-hidden="true">→</span></span>' : '<span class="company-portal-pending">Link coming soon</span>'}</span>`;
     return url ? `<a class="company-portal-card" href="${escapeHtml(url)}" ${external ? 'target="_blank" rel="noreferrer"' : ''}>${content}</a>` : `<article class="company-portal-card company-portal-card-pending">${content}</article>`;
   }).join('') : '<p class="company-portals-empty">Company portal links will appear here once configured.</p>';
 }
@@ -190,11 +211,15 @@ function wirePolicyViewer() {
   });
   document.querySelector('#policy-viewer-find')?.addEventListener('keydown', event => { if (event.key !== 'Enter') return; event.preventDefault(); const advance = attempts => { if (policySearchMatches.length) return goToPolicyMatch(policySearchIndex + 1); if (attempts) setTimeout(() => advance(attempts - 1), 120); }; advance(12); });
   document.querySelector('#policy-search-results')?.addEventListener('click', event => { const button = event.target.closest('[data-document-match]'); if (button) goToPolicyMatch(Number(button.dataset.documentMatch)); });
-  document.addEventListener('click', event => { const action = event.target.closest('[data-policy-view],[data-policy-download]'); if (!action) return; const card = action.closest('[data-policy-title][data-policy-url]'); if (!card) return; if (action.dataset.policyDownload !== undefined) window.location.assign(`${card.dataset.policyUrl}?download=1`); else { openPolicyViewer(card.dataset.policyTitle, card.dataset.policyUrl); recordPolicyViewed(card.dataset.policyId); } });
+  document.addEventListener('click', event => { const action = event.target.closest('[data-policy-view],[data-policy-download],[data-policy-open]'); if (!action) return; const card = action.closest('[data-policy-title][data-policy-url]'); if (!card) return; if (action.dataset.policyDownload !== undefined) window.location.assign(`${card.dataset.policyUrl}?download=1`); else if (action.dataset.policyOpen !== undefined) recordPolicyViewed(card.dataset.policyId); else { openPolicyViewer(card.dataset.policyTitle, card.dataset.policyUrl); recordPolicyViewed(card.dataset.policyId); } });
 }
 function renderAcknowledgement(status) {
   const panel = document.querySelector('#policy-acknowledgement'); if (!panel) return; panel.hidden = false; policyAcknowledgement = status;
-  if (status.acceptance) { panel.innerHTML = `<div class="policy-acknowledgement-notice"><b>${escapeHtml(status.content.beforeHeading)}</b><p>${escapeHtml(status.content.beforeText)}</p></div><div class="policy-acknowledgement-head"><div><h3>${escapeHtml(status.content.acceptedTitle)}</h3><p class="policy-acknowledged">${escapeHtml(status.content.afterText)} Confirmed on ${escapeHtml(displayTimestamp(status.acceptance.acceptedAt))}.</p><small>Recorded for ${escapeHtml(status.employee.email)}. A policy version change will require a new acknowledgement.</small><p><button type="button" data-show-policy-welcome>View welcome message</button></p></div></div>`; return; }
+  if (status.acceptance) {
+    const recordedFor = status.employee.demo ? 'Recorded in local demo mode' : `Recorded for ${escapeHtml(status.employee.email)}`;
+    panel.innerHTML = `<div class="policy-acknowledgement-notice"><b>${escapeHtml(status.content.beforeHeading)}</b><p>${escapeHtml(status.content.beforeText)}</p></div><div class="policy-acknowledgement-head policy-acknowledgement-head--accepted"><div><h3>${escapeHtml(status.content.acceptedTitle)}</h3><p class="policy-acknowledged">${escapeHtml(status.content.afterText)}</p><p class="policy-acknowledgement-meta"><span>Confirmed on <time datetime="${escapeHtml(status.acceptance.acceptedAt)}">${escapeHtml(displayTimestamp(status.acceptance.acceptedAt))}</time></span><span>${recordedFor}</span></p><p class="policy-acknowledgement-detail">A policy version change will require a new acknowledgement.</p><button class="policy-acknowledgement-welcome-button" type="button" data-show-policy-welcome>View welcome message</button></div></div>`;
+    return;
+  }
   const blocked = status.unpublished.length > 0, ready = !blocked && status.policies.length > 0 && status.policies.every(policy => policy.viewedAt);
   const list = status.policies.map(policy => `<li class="${policy.viewedAt ? 'is-viewed' : ''}">${escapeHtml(policy.title)} · ${escapeHtml(policy.version)}${policy.documentReady ? policy.viewedAt ? ' — reviewed' : ' — open the PDF below' : ' — document not published'}</li>`).join('');
   panel.innerHTML = `<div class="policy-acknowledgement-head"><div><h3>${escapeHtml(status.content.actionTitle)}</h3><p>${escapeHtml(status.content.instructionText)}</p>${status.employee.demo ? '<small>Local test mode: this will be linked to your Google Workspace account after SSO is enabled.</small>' : ''}</div></div><div class="policy-acknowledgement-notice"><b>${escapeHtml(status.content.beforeHeading)}</b><p>${escapeHtml(status.content.beforeText)}</p></div><ul class="policy-acknowledgement-list">${list}</ul>${blocked ? `<p class="policy-acknowledgement-error">The following mandatory documents must be published before acknowledgement: ${escapeHtml(status.unpublished.join(', '))}.</p>` : ''}<div class="policy-acknowledgement-actions"><button type="button" data-confirm-policy ${ready ? '' : 'disabled'}>${escapeHtml(status.content.confirmationLabel)}</button><small>${ready ? escapeHtml(status.content.confirmationHelp) : 'Review every published mandatory policy to enable confirmation.'}</small></div>`;
@@ -211,13 +236,18 @@ async function showPolicyRegister() {
   try {
     const response = await fetch('/api/dashboard');
     if (!response.ok) throw new Error('Policy register is unavailable');
-    const { policies = [], newMembers = [], supportPortals = [] } = await response.json();
+    const { policies = [], newMembers = [], supportPortals = [], newSiPageContent = {} } = await response.json();
+    document.querySelectorAll('[data-newsi-copy]').forEach(element => {
+      const value = newSiPageContent?.[element.dataset.newsiCopy];
+      if (typeof value === 'string' && value.trim()) element.textContent = value;
+    });
+    renderNewSiTrainingVideos(newSiPageContent);
     const announcements = document.querySelector('#all-new-members');
     if (announcements) announcements.innerHTML = newMembers.length ? newMembers.map(member => `<article class="new-member-announcement">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><div class="new-member-announcement-head"><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)} · ${escapeHtml(member.team)}</span></div><time>Recently joined · ${escapeHtml(member.joined)}</time></div><p>${escapeHtml(member.message)}</p><span class="new-member-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
     renderCompanyPortals(supportPortals);
     if (!policies.length) return;
     const grid = document.querySelector('#policies .policy-grid');
-    grid.innerHTML = policies.map(policy => `<article class="policy-link-card policy-detail-card" data-policy-id="${escapeHtml(policy.id)}" data-policy-title="${escapeHtml(policy.title)}" data-policy-url="${escapeHtml(policy.canonicalUrl)}"><b>${escapeHtml(policy.title)}</b><small>${escapeHtml(policy.summary)}</small><dl class="policy-card-meta"><div><dt>Owner</dt><dd>${escapeHtml(policy.owner)}</dd></div><div><dt>Audience</dt><dd>${escapeHtml(policy.audience)}</dd></div><div><dt>Version</dt><dd>${escapeHtml(policy.version)}</dd></div><div><dt>Updated</dt><dd>${policy.modifiedAt ? escapeHtml(displayTimestamp(policy.modifiedAt)) : 'No file uploaded'}</dd></div></dl>${isPdf(policy.canonicalUrl) ? '<div class="policy-card-actions"><button type="button" data-policy-view>View PDF</button><button type="button" data-policy-download>Download PDF</button></div>' : '<p class="policy-card-pending">Document link coming soon</p>'}</article>`).join('');
+    grid.innerHTML = policies.map(policy => `<article class="policy-link-card policy-detail-card" data-policy-id="${escapeHtml(policy.id)}" data-policy-title="${escapeHtml(policy.title)}" data-policy-url="${escapeHtml(policy.canonicalUrl)}"><b>${escapeHtml(policy.title)}</b><small>${escapeHtml(policy.summary)}</small><dl class="policy-card-meta"><div><dt>Owner</dt><dd>${escapeHtml(policy.owner)}</dd></div><div><dt>Audience</dt><dd>${escapeHtml(policy.audience)}</dd></div><div><dt>Version</dt><dd>${escapeHtml(policy.version)}</dd></div><div><dt>Updated</dt><dd>${policy.modifiedAt ? escapeHtml(displayTimestamp(policy.modifiedAt)) : 'Linked policy'}</dd></div></dl>${isPdf(policy.canonicalUrl) ? '<div class="policy-card-actions"><button type="button" data-policy-view>View PDF</button><button type="button" data-policy-download>Download PDF</button></div>' : isPolicyLink(policy.canonicalUrl) ? `<div class="policy-card-actions"><a href="${escapeHtml(policy.canonicalUrl)}" target="_blank" rel="noopener noreferrer" data-policy-open>Open policy</a></div>` : '<p class="policy-card-pending">Document link coming soon</p>'}</article>`).join('');
     refreshAcknowledgement();
   } catch (error) {
     const note = document.createElement('p'); note.className = 'policy-register-error'; note.textContent = 'The policy register could not be loaded. Please try again or contact People Operations.';

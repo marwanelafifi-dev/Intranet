@@ -1,0 +1,35 @@
+/* Applied only inside employee pages embedded by Administration. */
+.admin-preview-collection-editor .admin-preview-app-icon-upload input[type="file"]{padding:7px;font-size:12px}
+.admin-preview-app-icon-current{display:flex;align-items:center;gap:10px;min-width:0;color:#4d6684;font-size:11px;font-weight:600}
+.admin-preview-app-icon-current img{width:34px;height:34px;flex:none;object-fit:contain;border:1px solid #b8cde5;border-radius:7px;background:#fff}
+.admin-preview-app-icon-current span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-preview-app-icon-upload small{font-size:11px;line-height:1.4;font-weight:500}
+html.dark .admin-preview-app-icon-current{color:#c6d6e9}
+html.dark .admin-preview-app-icon-current img{border-color:#55718f}
+html.dark [data-admin-preview-record]:hover,
+html.dark [data-admin-preview-record]:focus-visible,
+html.dark .social-link[data-admin-preview-social-key]:hover,
+html.dark .social-link[data-admin-preview-social-key]:focus-visible{background:#173757!important;outline-color:#58c7df!important}
+html.dark :is([data-admin-preview-editable],[data-admin-preview-moments-copy],[data-admin-preview-knowledge-copy],[data-admin-preview-page-copy],[data-admin-preview-newsi-copy]):is(:hover,:focus){background:rgb(36 72 109 / 72%)!important;outline-color:#58c7df!important}
+html.dark .admin-preview-collection-editor,
+html.dark .admin-preview-url-editor{color-scheme:dark;background:#142943!important;border-color:#55718f!important;color:#edf4ff!important;box-shadow:0 18px 34px rgb(0 0 0 / 35%)!important}
+html.dark .admin-preview-collection-editor-head,
+html.dark .admin-preview-collection-editor label,
+html.dark .admin-preview-collection-editor legend,
+html.dark .admin-preview-url-editor label{color:#edf4ff!important}
+html.dark .admin-preview-collection-editor small{color:#c6d6e9!important}
+html.dark .admin-preview-collection-editor [data-preview-editor-status]{color:#ffb4c2!important}
+html.dark .admin-preview-collection-editor :is(input,textarea,select),
+html.dark .admin-preview-url-editor input{color-scheme:dark;background:#0b1d33!important;border-color:#6685a5!important;color:#edf4ff!important;caret-color:#edf4ff!important}
+html.dark .admin-preview-collection-editor :is(input,textarea,select)::placeholder,
+html.dark .admin-preview-url-editor input::placeholder{color:#aec4dd!important;opacity:1}
+html.dark .admin-preview-collection-editor input[type="color"]{background:#0b1d33!important}
+html.dark .admin-preview-collection-editor :is(input,textarea,select):focus,
+html.dark .admin-preview-url-editor input:focus{outline:3px solid rgb(126 200 255 / 38%)!important;border-color:#9ac8ff!important}
+html.dark .admin-preview-collection-editor :is(fieldset,.admin-preview-colour-palette button){border-color:#55718f}
+html.dark .admin-preview-collection-editor-actions button:not([type="submit"]),
+html.dark .admin-preview-url-editor-actions button:not([type="submit"]){background:#173757!important;border-color:#6685a5!important;color:#d6e9ff!important}
+html.dark .admin-preview-collection-editor button[type="submit"],
+html.dark .admin-preview-url-editor button[type="submit"]{background:#1762aa!important;border-color:#2478c4!important;color:#fff!important}
+html.dark .admin-preview-collection-editor .admin-preview-collection-editor-head button{background:transparent!important;border:0!important;color:#9ac8ff!important}
+html.dark .admin-preview-collection-editor [data-preview-editor-remove]{background:#482b3a!important;border-color:#a45b70!important;color:#ffd4dc!important}

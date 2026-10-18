@@ -10,6 +10,7 @@
 }
 .whistleblower-widget h2{margin:0;color:#102b4e;font-size:18px;font-weight:800;letter-spacing:-.03em}
 .whistleblower-widget p{max-width:66ch;margin:5px 0 0;color:#526a87;font-size:12px;line-height:1.5}
+html.dark .whistleblower-widget p{color:#c6d6e9}
 .whistleblower-link{flex:0 0 auto;color:#1458b6;font-size:12px;font-weight:800;text-decoration:none}
 .whistleblower-link:hover{text-decoration:underline;text-underline-offset:4px}
 .whistleblower-link:focus-visible{outline:2px solid #155dbf;outline-offset:4px;border-radius:3px}

@@ -203,6 +203,8 @@ html.dark .header-search-toggle:hover,html.dark .header-search-toggle[aria-expan
 }
 .shared-brand .brand-logo { display: block; width: auto; height: 32px; max-width: 166px; object-fit: contain; }
 .shared-brand span { padding-left: 10px; border-left: 1px solid var(--line); }
+html.dark .shared-brand { color: #fff; }
+html.dark .shared-brand > img { filter: brightness(0) invert(1); }
 .dashboard-header-tools { display:flex; align-items:center; gap:10px; position:relative; }
 .avatar-user.has-photo { background-position:center; background-repeat:no-repeat; background-size:cover; color:transparent; }
 @media (min-width: 651px) { body:has(.app-dock) .dashboard-header-tools .profile-copy { display:grid; } }

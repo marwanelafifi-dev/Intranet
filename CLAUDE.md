@@ -8,9 +8,12 @@
 
 ## Administration workspace
 
-- The full-screen Admin CMS manages dashboard content, Recently Joined colleagues, layout, apps, and the New Si-Warians experience.
-- Policies are managed only in **New Si-Warians → Policies**. The generic Content tab is limited to announcements and Knowledge Hub sessions.
-- New Si-Warians also manages support portals. Its list and editor are kept together in the full-screen split workspace.
+- `/admin.html` is the dedicated **Administration Panel**. It replaces the legacy modal CMS and is shown only to people with `content.edit` or `audit.view`; the employee header exposes the same restricted entry point as **Admin Panel**.
+- The panel uses a consistent preview-first pattern: add or edit an item, make changes in the editor alongside the employee-page preview, then use **Save content** to publish. Page actions are grouped consistently into primary creation, save/refresh, data, history, and destructive actions.
+- Every managed page has JSON export, reset-to-default, undo/redo, and a per-page baseline in `data/admin-defaults.json`. Destructive removal requires an explicit confirmation, including a typed `DELETE` confirmation for collection-level removals.
+- The panel manages Main Apps, Announcements, Social Media, Moments, Knowledge Hub, Events & key dates, Whistleblower, Recently Joined, New Si-Warians, Appearance, Media, users/access, and activity/audit records.
+- Policies are managed only in **New Si-Warians → Policies**. A policy can use either a safe URL or an uploaded document; an upload replaces the URL, and clearing the URL removes the document reference.
+- New Si-Warians manages first-week content, policies, checklist items, support portals, and the Security Awareness/Admin Portal training links directly from its employee-page preview.
 
 ## Recently Joined
 
@@ -51,7 +54,9 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 - `server.mjs` — dependency-free Node HTTP server and JSON API.
 - `data/seed.json` — initial dashboard, policy, search and content data.
 - `data/intranet.json` — runtime persistence; bind-mounted by Docker and intentionally ignored by Git.
+- `data/admin-defaults.json` — the reset baseline for every managed content collection. Update this intentionally when a new approved default is required.
 - `data/uploads/` — persistent local employee photos published from Admin CMS and served at `/uploads/`.
+- `public/admin.html`, `public/admin.js`, and `public/admin-*.css` — dedicated Administration Panel shell, controls, editor surfaces, dark theme, and page tooling.
 - `public/index.html` + `public/app.js` — employee dashboard and client interactions.
 - `public/new-hires.html` — shareable onboarding and policy destination.
 - `Dockerfile` and `docker-compose.yml` — local runtime.
@@ -67,8 +72,12 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 - Policy governance records with `owner`, `reviewDate`, `audience`, `version`, and `canonicalUrl` fields.
 - Shareable New Si-Warians! page at `/new-hires.html` with first-week guidance and policy content.
 - Whistleblower guidance page at `/whistleblower.html`, linked directly below Knowledge Hub sessions. Its instructions are aligned to the single Employee Voice reporting method: select “Start a confidential report” beside “Ready to start?”, describe the concern in the in-page agent, and follow its guided conversation. The local prototype does not store reports.
-- Administration workspace for dashboard layout, Quick Launch shortcuts, announcements, Knowledge Hub sessions, governed policy records and Recently Joined people. Each area supports GUI add/edit/remove workflows, with confirmations for removal and a dashboard-layout reset.
-- Demo role switching; server-side demo admin checks for write endpoints.
+- Dedicated Administration Panel with preview-first editors for all employee destinations, standard action placement, responsive dark mode, and accessible dialogs.
+- Per-page JSON backups, CSV templates/imports where applicable, undo/redo history, and reset-to-approved-default actions. Knowledge Hub CSV import reports exact row failures and rejects duplicate session titles after Unicode, whitespace, and case normalization; the same duplicate rule applies to manual creation and edits.
+- Social Media is a configurable collection rather than four fixed fields. Each card has a title, safe HTTP(S) destination, link label, and approved SVG icon (`LinkedIn`, `Facebook`, `YouTube`, `website`, `Instagram`, `X`, or generic). The employee directory responds to any number of cards.
+- New Si-Warians keeps its employee-facing layout configurable from the preview. Policies support uploaded files or URLs; Security Awareness (English and Arabic) and Admin Portal Training are configurable video links displayed before everyday tools.
+- Media inventory/upload tooling accepts the approved document, image, and video types and identifies uploaded files that are currently in use.
+- Role-based access has `EMPLOYEE`, `CONTENT_EDITOR`, `AUDIT_VIEWER`, and `ADMIN` permissions. Server-side endpoints enforce permissions, audit content changes and authentication events, accept client activity batches, and preserve a bounded event history.
 - Accessibility improvements: skip link, labelled controls, keyboard search shortcut, dialog semantics, reduced-motion support, contrast and readable-text refinements.
 
 ## API
@@ -77,6 +86,8 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 - `GET /api/search?q=<query>`
 - `PATCH /api/dashboard` (demo admin header required)
 - `POST /api/announcements`, `POST /api/sessions`, `POST /api/policies` (demo admin header required)
+- `GET /api/auth/me`, `GET /api/admin/defaults`, `GET /api/admin/summary`, `GET /api/admin/audit`, and `GET /api/admin/activity` power restricted administration and audit views.
+- `POST /api/admin/upload`, `GET /api/admin/media`, and `DELETE /api/admin/media` manage approved binary assets. Content/import/reset operations must use the corresponding authenticated Administration Panel endpoints.
 
 ## UI design direction
 

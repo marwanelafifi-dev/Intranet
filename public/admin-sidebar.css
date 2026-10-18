@@ -1,0 +1,41 @@
+/* Desktop navigation: generous by default, compact only when requested. */
+.admin-shell { --admin-sidebar-width:280px; grid-template-columns:var(--admin-sidebar-width) minmax(0,1fr); background:linear-gradient(to right,var(--blue-deep) 0 var(--admin-sidebar-width),transparent var(--admin-sidebar-width)); transition:grid-template-columns .22s cubic-bezier(.2,.8,.2,1); }
+.admin-sidebar { padding-top:24px; overflow:hidden; }
+.admin-sidebar-heading { display:flex; flex-direction:column; align-items:stretch; gap:6px; margin-bottom:15px; }
+.admin-sidebar-heading .admin-brand { width:100%; gap:8px; padding:4px 2px 0; white-space:nowrap; }
+.admin-sidebar-heading .admin-brand img { width:94px; }
+.admin-sidebar-heading .admin-brand span { padding-left:8px; }
+.sidebar-toggle { display:inline-flex; align-items:center; justify-content:center; align-self:flex-end; gap:7px; flex:0 0 auto; min-height:32px; border:1px solid rgba(217,237,250,.32); border-radius:8px; background:transparent; color:#d9edfa; padding:6px 8px; font:800 11px/1 inherit; cursor:pointer; }
+.sidebar-toggle svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.sidebar-toggle:hover { border-color:#fff; background:rgba(255,255,255,.1); color:#fff; }
+.admin-shell.sidebar-collapsed { --admin-sidebar-width:76px; }
+.admin-shell.sidebar-collapsed .admin-sidebar { padding-inline:10px; }
+.admin-shell.sidebar-collapsed .admin-sidebar-heading .admin-brand { justify-content:center; padding:4px 0 0; }
+.admin-shell.sidebar-collapsed .admin-sidebar-heading .admin-brand img { width:38px; }
+.admin-shell.sidebar-collapsed .admin-brand span,.admin-shell.sidebar-collapsed .sidebar-toggle span,.admin-shell.sidebar-collapsed .admin-sidebar nav p { position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.admin-shell.sidebar-collapsed .sidebar-toggle { align-self:stretch; width:100%; padding:6px; }
+.admin-shell.sidebar-collapsed .sidebar-toggle svg { transform:rotate(180deg); }
+.admin-sidebar .sidebar-icon { display:none; width:20px; height:20px; flex:0 0 20px; }
+.admin-shell.sidebar-collapsed .admin-sidebar nav button { display:grid; place-items:center; min-height:40px; padding:8px 4px; text-align:center; font-size:0; }
+.admin-shell.sidebar-collapsed .admin-sidebar nav button .sidebar-icon { display:block; }
+.admin-shell.sidebar-collapsed .admin-subnav { padding-left:0; border-left:0; }
+.admin-shell.sidebar-collapsed .sidebar-footer { padding-inline:0; text-align:center; }
+.admin-shell.sidebar-collapsed .sidebar-footer a,.admin-shell.sidebar-collapsed .sidebar-footer button { display:grid; place-items:center; min-height:36px; font-size:0; text-align:center; }
+.admin-shell.sidebar-collapsed .sidebar-footer .sidebar-icon { display:block; }
+@media (max-width:900px) {
+  .admin-shell,.admin-shell.sidebar-collapsed { grid-template-columns:1fr; background:none; }
+  .admin-sidebar-heading { flex-direction:row; align-items:center; margin-bottom:0; }
+  .admin-sidebar-heading .admin-brand { width:auto; padding:4px 0 13px; }
+  .admin-sidebar-heading .admin-brand img { width:107px; }
+  .admin-sidebar-heading .admin-brand span { padding-left:11px; }
+  .admin-shell.sidebar-collapsed .admin-sidebar { padding-inline:16px; }
+  .admin-shell.sidebar-collapsed .admin-sidebar-heading .admin-brand { justify-content:flex-start; padding:4px 0 13px; }
+  .admin-shell.sidebar-collapsed .admin-sidebar-heading .admin-brand img { width:107px; }
+  .admin-shell.sidebar-collapsed .admin-brand span,.admin-shell.sidebar-collapsed .sidebar-toggle span { position:static; width:auto; height:auto; margin:0; overflow:visible; clip:auto; white-space:normal; }
+  .sidebar-toggle { display:none; }
+  .admin-shell.sidebar-collapsed .sidebar-toggle { width:auto; padding:6px 8px; }
+  .admin-shell.sidebar-collapsed .sidebar-toggle svg { transform:none; }
+  .admin-shell.sidebar-collapsed .admin-sidebar nav p { display:none; }
+  .admin-shell.sidebar-collapsed .admin-sidebar nav button { display:block; min-height:0; padding:10px; font-size:13px; white-space:nowrap; text-align:left; }
+  .admin-shell.sidebar-collapsed .admin-sidebar nav button .sidebar-icon { display:none; }
+}

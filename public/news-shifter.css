@@ -11,6 +11,13 @@
 .news-shifter-controls{justify-content:center}.news-shifter-manual-nav{display:inline-flex;flex:0 0 auto}.news-shifter-position{display:inline-flex;min-width:86px;align-items:center;justify-content:center;gap:5px;white-space:nowrap;line-height:1}.news-shifter-position i{display:inline;font-size:11px;letter-spacing:0}@media(max-width:650px){.news-shifter-position{min-width:76px}}
 .news-shifter-manual-nav button:disabled{cursor:wait;opacity:.65}
 
+/* The story is immediately useful while a remote image is still arriving. */
+.news-shifter-slide.is-image-pending{grid-template-columns:1fr}
+.news-shifter-slide.is-image-pending .news-shifter-visual{display:none}
+
+/* The intranet no longer exposes the retired in-page CMS. */
+#cms-panel{display:none!important}
+
 /* Keep the dashboard news briefing at the productive 75%-zoom density when
    the browser is at its normal 100% desktop zoom. */
 @media (min-width:1051px){

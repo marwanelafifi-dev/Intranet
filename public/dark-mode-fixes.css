@@ -1,4 +1,24 @@
 /* Loaded last so external-style feed surfaces cannot override the dark theme. */
+html.dark .hero.widget {
+  background: linear-gradient(125deg, #113f7d, #155bb7 63%, #2e72c7);
+  color: #fff;
+}
+
+html.dark .hero .primary-button {
+  background: #fff;
+  color: #124e9e;
+}
+
+html.dark .moments-widget .moments-intro {
+  color: #c6d6e9;
+}
+
+html.dark .new-members-widget .member-contact-links-compact .member-contact-icon:hover,
+html.dark .new-members-widget .member-contact-links-compact .member-contact-icon:focus-visible {
+  background: #24486d;
+  color: #edf4ff;
+}
+
 html.dark .social-feed-scroll,
 html.dark .linkedin-feed-scroll,
 html.dark .facebook-feed-scroll {

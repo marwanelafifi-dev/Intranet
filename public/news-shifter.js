@@ -50,7 +50,7 @@ async function getCompanyNews() {
 function loadingMarkup() { return '<p class="company-news-status" aria-live="polite">Loading the latest company news…</p>'; }
 function unavailableMarkup() { return '<p class="company-news-status" role="status">Company news is temporarily unavailable. <a href="https://www.si-ware.com/company/news" target="_blank" rel="noopener noreferrer">Open the official news page</a>.</p>'; }
 function slideMarkup(article, index, total) {
-  return `<article class="news-shifter-slide" aria-roledescription="slide" aria-label="${index + 1} of ${total}">
+  return `<article class="news-shifter-slide is-image-pending" aria-roledescription="slide" aria-label="${index + 1} of ${total}">
     <div class="news-shifter-visual"><img class="news-shifter-cover" src="${escapeHtml(article.imageUrl)}" alt="" /></div>
     <div class="news-shifter-story"><time datetime="${escapeHtml(article.dateIso)}">${escapeHtml(article.date)}</time><h3><a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(article.title)}</a></h3><p>${escapeHtml(article.summary)}</p><a class="news-shifter-read" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">Read official news <span aria-hidden="true">→</span></a></div>
   </article>`;
@@ -97,6 +97,8 @@ function mountShifter(root, items, stale = false, { autoPlay = false, initialInd
     if (disposed) return;
     const article = items[activeIndex];
     root.innerHTML = `${stale ? '<p class="company-news-stale" role="status">Showing the last saved official news while the source reconnects.</p>' : ''}<div class="news-shifter-frame" aria-roledescription="carousel" aria-label="Latest Si-Ware company news"><div class="news-shifter-viewport">${slideMarkup(article, activeIndex, items.length)}</div><div class="news-shifter-controls"><div class="news-shifter-manual-nav" role="group" aria-label="Company news navigation"><button type="button" data-news-shift="previous" aria-label="Show previous company news">${arrowIcon('previous')}<span>Previous</span></button><span class="news-shifter-position" aria-live="${announce ? 'polite' : 'off'}" aria-label="Story ${activeIndex + 1} of ${items.length}">${String(activeIndex + 1).padStart(2, '0')} <i aria-hidden="true">of</i> ${String(items.length).padStart(2, '0')}</span><button type="button" data-news-shift="next" aria-label="Show next company news"><span>Next</span>${arrowIcon('next')}</button></div></div></div>`;
+    const slide = root.querySelector('.news-shifter-slide'), image = root.querySelector('.news-shifter-cover'), revealImage = () => slide?.classList.remove('is-image-pending');
+    if (image?.complete) { if (image.naturalWidth) revealImage(); } else image?.addEventListener('load', revealImage, { once:true });
     root.querySelectorAll('[data-news-shift]').forEach(button => button.addEventListener('click', () => {
       requestSlide(button.dataset.newsShift === 'next' ? (activeIndex + 1) % items.length : (activeIndex - 1 + items.length) % items.length, button.dataset.newsShift, true);
     }));
@@ -125,10 +127,9 @@ function mountShifter(root, items, stale = false, { autoPlay = false, initialInd
 export async function renderNewsShifter(root) {
   if (!root) return;
   disposeShifter(root);
-  root.innerHTML = loadingMarkup();
+  root.innerHTML = '';
   try {
     const feed = await getCompanyNews();
-    if (!await preloadNewsImage(feed.items[0].imageUrl)) throw new Error('The lead company news image is unavailable.');
     mountShifter(root, feed.items, feed.stale, { autoPlay:true });
   }
   catch { root.innerHTML = unavailableMarkup(); }
@@ -139,7 +140,6 @@ export async function renderNewsPage(root) {
   const shifter = root.querySelector('#company-news-shifter'), archive = root.querySelector('#company-news-list');
   try {
     const feed = await getCompanyNews();
-    if (!await preloadNewsImage(feed.items[0].imageUrl)) throw new Error('The lead company news image is unavailable.');
     mountShifter(shifter, feed.items, feed.stale);
     archive.innerHTML = feed.items.slice(1).map(article => `<article>${article.imageUrl ? `<img src="${escapeHtml(article.imageUrl)}" alt="" loading="lazy" />` : ''}<time datetime="${escapeHtml(article.dateIso)}">${escapeHtml(article.date)}</time><h3><a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(article.title)}</a></h3><p>${escapeHtml(article.summary)}</p><a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">Read official news <span aria-hidden="true">→</span></a></article>`).join('');
   } catch { shifter.innerHTML = unavailableMarkup(); archive.innerHTML = unavailableMarkup(); }

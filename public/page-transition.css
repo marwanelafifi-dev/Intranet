@@ -1,0 +1,45 @@
+/*
+ * Route transitions are deliberately anchored: navigation should retain the
+ * employee's sense of place, not make the entire intranet feel like a slide.
+ */
+@view-transition { navigation: auto; }
+
+@supports (view-transition-name: intranet-route-content) {
+  html[data-route-motion="ready"] [data-route-content] {
+    view-transition-name: intranet-route-content;
+  }
+
+  /* Do not animate geometry. The new route occupies its final position at once. */
+  ::view-transition-group(root),
+  ::view-transition-group(intranet-route-content) {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  /* A short dissolve confirms the route change without introducing movement. */
+  ::view-transition-old(intranet-route-content) {
+    animation: intranet-route-depart 80ms linear both;
+    mix-blend-mode: normal;
+  }
+
+  ::view-transition-new(intranet-route-content) {
+    animation: intranet-route-arrive 160ms cubic-bezier(.16, 1, .3, 1) both;
+    mix-blend-mode: normal;
+  }
+}
+
+@keyframes intranet-route-depart { to { opacity: 0; } }
+@keyframes intranet-route-arrive { from { opacity: .82; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(intranet-route-content),
+  ::view-transition-new(intranet-route-content) {
+    animation-duration: 1ms;
+    animation-timing-function: linear;
+  }
+}

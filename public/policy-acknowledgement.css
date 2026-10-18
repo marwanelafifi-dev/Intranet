@@ -16,3 +16,15 @@ html.dark .onboarding-welcome h2 + p{color:#b9dcff}
 html.dark .onboarding-welcome p + p{color:#c6d6e9}
 html.dark .onboarding-welcome-action{box-shadow:0 8px 18px rgb(0 0 0 / 22%)}
 @media(max-width:650px){.onboarding-welcome{padding:36px 26px 30px;border-radius:16px}.onboarding-welcome img{width:170px;margin-bottom:22px}.onboarding-welcome h2{font-size:26px}.onboarding-welcome h2 + p,.onboarding-welcome p + p{font-size:15px}.onboarding-welcome p{white-space:normal}.onboarding-welcome-close{top:13px;right:13px}}
+
+/* Keep the completed state scannable and the action legible in both themes. */
+.policy-acknowledgement-head--accepted h3{font-size:20px;line-height:1.25}
+.policy-acknowledgement .policy-acknowledgement-head--accepted .policy-acknowledged{margin-top:10px}
+.policy-acknowledgement .policy-acknowledgement-meta{display:flex;flex-wrap:wrap;column-gap:20px;row-gap:2px;max-width:none;margin-top:12px;font-size:12px;line-height:1.5}
+.policy-acknowledgement-meta time{font-variant-numeric:tabular-nums;white-space:nowrap}
+.policy-acknowledgement-meta span{overflow-wrap:anywhere}
+.policy-acknowledgement .policy-acknowledgement-detail{margin-top:4px;font-size:12px}
+.policy-acknowledgement .policy-acknowledgement-welcome-button{min-height:44px;margin-top:18px}
+.policy-acknowledgement button:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+html.dark .policy-acknowledgement button:not(:disabled){background:#9ac4ff;color:#102b4e}
+html.dark .policy-acknowledgement button:not(:disabled):hover{background:#b7d6ff}

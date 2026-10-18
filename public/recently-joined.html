@@ -12,14 +12,14 @@
     <link rel="stylesheet" href="/accessibility-pass.css" />
     <link rel="stylesheet" href="/policy-governance.css" />
     <link rel="stylesheet" href="/new-members.css" />
-    <link rel="stylesheet" href="/recently-joined.css" />
+    <link rel="stylesheet" href="/recently-joined.css?v=20261017-member-search" />
     <link rel="stylesheet" href="/resilience.css" />
     <link rel="stylesheet" href="/professional-polish.css" />
     <link rel="stylesheet" href="/professional-corrections.css" />
     <link rel="stylesheet" href="/formal-refinement.css" />
     <link rel="stylesheet" href="/motion-finish.css" />
     <link rel="stylesheet" href="/theme-toggle.css" />
-    <link rel="stylesheet" href="/destination-pages.css" />
+    <link rel="stylesheet" href="/destination-pages.css?v=20261017-member-contact-icons" />
     <script src="/theme.js" defer></script>
   </head>
   <body class="policy-page">
@@ -31,7 +31,7 @@
       <section class="policy-hero">
         <div>
           <p class="policy-eyebrow">PEOPLE AT SI-WARE</p>
-          <h1>Recently <em>joined.</em></h1>
+          <h1><span>Recently</span> <em>joined.</em></h1>
           <p>Meet the newest colleagues bringing fresh energy and expertise to Si-Ware. Welcome them, find their teams and see who to connect with.</p>
         </div>
         <aside class="policy-hero-aside"><b>Make a connection.</b><p>Say hello, learn what each teammate is working on and help them feel at home from day one.</p></aside>
@@ -47,6 +47,7 @@
             <h2>Recently Joined</h2>
             <p>Meet the colleagues who recently joined our company.</p>
             <div class="member-filter-bar" role="group" aria-label="Filter recently joined colleagues">
+              <label class="member-search-label">Search colleagues<input id="member-search" type="search" placeholder="Name, role, department or manager" autocomplete="off" /></label>
               <label>Employment type<select id="member-type-filter"></select></label>
               <label>Department<select id="member-department-filter"></select></label>
               <label>Division<select id="member-division-filter"></select></label>
@@ -58,7 +59,7 @@
       </section>
       <footer class="policy-footer"><span>Si-Ware Systems · Recently Joined</span><a href="/new-hires.html">New Si-Warians guidance</a></footer>
     </main>
-    <script type="module" src="/recently-joined.js"></script>
+    <script type="module" src="/recently-joined.js?v=20261017-member-search"></script>
     <script type="module" src="/destination-nav.js"></script>
   </body>
 </html>

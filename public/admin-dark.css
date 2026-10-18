@@ -1,0 +1,42 @@
+/* Administration shares the intranet theme preference, including its preview tools. */
+.admin-theme-toggle{display:grid;place-items:center;flex:0 0 auto;width:38px;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--blue);cursor:pointer}
+.admin-theme-toggle:hover{background:var(--soft)}
+.admin-theme-toggle .theme-toggle-icon{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.admin-theme-toggle .theme-sun,.admin-theme-toggle .theme-rays{display:none}
+.admin-theme-toggle[aria-pressed="true"] .theme-moon{display:none}
+.admin-theme-toggle[aria-pressed="true"] .theme-sun,.admin-theme-toggle[aria-pressed="true"] .theme-rays{display:block}
+.admin-theme-toggle .theme-toggle-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+
+html.dark{color-scheme:dark;--blue:#9ac8ff;--ink:#edf4ff;--muted:#becfe3;--line:#36516f;--surface:#142943;--ground:#0b1728;--soft:#1b3a5b;--danger:#ff9bad}
+html.dark .admin-sidebar{background:#083765}
+html.dark .admin-topbar,html.dark .panel,html.dark .metric,html.dark .media-file,html.dark .employee-page-preview{background:var(--surface);color:var(--ink)}
+html.dark .view-link,html.dark .action-button:not(.primary),html.dark .action-button.secondary{background:#173757;border-color:#6385aa;color:#d6e9ff}
+html.dark .view-link:hover,html.dark .action-button:not(.primary):hover,html.dark .action-button.secondary:hover{background:#214b73}
+html.dark .action-button.primary{background:#1762aa;border-color:#2478c4;color:#fff}
+html.dark .action-button.primary:hover{background:#2478c4}
+html.dark .action-button.danger{background:#482b3a;border-color:#a45b70;color:#ffd4dc}
+html.dark input,html.dark select,html.dark textarea{background:#0e223a;border-color:#55718f;color:#edf4ff;caret-color:#edf4ff}
+html.dark input::placeholder,html.dark textarea::placeholder{color:#afc2d9;opacity:1}
+html.dark input:focus-visible,html.dark select:focus-visible,html.dark textarea:focus-visible{outline:3px solid rgb(131 197 255 / 42%);border-color:#9ac8ff}
+html.dark .audit-table,html.dark .rich-editor,html.dark .rich-toolbar,html.dark .rich-toolbar button,html.dark .rich-toolbar select,html.dark .rich-toolbar input{background:var(--surface);color:var(--ink)}
+html.dark .audit-table th,html.dark .employee-preview-sections,html.dark .collection-panel--apps .inline-editor{background:#10243e;color:var(--muted)}
+html.dark .employee-preview-sections button{background:#173757;border-color:#55718f;color:#d6e9ff}
+html.dark .employee-preview-sections button:hover{background:#214b73}
+html.dark .employee-page-preview-frame{background:var(--ground)}
+html.dark .employee-page-preview-frame iframe{background:var(--ground)}
+html.dark .record-tag,html.dark .app-list-mark{background:var(--soft);border-color:var(--line);color:#c9e2ff}
+html.dark .notice{background:#153e4b;color:#c4f3ef}
+html.dark .notice.warning{background:#483817;color:#ffe6aa}
+html.dark .flash:not(:empty){background:#153e36;color:#bcf0d4}
+html.dark .outcome-success{color:#96e6bd}
+html.dark .hidden-announcement-status{color:#ffd990!important}
+html.dark .attachment-selection,html.dark .existing-attachment-item,html.dark .announcement-visibility,html.dark .knowledge-resources,html.dark .moment-media-editor,html.dark .member-contact-editor,html.dark .member-photo-editor,html.dark .moment-media-preview,html.dark .member-photo-preview{background:#10243e;color:var(--ink)}
+html.dark .moment-media-preview.file-preview{background:#10243e}
+html.dark .rich-toolbar{border-color:var(--line)}
+html.dark .rich-editor-surface{color:var(--ink)}
+html.dark .admin-theme-toggle{background:#173757;color:#d6e9ff}
+html.dark .admin-theme-toggle:hover{background:#214b73}
+html.dark .knowledge-remove-all{border-color:#f0a2b3!important;color:#ffd5de!important;background:#3a2234!important}
+html.dark .knowledge-remove-all:hover:not(:disabled){background:#4a2a3c!important}
+html.dark .knowledge-remove-error{color:#ffd5de}
+@media(max-width:580px){.topbar-actions .admin-theme-toggle{order:-1}}

@@ -26,7 +26,7 @@ if (currentPath !== '/') {
 
   const searchStyles = document.createElement('link');
   searchStyles.rel = 'stylesheet';
-  searchStyles.href = '/header-search.css';
+  searchStyles.href = '/header-search.css?v=20261017-white-brand';
   searchStylesReady = new Promise(resolve => {
     searchStyles.addEventListener('load', resolve, { once:true });
     searchStyles.addEventListener('error', resolve, { once:true });
@@ -66,15 +66,16 @@ if (currentPath !== '/' && header) {
   `);
   if (themeToggle) tools.append(themeToggle);
   tools.insertAdjacentHTML('beforeend', `
-    <a class="header-cms-link" href="/#admin"><span aria-hidden="true">✦</span> Admin CMS</a>
+    <a class="header-cms-link" href="/admin.html" data-admin-panel hidden>Admin Panel</a>
     <button class="header-profile" type="button" aria-label="Marwan Elafifi, Full Access" aria-expanded="false" aria-controls="shared-profile-menu"><span class="avatar avatar-user has-photo" style="background-image:url('/uploads/b35626c7-5c7a-4ebf-b281-a4bb81c6754f-jpg-1792073896315.jpg')">ME</span><span class="profile-copy"><b>Marwan Elafifi</b><small>Full Access</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></button>
-    <div class="shared-profile-menu" id="shared-profile-menu" hidden><b>Demo access</b><a href="/#admin">Admin view</a><a href="/">Employee view</a><hr><a href="/">My profile</a><button type="button" data-close-profile>Sign out</button></div>
+    <div class="shared-profile-menu" id="shared-profile-menu" hidden><b>Demo access</b><a href="/">Employee view</a><hr><a href="/">My profile</a><button type="button" data-close-profile>Sign out</button></div>
   `);
   headerActions?.remove();
   header.append(tools);
 
   const profileButton = tools.querySelector('.header-profile');
   const profileMenu = tools.querySelector('.shared-profile-menu');
+  const adminPanelLink = tools.querySelector('[data-admin-panel]');
   fetch('/api/dashboard').then(response => response.ok ? response.json() : null).then(data => {
     const user = data?.user;
     if (!user) return;
@@ -87,6 +88,11 @@ if (currentPath !== '/' && header) {
     profileButton.querySelector('.profile-copy small').textContent = accessLabel;
     profileButton.setAttribute('aria-label', `${user.name}, ${accessLabel}`);
   }).catch(() => {});
+  fetch('/api/auth/me').then(response => response.ok ? response.json() : null).then(identity => {
+    const permissions = identity?.permissions;
+    const canOpenAdminPanel = identity?.role !== 'EMPLOYEE' && Array.isArray(permissions) && permissions.some(permission => ['content.edit', 'audit.view'].includes(permission));
+    adminPanelLink.hidden = !canOpenAdminPanel;
+  }).catch(() => { adminPanelLink.hidden = true; });
   const closeProfileMenu = () => {
     profileMenu.hidden = true;
     profileButton.setAttribute('aria-expanded', 'false');
