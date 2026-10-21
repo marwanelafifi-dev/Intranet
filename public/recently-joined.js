@@ -1,3 +1,5 @@
+import { openMemberProfile } from './member-profile.js';
+
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
 const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
 const select = id => document.querySelector(id);
@@ -31,9 +33,19 @@ function renderMembers() {
   });
   const container = select('#all-new-members');
   container.innerHTML = filtered.length ? filtered.map(member => `<article class="new-member-announcement"><div class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</div><div><div class="new-member-announcement-head"><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)} · ${escapeHtml(member.department || member.team)}</span></div><time>${escapeHtml(member.employmentType || 'Full Time')} · ${escapeHtml(member.joined)}</time></div><p>${escapeHtml(member.message)}</p><span class="new-member-manager">Department: ${escapeHtml(member.department || 'To be confirmed')} · Division: ${escapeHtml(member.division || 'To be confirmed')} · Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No colleagues match these filters.</p>';
+  container.innerHTML = filtered.length ? filtered.map(member => `<article class="new-member-announcement"><div class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</div><div><header class="new-member-announcement-head"><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)} · ${escapeHtml(member.department || member.team)}</span></header><dl class="member-directory-facts"><div><dt>Department</dt><dd>${escapeHtml(member.department || 'To be confirmed')}</dd></div><div><dt>Division</dt><dd>${escapeHtml(member.division || 'To be confirmed')}</dd></div><div><dt>Direct manager</dt><dd>${escapeHtml(member.directManager || 'To be confirmed')}</dd></div><div><dt>Employment type</dt><dd>${escapeHtml(member.employmentType || 'Full Time')}</dd></div><div><dt>Joined</dt><dd>${escapeHtml(member.joined || 'To be confirmed')}</dd></div></dl>${member.message ? `<div class="member-welcome-note"><b>Welcome note</b><p>${escapeHtml(member.message)}</p></div>` : ''}</div></article>`).join('') : '<p class="empty-state">No colleagues match these filters.</p>';
+  container.querySelectorAll('.new-member-announcement-head span').forEach((title, index) => { title.textContent = filtered[index]?.role || ''; });
   filtered.forEach((member, index) => {
     const card = container.children[index], initialsAvatar = card?.querySelector('.new-member-avatar');
-    if (card) card.dataset.memberId = member.id || '';
+    if (card) {
+      card.dataset.memberId = member.id || '';
+      const trigger = document.createElement('button');
+      trigger.className = 'member-row-open';
+      trigger.type = 'button';
+      trigger.dataset.memberProfile = member.id || '';
+      trigger.setAttribute('aria-label', `View ${member.name}'s profile`);
+      card.append(trigger);
+    }
     if (member.photoUrl && initialsAvatar) {
       const photo = document.createElement('img');
       photo.className = 'new-member-avatar new-member-photo';
@@ -42,8 +54,8 @@ function renderMembers() {
       photo.onerror = () => photo.replaceWith(initialsAvatar);
       initialsAvatar.replaceWith(photo);
     }
-    const manager = card?.querySelector('.new-member-manager'), contacts = memberContactLinks(member);
-    if (manager && contacts) manager.insertAdjacentHTML('afterend', contacts);
+    const details = card?.querySelector('.member-directory-facts'), contacts = memberContactLinks(member);
+    if (details && contacts) details.insertAdjacentHTML('afterend', contacts);
   });
   select('#member-result-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'colleague' : 'colleagues'}`;
   document.dispatchEvent(new CustomEvent('recently-joined:rendered'));
@@ -89,4 +101,10 @@ async function loadRecentlyJoined() {
 
 ['#member-type-filter', '#member-department-filter', '#member-division-filter'].forEach(id => select(id).addEventListener('change', renderMembers));
 select('#member-search').addEventListener('input', renderMembers);
+select('#all-new-members').addEventListener('click', event => {
+  const trigger = event.target.closest('[data-member-profile]');
+  if (!trigger) return;
+  const member = members.find(item => String(item.id) === trigger.dataset.memberProfile);
+  if (member) openMemberProfile(member, trigger);
+});
 loadRecentlyJoined();

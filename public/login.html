@@ -4,26 +4,80 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>Sign in · Si-Ware Intranet</title>
+    <meta name="theme-color" content="#f3f7fc" />
+    <title>Sign in | Si-Ware Intranet</title>
+    <link rel="stylesheet" href="/shared-footer.css" />
     <link rel="stylesheet" href="/login.css" />
     <script src="/theme.js" defer></script>
     <script src="/login.js" defer></script>
   </head>
   <body>
-    <main class="login-shell">
-      <section class="login-intro" aria-label="Si-Ware Intranet">
-        <a class="brand" href="https://www.si-ware.com/" aria-label="Si-Ware Systems"><img src="/siware-logo.png" alt="Si-Ware Systems" /></a>
-        <div class="intro-copy"><h1>Your work, in one considered place.</h1><p>Find company updates, everyday tools, knowledge, and the resources that move Si-Ware forward.</p></div>
-        <p class="intro-note">Internal workspace · Access is limited to approved Si-Ware accounts.</p>
-      </section>
-      <section class="login-card" aria-labelledby="sign-in-heading">
-        <div class="login-mark" aria-hidden="true"></div>
-        <h2 id="sign-in-heading">Welcome to the intranet</h2>
-        <p>Use your approved Si-Ware Workspace account to continue.</p>
-        <a id="google-sign-in" class="sign-in-button" href="/auth/google">Continue with Google Workspace <span aria-hidden="true">→</span></a>
-        <p class="status" id="login-status" role="status"></p>
-        <p class="privacy">Sign-in is handled by your organization’s identity provider. The intranet never stores your password.</p>
-      </section>
-    </main>
+    <div class="page-frame">
+      <header class="page-header">
+        <div class="brand" aria-label="Si-Ware Systems Intranet">
+          <img src="/siware-logo.png" alt="Si-Ware Systems" />
+          <span>Intranet</span>
+        </div>
+      </header>
+      <main class="login-shell">
+        <section class="login-panel" aria-labelledby="sign-in-heading">
+          <div class="login-content" id="login-content" aria-busy="true">
+            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span> Employee access</p>
+            <h1 id="sign-in-heading">Welcome back<span class="heading-period">.</span></h1>
+            <p class="login-lead">Sign in for company updates, new-hire guidance, and required policy acknowledgements.</p>
+            <a id="google-sign-in" class="sign-in-button sign-in-button--google" href="/auth/google">
+              <svg class="google-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.27c0-.76-.07-1.49-.2-2.19H12v4.15h5.23a4.47 4.47 0 0 1-1.94 2.93v2.69h3.5c2.05-1.89 3.23-4.67 3.23-7.98Z"/><path fill="#34A853" d="M12 21.75c2.62 0 4.82-.87 6.43-2.35l-3.5-2.69c-.97.65-2.2 1.03-3.93 1.03-3.02 0-5.58-2.04-6.5-4.78H.88v2.77A9.75 9.75 0 0 0 12 21.75Z"/><path fill="#FBBC05" d="M5.5 12c0-.87.15-1.71.43-2.5V6.73H2.31A9.75 9.75 0 0 0 2.25 12c0 1.7.4 3.3 1.06 4.73l3.62-2.77A6.2 6.2 0 0 1 5.5 12Z"/><path fill="#EA4335" d="M12 6.25c1.58 0 3 .54 4.12 1.61l3.1-3.1C16.81 2.5 14.62 1.25 12 1.25A9.75 9.75 0 0 0 2.31 6.73L5.93 9.5C6.84 8.29 8.63 6.25 12 6.25Z"/></svg>
+              <span>Continue with Google</span>
+            </a>
+            <div id="sign-in-divider" class="sign-in-divider" hidden><span>or</span></div>
+            <button id="local-toggle" class="local-toggle" type="button" aria-controls="local-sign-in" aria-expanded="false" hidden>Use a local administrator account</button>
+            <form id="local-sign-in" class="local-sign-in" hidden novalidate>
+              <label for="login-email">Email address</label>
+              <input id="login-email" name="email" type="email" autocomplete="username" inputmode="email" required />
+              <label for="login-password">Password</label>
+              <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+              <button class="sign-in-button" type="submit">
+                <span>Sign in</span>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </form>
+            <p class="status" id="login-status" role="status" aria-live="polite">Checking sign-in options…</p>
+            <button id="login-retry" class="retry-button" type="button" hidden>Try again</button>
+            <p class="privacy" id="login-privacy">Access is available to approved Si-Ware accounts.</p>
+          </div>
+        </section>
+        <section class="login-intro" aria-label="About the Si-Ware Intranet">
+          <span class="hero-stars" aria-hidden="true">
+            <svg class="hero-star hero-star--large" viewBox="0 0 32 32"><path d="m16 0 3.7 12.3L32 16l-12.3 3.7L16 32l-3.7-12.3L0 16l12.3-3.7L16 0Z" /></svg>
+            <svg class="hero-star hero-star--small" viewBox="0 0 20 20"><path d="m10 0 2.3 7.7L20 10l-7.7 2.3L10 20l-2.3-7.7L0 10l7.7-2.3L10 0Z" /></svg>
+          </span>
+          <div class="intro-topline"><span class="topline-dot" aria-hidden="true"></span> One place for everyone at Si-Ware Systems</div>
+          <div class="intro-copy">
+            <h2>Stay connected.<br /><span>Move forward.</span></h2>
+            <p>Company updates, colleagues, everyday tools, and a clear path through first-week essentials and required policies.</p>
+          </div>
+          <div class="preview-card" aria-hidden="true">
+            <div class="preview-heading"><div><b>Inside your workspace</b><small>A preview of the resources available after sign-in</small></div><span class="preview-audience">For every employee</span></div>
+            <div class="preview-grid">
+              <div class="preview-item"><span class="preview-icon preview-icon--news"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4h12v16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm12 4h4v10a2 2 0 0 1-2 2h-2M7 8h7M7 12h7M7 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><strong>Company news</strong><small>What's happening</small></span></div>
+              <div class="preview-item"><span class="preview-icon preview-icon--people"><svg viewBox="0 0 24 24" fill="none"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m17 0v-2a4 4 0 0 0-3-3.87M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7-7.87a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><strong>People &amp; moments</strong><small>Who we are</small></span></div>
+              <div class="preview-item"><span class="preview-icon preview-icon--tools"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span><strong>Tools &amp; knowledge</strong><small>Everything in reach</small></span></div>
+              <div class="preview-item"><span class="preview-icon preview-icon--onboarding"><svg viewBox="0 0 24 24" fill="none"><path d="M8 5h10a2 2 0 0 1 2 2v13H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2Zm0 0V3h8v2M9 11l1.5 1.5L13 10m-4 6h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><strong>New-hire essentials</strong><small>First-week checklist</small></span></div>
+              <div class="preview-item"><span class="preview-icon preview-icon--policies"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4 6v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6l-8-3Zm-3.2 9 2.2 2.2 4.4-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><strong>Required actions</strong><small>Policy acknowledgement</small></span></div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer class="intranet-footer login-footer">
+        <span class="intranet-footer-brand"><img src="/Icon.png" alt="" /><small>© 2026 Si-Ware Systems · Internal use only</small></span>
+        <span class="intranet-footer-support">For technical support, contact <a href="mailto:ithelpdesk@si-ware.com">ithelpdesk@si-ware.com</a></span>
+        <nav class="intranet-footer-social" aria-label="Si-Ware social channels">
+          <a href="https://www.linkedin.com/company/si-ware-systems/?locale=en_US" target="_blank" rel="noreferrer" aria-label="Si-Ware on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 3.5A2.2 2.2 0 1 1 5.2 8a2.2 2.2 0 0 1 0-4.5ZM3.3 9.8h3.8V21H3.3V9.8Zm6.2 0h3.6v1.5h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6.1V21h-3.8v-5c0-1.2 0-2.9-1.8-2.9s-2.1 1.4-2.1 2.8V21H9.5V9.8Z"/></svg></a>
+          <a href="https://www.facebook.com/SiWareSystems/" target="_blank" rel="noreferrer" aria-label="Si-Ware on Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.8 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V3.9c-.4-.1-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1V10H8v3h2.6v8h3.2Z"/></svg></a>
+          <a href="https://www.youtube.com/@Si-Ware_Systems" target="_blank" rel="noreferrer" aria-label="Si-Ware on YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.1a3 3 0 0 0-2.1-2.1C17.7 4.5 12 4.5 12 4.5S6.3 4.5 4.5 5a3 3 0 0 0-2.1 2.1C2 8.9 2 12 2 12s0 3.1.4 4.9a3 3 0 0 0 2.1 2.1c1.8.5 7.5.5 7.5.5s5.7 0 7.5-.5a3 3 0 0 0 2.1-2.1c.4-1.8.4-4.9.4-4.9s0-3.1-.4-4.9ZM10.2 15.1V8.9l5.4 3.1-5.4 3.1Z"/></svg></a>
+          <a href="https://www.si-ware.com" target="_blank" rel="noreferrer" aria-label="Si-Ware website"><img class="intranet-footer-mark" src="/Icon.png" alt="" /></a>
+        </nav>
+      </footer>
+    </div>
   </body>
 </html>

@@ -206,6 +206,10 @@ html.dark .header-search-toggle:hover,html.dark .header-search-toggle[aria-expan
 html.dark .shared-brand { color: #fff; }
 html.dark .shared-brand > img { filter: brightness(0) invert(1); }
 .dashboard-header-tools { display:flex; align-items:center; gap:10px; position:relative; }
+.dashboard-header-tools .header-cms-link { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:0 12px; border-radius:9px; background:#123f7b; color:#fff; font-size:11px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.dashboard-header-tools .header-cms-link:hover { background:#174e96; }
+.dashboard-header-tools .header-cms-link:focus-visible { outline:3px solid rgb(21 87 192 / 28%); outline-offset:2px; }
+.dashboard-header-tools .header-cms-link[hidden] { display:none; }
 .avatar-user.has-photo { background-position:center; background-repeat:no-repeat; background-size:cover; color:transparent; }
 @media (min-width: 651px) { body:has(.app-dock) .dashboard-header-tools .profile-copy { display:grid; } }
 .header-search-toggle {

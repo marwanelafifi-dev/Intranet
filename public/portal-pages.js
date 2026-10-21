@@ -68,7 +68,7 @@ const announcementTimestamp = item => {
     iso:date.toISOString(),
   };
 };
-const announcementBodyHtml = item => { const html = String(item.bodyHtml || ''); return /<(?:html|head|body|table|style)\b/i.test(html) ? `<iframe class="announcement-template-frame" title="Announcement template" sandbox="" srcdoc="${escapeHtml(html)}"></iframe>` : (html || escapeHtml(item.body || 'No announcement details were provided.')); };
+const announcementBodyHtml = item => { const html = String(item.bodyHtml || ''), legacy = /<(?:html|head|body|table|style)\b|<(?:div|section|td|tr)[^>]*\b(?:style|bgcolor)=/i.test(html); return legacy ? `<iframe class="announcement-template-frame" title="Announcement template" sandbox="" srcdoc="${escapeHtml(html)}"></iframe>` : (html || escapeHtml(item.body || 'No announcement details were provided.')); };
 function intro() { return `<section class="destination-intro${key === 'announcements' ? ' destination-intro--announcements' : ''}"><h1>${config.title}</h1><p>${config.intro}</p></section>`; }
 function appPage(data) { return `<div class="destination-grid">${data.apps.map(app => `<article class="destination-item destination-app-item"><a href="${escapeHtml(app.url)}"${String(app.url).startsWith('http') ? ' target="_blank" rel="noreferrer"' : ''}><div class="destination-meta"><span>${escapeHtml(app.caption)}</span><span>Open →</span></div><div class="destination-app-title">${app.iconUrl ? `<img src="${escapeHtml(app.iconUrl)}" alt="" />` : ''}<h2>${escapeHtml(app.name)}</h2></div><p>${escapeHtml(app.caption)}</p></a></article>`).join('')}</div>`; }
 const announcementPreview = value => { const text = String(value || ''); return text.length > 190 ? `${text.slice(0, 187).trimEnd()}…` : text; };

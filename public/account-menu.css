@@ -1,0 +1,10 @@
+.profile-menu a,.profile-menu button{display:block;width:100%;min-height:40px;padding:9px 8px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:600 13px Manrope,Arial,sans-serif;text-align:left;text-decoration:none;cursor:pointer}
+.profile-menu b,.shared-profile-menu b{font-size:11px}
+.profile-menu a:hover,.profile-menu button:hover{background:var(--paper)}
+.profile-menu a:focus-visible,.profile-menu button:focus-visible,.shared-profile-menu a:focus-visible,.shared-profile-menu button:focus-visible{outline:2px solid #1557c0;outline-offset:1px}
+.profile-menu a[hidden],.profile-menu button[hidden],.shared-profile-menu button[hidden]{display:none}
+.profile-menu button:disabled,.shared-profile-menu button:disabled{cursor:wait;opacity:.7}
+.profile-menu .account-menu-status,.shared-profile-menu .account-menu-status{margin:7px 7px 3px;color:#9e2538;font-size:11px;line-height:1.4}
+.profile-menu .account-menu-status[hidden],.shared-profile-menu .account-menu-status[hidden]{display:none}
+html.dark .profile-menu a{color:#edf4ff}
+html.dark .profile-menu a:hover{background:#173757}

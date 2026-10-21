@@ -1,8 +1,29 @@
 import { pageDataKeys, editablePageViews, pageSnapshot, applyPageSnapshot, pageChanged } from './admin-page-tools.js';
+import { adminViewPermissions, adminViewCapabilities, adminActionPermissions, canOpenAdmin, rolePermissionError } from './admin-permissions.js';
+import { intranetPages, intranetPagePermissions, firstAvailableIntranetPage } from './intranet-permissions.js';
+import { renderAuditTrail } from './audit-trail.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
-let dashboard, summary, savedDashboard, activityPage = 1, auditCategory = 'audit', canEditContent = false, pageToolBusy = false;
+let dashboard, summary, savedDashboard, canEditContent = false, pageToolBusy = false;
+let grantedPermissions = new Set();
+const hasAdminPermission = permission => grantedPermissions.has(permission);
+const canAccessAdminView = view => Boolean(adminViewPermissions[view] && hasAdminPermission(adminViewPermissions[view]) && (adminViewCapabilities[view] ? hasAdminPermission(adminViewCapabilities[view]) : canOpenAdmin(grantedPermissions)));
+const actionControlPermissions = [
+  ['[data-page-undo], [data-home-undo]', 'action.undo'],
+  ['[data-page-redo], [data-home-redo]', 'action.redo'],
+  ['[data-page-reset], [data-home-reset]', 'action.reset'],
+  ['[data-page-export]', 'action.export'],
+  ['[data-import-new-members], [data-import-knowledge-sessions], label[for="users-csv-input"]', 'action.import'],
+  ['[data-remove-record], [data-remove-announcement-template], [data-remove-announcement-schedule], [data-remove-social-card], [data-home-remove-section], [data-card-delete-role], [data-delete-role], [data-page-remove-all-sessions], [data-preview-editor-remove], [data-remove-existing-attachment], [data-remove-policy-document]', 'action.delete']
+];
+document.addEventListener('click', event => {
+  const blocked = actionControlPermissions.find(([selector, permission]) => event.target.closest(selector) && !hasAdminPermission(permission));
+  if (!blocked) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  flash(`You do not have ${blocked[1]} permission.`);
+}, true);
 const pageHistory = Object.fromEntries(editablePageViews.map(view => [view, { undo:[], redo:[] }]));
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[char]));
 const cairo = value => value ? new Intl.DateTimeFormat('en', { dateStyle:'medium', timeStyle:'short', timeZone:'Africa/Cairo' }).format(new Date(value)) : '—';
@@ -29,18 +50,32 @@ function normalisePolicyUrl(value) {
 }
 function savedFilename(record) { return record.iconFilename || decodeURIComponent(String(record.iconUrl || '').split('/').pop() || 'image'); }
 function existingAnnouncementAttachments(attachments) { return attachments.length ? `<div class="existing-attachment-list" data-existing-attachments>${attachments.map(file => `<div class="existing-attachment-item"><a href="${escapeHtml(file.url)}" target="_blank" rel="noopener">${escapeHtml(file.filename || savedFilename({ iconUrl:file.url }))}</a><button class="tool-button danger-link" type="button" data-remove-existing-attachment="${escapeHtml(file.url)}">Remove</button></div>`).join('')}</div>` : ''; }
-function isLegacyAnnouncementTemplate(record) { return /<(?:html|head|body|table|style)\b/i.test(String(record.bodyHtml || '')); }
-function editableAnnouncementHtml(record) { const html = String(record.bodyHtml || ''); if (!isLegacyAnnouncementTemplate(record)) return html || escapeHtml(record.body || ''); const templateBody = new DOMParser().parseFromString(html, 'text/html').body?.innerHTML; return templateBody || escapeHtml(record.body || ''); }
+function isEmailAnnouncementHtml(html) { return /<(?:html|head|body|table|style)\b|<(?:div|section|td|tr)[^>]*\b(?:style|bgcolor)=/i.test(String(html || '')); }
+function isLegacyAnnouncementTemplate(record) { return isEmailAnnouncementHtml(record.bodyHtml); }
+function editableAnnouncementHtml(record) {
+  const html = String(record.bodyHtml || '') || escapeHtml(record.body || ''), document = new DOMParser().parseFromString(html, 'text/html');
+  const allowed = new Set(['P','H2','H3','STRONG','B','EM','I','U','UL','OL','LI','BR','A','BLOCKQUOTE']), blocked = new Set(['STYLE','LINK','SCRIPT','IFRAME','OBJECT','EMBED','PICTURE','IMG','VIDEO','AUDIO','SVG','CANVAS','FORM','BUTTON','INPUT','SELECT','TEXTAREA']);
+  [...document.body.querySelectorAll('*')].reverse().forEach(element => {
+    if (blocked.has(element.tagName)) { element.remove(); return; }
+    if (!allowed.has(element.tagName)) { element.replaceWith(...element.childNodes); return; }
+    const href = element.tagName === 'A' ? String(element.getAttribute('href') || '').trim() : '';
+    [...element.attributes].forEach(attribute => element.removeAttribute(attribute.name));
+    if (element.tagName === 'A' && /^(https:\/\/|\/(?!\/)|#)/i.test(href)) element.setAttribute('href', href);
+  });
+  return document.body.innerHTML || escapeHtml(record.body || '');
+}
+const announcementTimestamp = value => new Intl.DateTimeFormat('en', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', timeZone:'Africa/Cairo' }).format(value);
 function flash(message, duration = 4500) { const status = $('#flash'); status.textContent = message; window.clearTimeout(flash.timeout); flash.timeout = window.setTimeout(() => { status.textContent = ''; }, duration); }
-function editorLink(label = 'Open editor') { return `<button class="action-button" type="button" data-goto="content">${label}</button>`; }
+function editorLink(label = 'Open editor') { return canAccessAdminView('content') ? `<button class="action-button" type="button" data-goto="content">${label}</button>` : '<span class="record-tag">Unavailable for this role</span>'; }
 function list(items, render) { return items?.length ? `<div class="list">${items.map(render).join('')}</div>` : '<p class="empty">No records yet.</p>'; }
 function renderOverview() {
   const counts = summary.counts;
-  $('#view-overview').innerHTML = `<p class="view-intro">A controlled workspace for the content, people, applications, presentation, and access rules employees rely on. Changes are saved centrally and reviewed through the audit trail.</p><div class="metrics"><article class="metric"><b>${counts.announcements}</b><span>Published announcements</span></article><article class="metric"><b>${counts.people}</b><span>Recently joined colleagues</span></article><article class="metric"><b>${counts.apps}</b><span>Quick-launch applications</span></article><article class="metric"><b>${counts.media}</b><span>Reusable media files</span></article></div><div class="section-grid"><article class="panel"><h2>Recent administrative changes</h2>${list(summary.audit, event => `<div class="list-row"><span><b>${escapeHtml(event.action || 'Administrative change')}</b><small>${escapeHtml(event.actor?.name || 'System')} · ${cairo(event.occurredAt)}</small></span><span class="record-tag">${escapeHtml(event.outcome || 'success')}</span></div>`)}</article><article class="panel"><h2>Work from the right place</h2><p>Use the focused editors to protect employee-facing records from accidental structural changes.</p><div class="list"><div class="list-row"><span><b>Editorial content</b><small>Announcements, knowledge, moments, policies</small></span>${editorLink()}</div><div class="list-row"><span><b>Presentation &amp; navigation</b><small>Section order and shared layout visibility</small></span>${editorLink()}</div><div class="list-row"><span><b>Governance</b><small>Permissions, audit history and retention</small></span><button class="action-button" data-goto="access">Review access</button></div></div></article></div>`;
+  const governanceView = ['access','roles','activity','settings'].find(canAccessAdminView);
+  $('#view-overview').innerHTML = `<p class="view-intro">A controlled workspace for the content, people, applications, presentation, and access rules employees rely on. Changes are saved centrally and reviewed through the audit trail.</p><div class="metrics"><article class="metric"><b>${counts.announcements}</b><span>Published announcements</span></article><article class="metric"><b>${counts.people}</b><span>Recently joined colleagues</span></article><article class="metric"><b>${counts.apps}</b><span>Quick-launch applications</span></article><article class="metric"><b>${counts.media}</b><span>Reusable media files</span></article></div><div class="section-grid"><article class="panel"><h2>Recent administrative changes</h2>${canAccessAdminView('activity') ? list(summary.audit, event => `<div class="list-row"><span><b>${escapeHtml(event.action || 'Administrative change')}</b><small>${escapeHtml(event.actor?.name || 'System')} · ${cairo(event.occurredAt)}</small></span><span class="record-tag">${escapeHtml(event.outcome || 'success')}</span></div>`) : '<p class="empty">Audit access is not assigned to this role.</p>'}</article><article class="panel"><h2>Work from the right place</h2><p>Use the focused editors to protect employee-facing records from accidental structural changes.</p><div class="list"><div class="list-row"><span><b>Editorial content</b><small>Announcements, knowledge, moments, policies</small></span>${editorLink()}</div><div class="list-row"><span><b>Presentation &amp; navigation</b><small>Section order and shared layout visibility</small></span>${editorLink()}</div><div class="list-row"><span><b>Governance</b><small>Permissions, audit history and retention</small></span>${governanceView ? `<button class="action-button" data-goto="${governanceView}">Review governance</button>` : '<span class="record-tag">Unavailable for this role</span>'}</div></div></article></div>`;
 }
 function renderManage(id, title, description, rows) { $(id).innerHTML = `<p class="view-intro">${description}</p><article class="panel">${rows.map(row => `<div class="manage-row"><div><h2>${escapeHtml(row.title)}</h2><p>${escapeHtml(row.description)}</p></div>${editorLink(row.label || 'Manage')}</div>`).join('')}</article>`; }
 const editableCollections = {
-  announcements: { title:'Announcements', description:'Create, edit, archive, and publish employee updates.', fields:[['title','Title'],['tag','Category'],['department','Department'],['audience','Audience'],['date','Display date']] },
+  announcements: { title:'Announcements', description:'Create, edit, archive, and publish employee updates.', fields:[['title','Title'],['tag','Category'],['department','Department'],['audience','Audience']] },
   sessions: { title:'Knowledge Hub sessions', description:'Keep session details, presenters, and learning resources current.', fields:[['title','Title'],['category','Category'],['date','Date'],['outline','Outline','textarea']] },
   moments: { title:'Moments', description:'Manage the moments displayed across the intranet.', fields:[['title','Title'],['kind','Label'],['color','Accent colour','color']] },
   events: { title:'Events & key dates', description:'Maintain the employee events calendar and important company dates.', fields:[['day','Day'],['month','Month'],['title','Title'],['time','Time'],['type','Type']] },
@@ -58,7 +93,13 @@ function recordFields(key, record = {}) {
   if (key === 'policies') { const documentUrl = String(record.canonicalUrl || ''); const uploadedPdf = /^\/uploads\/.*\.pdf(?:$|\?)/i.test(documentUrl); return `${fields}<label>Policy document URL<input name="canonicalUrl" type="text" inputmode="url" value="${escapeHtml(documentUrl)}" placeholder="https://… or /uploads/policy.pdf" /><small>Paste the approved policy link, or upload a PDF below. An uploaded PDF takes priority over this URL.</small></label><label>Upload policy PDF<input name="policyDocument" type="file" accept=".pdf,application/pdf" /><small data-policy-document-status>${uploadedPdf ? `Current PDF: <b>${escapeHtml(savedFilename({ iconUrl:documentUrl }))}</b> · <a href="${escapeHtml(documentUrl)}" target="_blank" rel="noopener">Open</a> · <button class="tool-button danger-link" type="button" data-remove-policy-document>Remove current PDF</button>. Choose a new file to replace it.` : documentUrl ? `Current linked policy: <a href="${escapeHtml(documentUrl)}" target="_blank" rel="noopener">Open link</a>. Upload a PDF to replace it.` : 'Optional PDF upload. Maximum 45 MB.'}</small></label>`; }
   if (key !== 'announcements') return fields;
   const attachments = record.attachments || (record.attachmentUrl ? [{ url:record.attachmentUrl, filename:record.attachmentFilename || savedFilename({ iconUrl:record.attachmentUrl }) }] : []);
-  return `${fields}<label>Announcement text<div class="rich-editor"><div class="rich-toolbar" role="toolbar" aria-label="Text formatting"><button type="button" data-rich-command="bold" title="Bold"><b>B</b></button><button type="button" data-rich-command="italic" title="Italic"><i>I</i></button><button type="button" data-rich-command="underline" title="Underline"><u>U</u></button><button type="button" data-rich-command="insertUnorderedList" title="Bulleted list">• List</button><button type="button" data-rich-command="insertOrderedList" title="Numbered list">1. List</button><select data-rich-command="formatBlock" aria-label="Text style"><option value="p">Paragraph</option><option value="h2">Heading</option><option value="h3">Subheading</option></select><select data-rich-command="fontName" aria-label="Font family"><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Trebuchet MS">Trebuchet</option></select><select data-rich-command="fontSize" aria-label="Text size"><option value="3">Normal</option><option value="4">Large</option><option value="5">Extra large</option></select><input data-rich-command="foreColor" type="color" aria-label="Text color" value="#173a78" /></div><div class="rich-editor-surface" contenteditable="true" data-rich-editor aria-label="Announcement text">${editableAnnouncementHtml(record)}</div></div><small>Use the toolbar to format text. Employee-facing formatting is limited to safe text styles.</small></label><label>Inline photo or video<input name="announcementMedia" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime" /><small>${record.mediaUrl ? `Current media: <b>${escapeHtml(record.mediaFilename || savedFilename({ iconUrl:record.mediaUrl }))}</b>. Choose a new file to replace it.` : 'Optional image or video shown inside the full announcement. Maximum 45 MB.'}</small></label><label>Attachments<input name="announcementAttachment" type="file" multiple accept="application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain" />${existingAnnouncementAttachments(attachments)}<small>${attachments.length ? 'Remove saved files individually below. New files are added when you save.' : 'Select one or more PDF, Office document, spreadsheet, or text files. Maximum 45 MB each.'}</small></label>`;
+  if (isLegacyAnnouncementTemplate(record)) {
+    const html = String(record.bodyHtml || ''), missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html);
+    return `${fields}<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>This copied email keeps its original layout. Select Edit email to correct its text in place.</p></div><button class="tool-button" type="button" data-edit-email> Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section><label>Inline photo or video<input name="announcementMedia" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime" /><small>${record.mediaUrl ? `Current media: <b>${escapeHtml(record.mediaFilename || savedFilename({ iconUrl:record.mediaUrl }))}</b>. Choose a new file to replace it.` : 'Optional image or video shown inside the full announcement. Maximum 45 MB.'}</small></label><label>Attachments<input name="announcementAttachment" type="file" multiple accept="application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain" />${existingAnnouncementAttachments(attachments)}<small>${attachments.length ? 'Remove saved files individually below. New files are added when you save.' : 'Select one or more PDF, Office document, spreadsheet, or text files. Maximum 45 MB each.'}</small></label>`;
+  }
+  const hasContent = Boolean(record.bodyHtml || record.body);
+  const omittedTemplateImages = isLegacyAnnouncementTemplate(record) && /<(?:picture|img)\b/i.test(String(record.bodyHtml || ''));
+  return `${fields}<label>Announcement text<details class="announcement-content-disclosure" ${hasContent ? '' : 'open'}><summary>${hasContent ? 'Edit announcement content' : 'Write announcement content'}</summary><div class="rich-editor"><div class="rich-toolbar" role="toolbar" aria-label="Text formatting"><button type="button" data-rich-command="bold" title="Bold"><b>B</b></button><button type="button" data-rich-command="italic" title="Italic"><i>I</i></button><button type="button" data-rich-command="underline" title="Underline"><u>U</u></button><button type="button" data-rich-command="insertUnorderedList" title="Bulleted list">• List</button><button type="button" data-rich-command="insertOrderedList" title="Numbered list">1. List</button><select data-rich-command="formatBlock" aria-label="Text style"><option value="p">Paragraph</option><option value="h2">Heading</option><option value="h3">Subheading</option></select><select data-rich-command="fontName" aria-label="Font family"><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Trebuchet MS">Trebuchet</option></select><select data-rich-command="fontSize" aria-label="Text size"><option value="3">Normal</option><option value="4">Large</option><option value="5">Extra large</option></select><input data-rich-command="foreColor" type="color" aria-label="Text color" value="#173a78" /></div><div class="rich-editor-surface" contenteditable="true" data-rich-editor aria-label="Announcement text">${editableAnnouncementHtml(record)}</div></div></details><small>${omittedTemplateImages ? 'Unreliable pasted template images are omitted. Use Inline photo or video below to add an image that will work for employees.' : hasContent ? 'Content is collapsed to keep this editor focused. Open it only when you need to edit the full announcement.' : 'Use the toolbar to format text. Employee-facing formatting is limited to safe text styles.'}</small></label><label>Inline photo or video<input name="announcementMedia" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime" /><small>${record.mediaUrl ? `Current media: <b>${escapeHtml(record.mediaFilename || savedFilename({ iconUrl:record.mediaUrl }))}</b>. Choose a new file to replace it.` : 'Optional image or video shown inside the full announcement. Maximum 45 MB.'}</small></label><label>Attachments<input name="announcementAttachment" type="file" multiple accept="application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain" />${existingAnnouncementAttachments(attachments)}<small>${attachments.length ? 'Remove saved files individually below. New files are added when you save.' : 'Select one or more PDF, Office document, spreadsheet, or text files. Maximum 45 MB each.'}</small></label>`;
 }
 function renderCollection(key) {
   const config = editableCollections[key], selected = editingRecord[key], record = dashboard[key]?.find(item => item.id === selected);
@@ -69,6 +110,23 @@ function renderCollection(key) {
   const headingActions = '';
   const csvHelp = isPeople ? '<p class="csv-import-help">Import a CSV to add or update employee cards. Required: <b>Name</b>. Supported columns: Role, Employment Type, Department, Division, Direct Manager, Joined, Company Email, Phone, LinkedIn URL, Welcome Message, and Photo URL.</p>' : isSessions ? '<p class="csv-import-help">Import CSV or tab-separated text. Required: <b>Title and Date</b>. A blank Category becomes General; a blank Presenter is marked for review. Resource links work immediately. Filenames are retained and linked only when a matching resource is known—otherwise upload or add a URL in the session editor.</p>' : '';
   return `<article class="panel collection-panel${isApps ? ' collection-panel--apps' : ''}" data-collection="${key}"><div class="collection-heading"><div><h2>${config.title}</h2><p>${config.description}</p></div>${headingActions}</div>${csvHelp}<div class="collection-layout"><div class="list">${(dashboard[key] || []).map(item => { const details = key === 'policies' ? [item.category, item.department].filter(Boolean).join(' · ') : item.category || item.caption || item.role || item.audience || item.description || ''; const visual = isApps ? (item.iconUrl ? `<img class="app-icon-preview" src="${escapeHtml(item.iconUrl)}" alt="" />` : `<span class="app-list-mark" aria-hidden="true">${escapeHtml(String(item.name || '?').trim().slice(0, 1).toUpperCase())}</span>`) : ['apps','supportPortals'].includes(key) && item.iconUrl ? `<img class="app-icon-preview" src="${escapeHtml(item.iconUrl)}" alt="" />` : ''; return `<div class="list-row${isApps ? ' app-list-row' : ''}">${isApps ? `<span class="app-list-content">${visual}<span><b>${escapeHtml(recordLabel(key, item))}</b><small>${escapeHtml(details)}</small></span></span>` : `${visual}<span><b>${escapeHtml(recordLabel(key, item))}</b><small>${escapeHtml(details)}</small></span>`}<div class="row-actions"><button class="tool-button" type="button" data-edit-record="${key}:${item.id}">Edit</button><button class="tool-button danger-link" type="button" data-remove-record="${key}:${item.id}">Remove</button></div></div>`; }).join('') || '<p class="empty">No records yet.</p>'}</div><form class="inline-editor${isApps ? ' app-editor' : ''}" data-editor="${key}"><h3>${record ? `Edit ${escapeHtml(recordLabel(key, record))}` : isApps ? 'Create Quick Launch app' : `New ${config.title.slice(0, -1)}`}</h3>${recordFields(key, record)}<div class="form-actions"><button class="action-button danger" type="button" data-remove-record="${key}:${record?.id || ''}" ${record ? '' : 'hidden'}>Remove</button><button class="action-button primary">Save changes</button></div></form></div></article>`;
+}
+function announcementScheduleDescription(schedule) {
+  const at = new Date(`2000-01-01T${schedule.time || '00:00'}:00`).toLocaleTimeString('en', { hour:'numeric', minute:'2-digit' });
+  if (schedule.frequency === 'once') return `Once on ${schedule.scheduledDate || 'the selected date'} at ${at} Cairo time`;
+  if (schedule.frequency === 'daily') return `Every day at ${at} Cairo time`;
+  if (schedule.frequency === 'monthly') return `Monthly on day ${schedule.dayOfMonth || 1} at ${at} Cairo time`;
+  return `Every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][Number(schedule.dayOfWeek) || 0]} at ${at} Cairo time`;
+}
+function announcementScheduleRows() {
+  return (dashboard.announcementSchedules || []).map(schedule => `<div class="list-row"><span><b>${escapeHtml(schedule.title)}</b><small>Scheduled · ${escapeHtml(announcementScheduleDescription(schedule))}${schedule.enabled ? '' : ' · Paused'}</small></span><div class="row-actions"><button type="button" class="tool-button" data-toggle-announcement-schedule="${escapeHtml(schedule.id)}">${schedule.enabled ? 'Pause' : 'Resume'}</button><button type="button" class="tool-button danger-link" data-remove-announcement-schedule="${escapeHtml(schedule.id)}">Remove</button></div></div>`).join('');
+}
+function announcementTemplateRows() {
+  return (dashboard.announcementTemplates || []).map(template => `<div class="list-row"><span><b>${escapeHtml(template.title)}</b><small>Saved template · ${escapeHtml(template.tag || 'Company update')}</small></span><div class="row-actions"><button type="button" class="tool-button" data-use-announcement-template="${escapeHtml(template.id)}">Use</button><button type="button" class="tool-button" data-edit-announcement-template="${escapeHtml(template.id)}">Edit</button><button type="button" class="tool-button danger-link" data-remove-announcement-template="${escapeHtml(template.id)}">Remove</button></div></div>`).join('');
+}
+function announcementSchedulePanel() {
+  const schedules = dashboard.announcementSchedules || [];
+  return `<article class="panel collection-panel"><div class="collection-heading"><div><h2>Scheduled announcements</h2><p>Create a reusable announcement that publishes automatically in Cairo time. Each occurrence becomes a separate employee announcement.</p></div></div><div class="collection-layout"><div class="list">${schedules.map(schedule => `<div class="list-row"><span><b>${escapeHtml(schedule.title)}</b><small>${escapeHtml(announcementScheduleDescription(schedule))}${schedule.enabled ? '' : ' · Paused'}</small></span><div class="row-actions"><button type="button" class="tool-button" data-toggle-announcement-schedule="${escapeHtml(schedule.id)}">${schedule.enabled ? 'Pause' : 'Resume'}</button><button type="button" class="tool-button danger-link" data-remove-announcement-schedule="${escapeHtml(schedule.id)}">Remove</button></div></div>`).join('') || '<p class="empty">No scheduled announcements yet.</p>'}</div><form class="inline-editor" id="announcement-schedule-form"><h3>Schedule an announcement</h3><label>Title<input name="title" required maxlength="180" placeholder="Zest for Life" /></label><label>Category<input name="tag" maxlength="80" value="Company update" /></label><label>Announcement text<textarea name="body" rows="4" maxlength="5000" required placeholder="Share the update employees should see."></textarea></label><label>Repeat<select name="frequency"><option value="daily">Every day</option><option value="weekly" selected>Every week</option><option value="monthly">Every month</option></select></label><label data-schedule-weekday>Day of week<select name="dayOfWeek">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => `<option value="${index}" ${index === 2 ? 'selected' : ''}>${day}</option>`).join('')}</select></label><label data-schedule-monthday hidden>Day of month<input name="dayOfMonth" type="number" min="1" max="31" value="1" /></label><label>Publish time<input name="time" type="time" required value="11:00" /></label><label>Department<input name="department" maxlength="120" value="All departments" /></label><label>Audience<input name="audience" maxlength="120" value="All employees" /></label><div class="form-actions"><button class="action-button primary">Save schedule</button></div></form></div></article>`;
 }
 function parseCsv(text) {
   const rows = [], row = [], value = [];
@@ -136,7 +194,7 @@ async function importNewMembersCsv(file) {
     if (existing) { Object.assign(existing, member); updated += 1; } else { known.push(member); created.push(member); }
   });
   dashboard.newMembers.unshift(...created);
-  await saveDashboard(`CSV imported: ${created.length} added and ${updated} updated.`);
+  await saveDashboard(`CSV imported: ${created.length} added and ${updated} updated.`, true, true, 'import');
 }
 function normaliseKnowledgeCsvDate(value) {
   const input = String(value || '').trim();
@@ -234,7 +292,7 @@ async function importKnowledgeSessionsCsv(file) {
   dashboard.sessions = [...created, ...dashboard.sessions];
   const notes = [summary.filenameReferences ? `${summary.filenameReferences} filename reference(s) retained; links appear only where a matching resource is known.` : '', summary.missingPresenters ? `${summary.missingPresenters} missing presenter(s) marked for review.` : ''].filter(Boolean).join(' ');
   const message = `Knowledge Hub imported: ${created.length} added. ${duplicateNote} ${notes}`;
-  try { await saveDashboard(message, true); } catch (error) { dashboard.sessions = previousSessions; throw error; }
+  try { await saveDashboard(message, true, true, 'import'); } catch (error) { dashboard.sessions = previousSessions; throw error; }
   flash(message, 12000);
 }
 const contentPages = [
@@ -249,12 +307,12 @@ const contentPages = [
   { view:'newsi', key:'policies', title:'New Si-Warians', description:'Manage the onboarding, policies, and acknowledgement content for new colleagues.' }
 ];
 function renderContent() {
-  $('#view-content').innerHTML = `<p class="view-intro">Choose the employee page you want to manage. Each editor is kept separate so changes stay focused, easier to review, and safer to publish.</p><div class="page-editor-grid">${contentPages.map(page => { const records = page.key === 'socialLinks' ? 4 : page.key === 'whistleblowerConfig' ? 1 : dashboard[page.key]?.length || 0; const noun = page.key === 'socialLinks' ? 'channel' : page.key === 'whistleblowerConfig' ? 'protected route' : 'record'; return `<article class="panel page-editor-card"><div><span class="page-editor-eyebrow">Employee page</span><h2>${page.title}</h2><p>${page.description}</p><small>${records} ${noun}${records === 1 ? '' : 's'} available</small></div><button class="action-button" type="button" data-goto="${page.view}">Manage ${page.title}</button></article>`; }).join('')}</div>`;
+  $('#view-content').innerHTML = `<p class="view-intro">Choose the employee page you want to manage. Each editor is kept separate so changes stay focused, easier to review, and safer to publish.</p><div class="page-editor-grid">${contentPages.filter(page => canAccessAdminView(page.view)).map(page => { const records = page.key === 'socialLinks' ? 4 : page.key === 'whistleblowerConfig' ? 1 : dashboard[page.key]?.length || 0; const noun = page.key === 'socialLinks' ? 'channel' : page.key === 'whistleblowerConfig' ? 'protected route' : 'record'; return `<article class="panel page-editor-card"><div><span class="page-editor-eyebrow">Employee page</span><h2>${page.title}</h2><p>${page.description}</p><small>${records} ${noun}${records === 1 ? '' : 's'} available</small></div><button class="action-button" type="button" data-goto="${page.view}">Manage ${page.title}</button></article>`; }).join('')}</div>`;
 }
 function employeePagePreview(title, href, sections = [], saveFormId = '', directKeys = []) {
   const previewSections = sections.length ? `<div class="employee-preview-sections" aria-label="Preview section">${sections.map(([id, label]) => `<button type="button" data-preview-anchor="${id}">${label}</button>`).join('')}</div>` : '';
   const actions = '';
-  const note = href === '/social-media.html' ? 'Select a channel to edit its URL here, then save content to publish your changes.' : href === '/moments.html' ? 'Click the page heading or description to change the text, then select Save content. Select a card to edit a moment.' : href === '/knowledge-hub.html' ? 'Click the page or library heading and description to edit text, then select Save content. Select a session row to edit its details.' : href === '/recently-joined.html' ? 'Click highlighted page text to edit it, then select Save content. Select a colleague card to edit their details.' : directKeys.length ? 'Select any item to edit or remove it here. Use Add to create a new item in this employee-page preview.' : saveFormId ? 'Click a highlighted text area to edit it here, then save content to publish your changes.' : 'This is the published employee view. Save your changes, then refresh the preview.';
+  const note = href === '/' ? 'Click the hero text or a highlighted card to edit it. Choose a section position on the left to move it anywhere on Home.' : href === '/social-media.html' ? 'Select a channel to edit its URL here, then save content to publish your changes.' : href === '/moments.html' ? 'Click the page heading or description to change the text, then select Save content. Select a card to edit a moment.' : href === '/knowledge-hub.html' ? 'Click the page or library heading and description to edit text, then select Save content. Select a session row to edit its details.' : href === '/recently-joined.html' ? 'Click highlighted page text to edit it, then select Save content. Select a colleague card to edit their details.' : href === '/new-hires.html' ? 'Edit highlighted text and use the Edit buttons inside the preview for messages and video links. Select Save content to publish.' : directKeys.length ? 'Select any item to edit or remove it here. Use Add to create a new item in this employee-page preview.' : saveFormId ? 'Click a highlighted text area to edit it here, then save content to publish your changes.' : 'This is the published employee view. Save your changes, then refresh the preview.';
   return `<aside class="employee-page-preview"><div class="employee-page-preview-head"><div><h2>Employee page preview</h2><p>${title}</p></div>${actions ? `<div class="employee-page-preview-actions">${actions}</div>` : ''}</div>${previewSections}<div class="employee-page-preview-frame"><iframe src="${href}" data-preview-base="${href}" data-preview-auto-height title="${title} employee page preview"></iframe></div><p class="employee-page-preview-note">${note}</p></aside>`;
 }
 function fitEmployeePagePreview(frame) {
@@ -506,10 +564,15 @@ function enableCollectionPreviewEditing(frame, key, attempts = 0) {
 }
 const newSiPageCopyTargets = [
   'heroEyebrow','heroLead','heroAccent','heroText','heroJourneyLabel','heroAction','asideTitle','asideText','asideAction',
-  'navTitle','navChecklist','navPolicies','navTraining','navTools','navHelp','checklistTitle','checklistText','policiesTitle','policiesText',
-  'trainingTitle','trainingText','securityEnglishTitle','securityArabicTitle','adminPortalTrainingTitle','securityEnglishUrl','securityArabicUrl','adminPortalTrainingUrl',
+  'navTitle','navChecklist','navPolicies','navTraining','navTools','navHelp','checklistTitle','checklistText',
+  'checklistCompleteTitle','checklistCompleteText','checklistEmptyText','checklistInProgressText','checklistNextStepText','checklistReopenText','heroCompleteText',
+  'policiesTitle','policiesText','trainingTitle','trainingText','securityEnglishTitle','securityArabicTitle','adminPortalTrainingTitle','trainingWatchAction','securityEnglishUrl','securityArabicUrl','adminPortalTrainingUrl',
   'toolsTitle','toolsText','emailTitle','emailText','emailAction','knowledgeTitle','knowledgeText','knowledgeAction',
-  'helpTitle','helpText','itTitle','peopleTitle','administrationTitle','financeTitle','portalsTitle','portalsText','footerLeft','footerRight'
+  'helpTitle','helpText','itTitle','itIntro','itPortalLabel','itContactIntro','itEmailLabel',
+  'peopleTitle','peopleIntro','peopleMohrLabel','peopleMiddle','peoplePortalLabel','peopleContactIntro','peopleEmailLabel',
+  'administrationTitle','administrationIntro','administrationPortalLabel','administrationOutro',
+  'financeTitle','financeIntro','financePortalLabel','financeOutro','portalsTitle','portalsText','footerLeft','footerRight',
+  'welcomeThanks','welcomeRecorded','welcomeBody','welcomeAction'
 ];
 function enableNewSiPageCopyEditing(frame, attempts = 0) {
   if (frame.dataset.previewBase !== '/new-hires.html') return;
@@ -523,16 +586,27 @@ function enableNewSiPageCopyEditing(frame, attempts = 0) {
       doc.head.append(style);
     }
     newSiPageCopyTargets.forEach(name => {
-      const element = doc.querySelector(`[data-newsi-copy="${name}"]`), input = form.elements.namedItem(name);
-      if (!element || !(input instanceof HTMLInputElement)) return;
-      if (!input.value) input.value = element.innerText.replace(/\s+/g, ' ').trim();
-      element.contentEditable = 'true';
-      element.dataset.adminPreviewNewsiPageCopy = name;
-      element.setAttribute('aria-label', `Edit ${name.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
-      element.title = 'Click to edit this text';
-      if (element instanceof doc.defaultView.HTMLAnchorElement) element.addEventListener('click', event => event.preventDefault());
-      element.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); });
-      element.addEventListener('input', () => { input.value = element.innerText.replace(/\s+/g, ' ').trim(); fitEmployeePagePreview(frame); });
+      const elements = [...doc.querySelectorAll(`[data-newsi-copy="${name}"]`)], input = form.elements.namedItem(name);
+      if (!(input instanceof HTMLInputElement)) return;
+      elements.forEach(element => {
+        if (element.dataset.adminPreviewNewsiPageCopy === name) return;
+        if (!input.value) input.value = element.innerText.replace(/\s+/g, ' ').trim();
+        element.contentEditable = 'true';
+        if (!element.matches('a,button')) element.tabIndex = 0;
+        element.dataset.adminPreviewNewsiPageCopy = name;
+        element.setAttribute('aria-label', `Edit ${name.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+        element.setAttribute('role', 'textbox');
+        element.setAttribute('aria-multiline', 'false');
+        element.title = 'Click to edit this text';
+        if (element.closest('a,button')) element.addEventListener('click', event => event.preventDefault());
+        element.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); });
+        element.addEventListener('input', () => {
+          input.value = element.innerText.replace(/\s+/g, ' ').trim();
+          input.dataset.previewTouched = 'true';
+          elements.forEach(other => { if (other !== element) other.textContent = input.value; });
+          fitEmployeePagePreview(frame);
+        });
+      });
     });
   } catch (_) {}
 }
@@ -541,13 +615,123 @@ function enableNewSiAcknowledgementPreviewEditing(frame, attempts = 0) {
   try {
     const doc = frame.contentDocument, form = $('#ack-content-form'), panel = doc?.querySelector('#policy-acknowledgement');
     if (!doc || !form || !panel) { if (attempts < 12) window.setTimeout(() => enableNewSiAcknowledgementPreviewEditing(frame, attempts + 1), 180); return; }
-    if (doc.querySelector('#admin-preview-newsi-copy-style')) return;
-    const style = doc.createElement('style'); style.id = 'admin-preview-newsi-copy-style'; style.textContent = '[data-admin-preview-newsi-copy]{outline:2px dashed transparent;outline-offset:4px;cursor:text;transition:outline-color .16s ease,background .16s ease}[data-admin-preview-newsi-copy]:hover,[data-admin-preview-newsi-copy]:focus{outline-color:#0b7aa7;background:#f4fbff}'; doc.head.append(style);
-    const fields = [['actionTitle','.policy-acknowledgement-head h3'], ['instructionText','.policy-acknowledgement-head p'], ['beforeHeading','.policy-acknowledgement-notice b'], ['beforeText','.policy-acknowledgement-notice p'], ['confirmationLabel','[data-confirm-policy]'], ['confirmationHelp','.policy-acknowledgement-actions small']];
-    fields.forEach(([name, selector]) => { const element = panel.querySelector(selector), input = form.elements.namedItem(name); if (!element || !(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return; element.contentEditable = 'true'; element.dataset.adminPreviewNewsiCopy = name; element.addEventListener('input', () => { input.value = element.innerText.trim(); fitEmployeePagePreview(frame); }); });
+    if (!doc.querySelector('#admin-preview-newsi-copy-style')) { const style = doc.createElement('style'); style.id = 'admin-preview-newsi-copy-style'; style.textContent = '[data-admin-preview-newsi-copy]{outline:2px dashed transparent;outline-offset:4px;cursor:text;transition:outline-color .16s ease,background .16s ease}[data-admin-preview-newsi-copy]:hover,[data-admin-preview-newsi-copy]:focus{outline-color:#0b7aa7;background:#f4fbff}.admin-preview-ack-state-title{margin:20px 0 0;color:#24547d;font-size:14px;font-weight:800}.admin-preview-ack-state-title small{color:#516d89;font-size:11px;font-weight:600}.admin-preview-ack-state-title+.policy-acknowledgement{margin-top:8px}.admin-preview-ack-button{display:inline-block;border-radius:8px;background:var(--blue);color:#fff;padding:10px 14px;font:800 12px Manrope}.admin-preview-ack-button:focus-visible{outline:2px solid var(--focus);outline-offset:3px}'; doc.head.append(style); }
+    doc.querySelectorAll('[data-admin-preview-ack-state]').forEach(element => element.remove());
+    const value = name => escapeHtml(form.elements.namedItem(name)?.value || '');
+    const accepted = Boolean(panel.querySelector('.policy-acknowledgement-head--accepted'));
+    const label = (title, note) => { const heading = doc.createElement('h3'); heading.className = 'admin-preview-ack-state-title'; heading.dataset.adminPreviewAckState = 'label'; heading.innerHTML = `${title} <small>${note}</small>`; return heading; };
+    const sample = doc.createElement('section'); sample.className = 'policy-acknowledgement'; sample.dataset.adminPreviewAckState = accepted ? 'before' : 'after';
+    if (accepted) {
+      const policies = (dashboard?.policies || []).filter(policy => policy.requiresAcknowledgement !== false);
+      sample.innerHTML = `<div class="policy-acknowledgement-head"><div><h3 data-admin-preview-ack-field="actionTitle">${value('actionTitle')}</h3><p data-admin-preview-ack-field="instructionText">${value('instructionText')}</p></div></div><div class="policy-acknowledgement-notice"><b data-admin-preview-ack-field="beforeHeading">${value('beforeHeading')}</b><p data-admin-preview-ack-field="beforeText">${value('beforeText')}</p></div><ul class="policy-acknowledgement-list">${policies.map(policy => `<li>${escapeHtml(policy.title || '')}${policy.version ? ` · ${escapeHtml(policy.version)}` : ''}</li>`).join('')}</ul><div class="policy-acknowledgement-actions"><span class="admin-preview-ack-button" data-admin-preview-ack-field="confirmationLabel">${value('confirmationLabel')}</span><small data-admin-preview-ack-field="confirmationHelp">${value('confirmationHelp')}</small></div>`;
+      panel.before(label('Before confirmation', 'preview'), sample, label('After confirmation', 'current view'));
+    } else {
+      sample.innerHTML = `<div class="policy-acknowledgement-notice"><b data-admin-preview-ack-field="beforeHeading">${value('beforeHeading')}</b><p data-admin-preview-ack-field="beforeText">${value('beforeText')}</p></div><div class="policy-acknowledgement-head policy-acknowledgement-head--accepted"><div><h3 data-admin-preview-ack-field="acceptedTitle">${value('acceptedTitle')}</h3><p class="policy-acknowledged" data-admin-preview-ack-field="afterText">${value('afterText')}</p></div></div>`;
+      panel.before(label('Before confirmation', 'current view'));
+      panel.after(label('After confirmation', 'preview'), sample);
+    }
+    Object.entries(newSiAcknowledgementPreviewSelectors).forEach(([name, selector]) => {
+      const input = form.elements.namedItem(name);
+      if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
+      const elements = [...doc.querySelectorAll(`#policy-acknowledgement ${selector}, [data-admin-preview-ack-field="${name}"]`)];
+      elements.forEach(element => {
+        if (element.dataset.adminPreviewNewsiCopy === name) return;
+        element.contentEditable = 'true'; element.tabIndex = 0; element.dataset.adminPreviewNewsiCopy = name;
+        element.setAttribute('aria-label', `Edit ${name.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+        if (element instanceof doc.defaultView.HTMLButtonElement) element.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); });
+        element.addEventListener('input', () => { input.value = element.innerText.trim(); elements.forEach(other => { if (other !== element) other.textContent = input.value; }); fitEmployeePagePreview(frame); });
+      });
+    });
+    fitEmployeePagePreview(frame);
   } catch (_) {}
 }
-document.addEventListener('load', event => { const frame = event.target; if (frame instanceof HTMLIFrameElement && frame.matches('[data-preview-auto-height]')) { focusEmployeePagePreview(frame); fitEmployeePagePreview(frame); enableWhistleblowerPreviewEditing(frame); enableMomentsPageCopyEditing(frame); enableKnowledgePageCopyEditing(frame); enableRecentlyJoinedPageCopyEditing(frame); enableSocialPreviewEditing(frame); enableNewSiPageCopyEditing(frame); enableNewSiAcknowledgementPreviewEditing(frame); Object.keys(previewCollectionTargets).forEach(key => enableCollectionPreviewEditing(frame, key)); } }, true);
+const newSiPreviewGroups = {
+  checklist:{ section:'#first-week', action:'Edit checklist messages', title:'Checklist messages', fields:[['checklistCompleteTitle','Completion heading'],['checklistCompleteText','Completion description'],['checklistEmptyText','Before any task is complete'],['checklistInProgressText','While tasks remain'],['checklistNextStepText','Next-step hint'],['checklistReopenText','All-done hint'],['heroCompleteText','Hero completion message']] },
+  training:{ section:'#training', action:'Edit video links', title:'Training video links', fields:[['securityEnglishUrl','Security Awareness — English URL'],['securityArabicUrl','Security Awareness — Arabic URL'],['adminPortalTrainingUrl','Admin Portal Training URL']] },
+  policy:{ section:'#policies', action:'Edit policy & welcome messages', title:'Policy & welcome messages', fields:[['actionTitle','Action heading','ack'],['instructionText','Instruction','ack'],['beforeHeading','Context heading','ack'],['beforeText','Context text','ack'],['confirmationLabel','Confirmation statement','ack'],['confirmationHelp','Confirmation help','ack'],['acceptedTitle','Success heading','ack'],['afterText','Success text','ack'],['welcomeThanks','Welcome heading'],['welcomeRecorded','Confirmation message'],['welcomeBody','Welcome message'],['welcomeAction','Continue button']] }
+};
+const newSiAcknowledgementPreviewSelectors = { actionTitle:'.policy-acknowledgement-head:not(.policy-acknowledgement-head--accepted) h3', instructionText:'.policy-acknowledgement-head:not(.policy-acknowledgement-head--accepted) p', beforeHeading:'.policy-acknowledgement-notice b', beforeText:'.policy-acknowledgement-notice p', confirmationLabel:'[data-confirm-policy]', confirmationHelp:'.policy-acknowledgement-actions small', acceptedTitle:'.policy-acknowledgement-head--accepted h3', afterText:'.policy-acknowledgement-head--accepted .policy-acknowledged' };
+function enableNewSiPreviewTools(frame) {
+  if (frame.dataset.previewBase !== '/new-hires.html') return;
+  try {
+    const doc = frame.contentDocument, copyForm = $('#newsi-page-copy-form'), acknowledgementForm = $('#ack-content-form');
+    if (!doc || !copyForm || !acknowledgementForm || doc.querySelector('#admin-preview-newsi-tools')) return;
+    const style = doc.createElement('style');
+    style.id = 'admin-preview-newsi-tools';
+    style.textContent = '.admin-preview-newsi-tool-row{display:flex;justify-content:flex-end;margin:-4px 0 12px}.admin-preview-newsi-tool{border:1px solid #b8cde5;border-radius:8px;background:#f7fbff;color:#14528e;padding:7px 10px;font:700 12px inherit;cursor:pointer}.admin-preview-newsi-tool:hover,.admin-preview-newsi-tool:focus-visible{border-color:#0b7aa7;background:#ebf8fd;outline:2px solid transparent}.admin-preview-newsi-editor{position:absolute;z-index:2147483646;right:16px;width:min(390px,calc(100% - 32px));max-height:560px;overflow:auto;padding:16px;border:1px solid #b8cde5;border-radius:12px;background:#fff;color:#193f6f;box-shadow:0 18px 34px rgb(19 56 97 / 18%);font-family:inherit}.admin-preview-newsi-editor[hidden]{display:none}.admin-preview-newsi-editor-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.admin-preview-newsi-editor-head b{font-size:16px}.admin-preview-newsi-editor-head button{border:0;background:none;color:#14528e;font:700 12px inherit;cursor:pointer}.admin-preview-newsi-editor-group{margin:18px 0 8px;padding-top:14px;border-top:1px solid #d5e1ee;color:#193f6f;font-size:13px}.admin-preview-newsi-editor label{display:grid;gap:5px;margin:9px 0;color:#35577d;font-size:12px;font-weight:700}.admin-preview-newsi-editor input,.admin-preview-newsi-editor textarea{box-sizing:border-box;width:100%;border:1px solid #a8c2df;border-radius:7px;padding:9px 10px;color:#102c52;background:#fff;font:600 13px inherit}.admin-preview-newsi-editor textarea{min-height:66px;resize:vertical}.admin-preview-newsi-editor input:focus-visible,.admin-preview-newsi-editor textarea:focus-visible{outline:3px solid rgb(10 120 167 / 24%);border-color:#0b7aa7}.admin-preview-newsi-editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.admin-preview-newsi-editor-actions button{border:1px solid #b8cde5;border-radius:7px;background:#fff;color:#14528e;padding:8px 10px;font:700 12px inherit;cursor:pointer}.admin-preview-newsi-editor-actions button[type=submit]{background:#145ea9;border-color:#145ea9;color:#fff}.admin-preview-newsi-editor-status{min-height:1em;color:#a4263d;font-size:12px}';
+    doc.head.append(style);
+    const editor = doc.createElement('form'); editor.className = 'admin-preview-newsi-editor'; editor.hidden = true; editor.noValidate = true; doc.body.append(editor);
+    const close = () => { editor.hidden = true; editor.replaceChildren(); };
+    const open = (key, trigger) => {
+      const group = newSiPreviewGroups[key]; if (!group) return;
+      editor.dataset.group = key;
+      const policyHeadings = { actionTitle:'Before confirmation', acceptedTitle:'After confirmation', welcomeThanks:'Welcome message' };
+      editor.innerHTML = `<div class="admin-preview-newsi-editor-head"><b>${escapeHtml(group.title)}</b><button type="button" data-preview-newsi-close aria-label="Close ${escapeHtml(group.title)} editor">Close</button></div>${group.fields.map(([name, label, source]) => { const input = (source === 'ack' ? acknowledgementForm : copyForm).elements.namedItem(name), value = input?.value || newSiCopyDefaults[name] || ''; const control = key === 'training' ? `<input name="${name}" type="url" required maxlength="500" value="${escapeHtml(value)}" />` : /Text$|instructionText|beforeText|afterText|welcomeBody/.test(name) ? `<textarea name="${name}" required maxlength="600">${escapeHtml(value)}</textarea>` : `<input name="${name}" required maxlength="600" value="${escapeHtml(value)}" />`; return `${key === 'policy' && policyHeadings[name] ? `<h3 class="admin-preview-newsi-editor-group">${policyHeadings[name]}</h3>` : ''}<label>${escapeHtml(label)}${control}</label>`; }).join('')}<p class="admin-preview-newsi-editor-status" role="alert"></p><div class="admin-preview-newsi-editor-actions"><button type="button" data-preview-newsi-close>Cancel</button><button type="submit">Publish changes</button></div>`;
+      editor.hidden = false;
+      editor.style.top = `${Math.max(16, trigger.getBoundingClientRect().top + doc.defaultView.scrollY + trigger.offsetHeight + 8)}px`;
+      editor.style.maxHeight = `${Math.max(280, Math.min(560, window.innerHeight - 32))}px`;
+      editor.querySelector('input,textarea')?.focus(); fitEmployeePagePreview(frame);
+    };
+    Object.entries(newSiPreviewGroups).forEach(([key, group]) => {
+      const section = doc.querySelector(group.section), intro = section?.querySelector(':scope > p'); if (!section || !intro) return;
+      const row = doc.createElement('div'), trigger = doc.createElement('button'); row.className = 'admin-preview-newsi-tool-row'; trigger.className = 'admin-preview-newsi-tool'; trigger.type = 'button'; trigger.textContent = group.action; row.append(trigger); intro.after(row);
+      trigger.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); open(key, trigger); });
+    });
+    editor.addEventListener('click', event => { if (event.target.closest('[data-preview-newsi-close]')) close(); });
+    editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
+    editor.addEventListener('submit', event => {
+      event.preventDefault();
+      const group = newSiPreviewGroups[editor.dataset.group], values = Object.fromEntries([...new FormData(editor)].map(([name, value]) => [name, String(value).trim()])), error = editor.querySelector('.admin-preview-newsi-editor-status');
+      if (Object.values(values).some(value => !value)) { error.textContent = 'Complete every field before publishing.'; return; }
+      if (editor.dataset.group === 'training') for (const [name, value] of Object.entries(values)) { const url = normaliseYouTubeVideoUrl(value); if (!url) { error.textContent = 'Use a valid YouTube or youtu.be link for each video.'; return; } values[name] = url; }
+      const copyUpdates = {};
+      group.fields.forEach(([name,,source]) => {
+        const value = values[name], target = (source === 'ack' ? acknowledgementForm : copyForm).elements.namedItem(name);
+        if (target) { target.value = value; if (source !== 'ack') target.dataset.previewTouched = 'true'; }
+        if (source === 'ack') doc.querySelectorAll(`#policy-acknowledgement ${newSiAcknowledgementPreviewSelectors[name]}, [data-admin-preview-ack-field="${name}"]`).forEach(element => element.textContent = value);
+        else { copyUpdates[name] = value; doc.querySelectorAll(`[data-newsi-copy="${name}"]`).forEach(element => element.textContent = value); }
+      });
+      if (editor.dataset.group === 'training') Object.entries(values).forEach(([name, value]) => { const id = new URL(value).searchParams.get('v'); const video = doc.querySelector(`[data-newsi-video="${name}"]`), link = doc.querySelector(`[data-newsi-video-open="${name}"]`); if (video && id) video.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`; if (link) link.href = value; });
+      if (Object.keys(copyUpdates).length) doc.dispatchEvent(new doc.defaultView.CustomEvent('newsi-copy:preview-updated', { detail:copyUpdates }));
+      close(); acknowledgementForm.requestSubmit();
+    });
+  } catch (_) {}
+}
+function applyHomePreviewLayout(frame) {
+  try {
+    const doc = frame.contentDocument, page = doc?.querySelector('.dashboard');
+    if (!page) return;
+    const layout = dashboard.settings?.layout || [];
+    const defaultLayout = ['apps', 'announcements', 'new-members', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+    const sizes = dashboard.settings?.widgetSizes || {}, customSizes = Object.entries(sizes).some(([key, size]) => size && size !== (defaultHomeWidgetSizes[key] || 'standard'));
+    page.classList.toggle('layout-custom', layout.join(',') !== defaultLayout.join(',') || customSizes);
+    doc.querySelectorAll('[data-widget]').forEach(widget => {
+      const position = layout.indexOf(widget.dataset.widget);
+      widget.hidden = position < 0 || (dashboard.settings?.hiddenWidgets || []).includes(widget.dataset.widget);
+      widget.style.order = position < 0 ? '99' : String(position);
+      widget.dataset.widgetSize = sizes[widget.dataset.widget] || defaultHomeWidgetSizes[widget.dataset.widget] || 'standard';
+    });
+  } catch (_) {}
+}
+function enableHomePreviewEditing(frame, attempts = 0) {
+  if (frame.dataset.previewBase !== '/') return;
+  try {
+    const doc = frame.contentDocument;
+    if (!doc || !$('#home-hero-form')) return;
+    if (!doc.querySelector('#app-grid .app-link') && attempts < 20) { window.setTimeout(() => enableHomePreviewEditing(frame, attempts + 1), 180); return; }
+    applyHomePreviewLayout(frame);
+    if (doc.querySelector('#admin-home-preview-style')) return;
+    const style = doc.createElement('style'); style.id = 'admin-home-preview-style'; style.textContent = '[data-admin-home-editable]{outline:2px dashed transparent;outline-offset:4px;cursor:pointer;transition:outline-color .16s ease,background .16s ease}[data-admin-home-editable]:hover,[data-admin-home-editable]:focus-visible{outline-color:#0b7aa7;background:rgb(204 244 248 / 25%)}.hero-copy[data-admin-home-editable]:hover{background:transparent}@media(max-width:1050px){.dashboard:not(.layout-custom){grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-template-areas:"apps apps apps apps" "hero hero hero new-members" "company-news company-news company-news company-news" "linkedin facebook youtube news" "moments moments moments moments" "knowledge knowledge knowledge knowledge" "events events events events" "whistleblower whistleblower whistleblower whistleblower"!important}.dashboard:not(.layout-custom) .app-dock{grid-area:apps}.dashboard:not(.layout-custom) .hero{grid-area:hero}.dashboard:not(.layout-custom) .new-members-widget{grid-area:new-members}}'; doc.head.append(style);
+    const mark = (selector, label, action) => doc.querySelectorAll(selector).forEach((element, index) => { element.dataset.adminHomeEditable = label; element.tabIndex = 0; element.title = `Edit ${label}`; const open = event => { event.preventDefault(); event.stopPropagation(); action(index); }; element.addEventListener('click', open); element.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') open(event); }); });
+    mark('.hero-copy', 'hero text', () => { $('#home-hero-title')?.focus(); });
+    mark('#app-grid .app-link', 'app card', index => { const record = dashboard.apps?.[index]; if (record) openPreviewCollectionEditor(frame, 'apps', record); });
+    mark('#new-member-list .new-member', 'employee card', index => { const record = dashboard.newMembers?.slice(0, 2)[index]; if (record) openPreviewCollectionEditor(frame, 'newMembers', record); });
+    mark('#moments-grid .moment-card', 'moment card', index => { const record = dashboard.moments?.[index]; if (record) openPreviewCollectionEditor(frame, 'moments', record); });
+    [['.priority-announcement', 'announcements'], ['#event-list .event', 'events'], ['#session-list tr', 'knowledge'], ['.widget-whistleblower', 'whistleblower']].forEach(([selector, view]) => mark(selector, `${view} content`, () => showView(view)));
+    if (attempts < 3) window.setTimeout(() => enableHomePreviewEditing(frame, attempts + 1), 220);
+  } catch (_) {}
+}
+document.addEventListener('load', event => { const frame = event.target; if (frame instanceof HTMLIFrameElement && frame.matches('[data-preview-auto-height]')) { focusEmployeePagePreview(frame); fitEmployeePagePreview(frame); enableHomePreviewEditing(frame); enableWhistleblowerPreviewEditing(frame); enableMomentsPageCopyEditing(frame); enableKnowledgePageCopyEditing(frame); enableRecentlyJoinedPageCopyEditing(frame); enableSocialPreviewEditing(frame); enableNewSiPageCopyEditing(frame); enableNewSiPreviewTools(frame); frame.contentDocument?.addEventListener('first-week-checklist:rendered', () => enableNewSiPageCopyEditing(frame)); frame.contentDocument?.addEventListener('policy-acknowledgement:rendered', () => enableNewSiAcknowledgementPreviewEditing(frame)); enableNewSiAcknowledgementPreviewEditing(frame); Object.keys(previewCollectionTargets).forEach(key => enableCollectionPreviewEditing(frame, key)); } }, true);
 const socialCardDefaults = links => [
   { id:'linkedin', title:'LinkedIn', url:links.linkedinUrl || 'https://www.linkedin.com/company/si-ware-systems/?locale=en_US', icon:'linkedin', actionLabel:'Visit channel' },
   { id:'facebook', title:'Facebook', url:links.facebookUrl || 'https://www.facebook.com/SiWareSystems/', icon:'facebook', actionLabel:'Visit channel' },
@@ -631,7 +815,7 @@ function mountPreviewOnlyCollection(root, key, title, href) {
       submit.disabled = true;
       dialog.close();
       dashboard.sessions = [];
-      try { await saveDashboard(`${previous.length} Knowledge Hub sessions removed.`, true); }
+      try { await saveDashboard(`${previous.length} Knowledge Hub sessions removed.`, true, true, 'delete'); }
       catch (saveError) { dashboard.sessions = previous; error.textContent = saveError.message || 'Sessions were not removed. Try again.'; submit.disabled = false; dialog.showModal(); }
     });
   }
@@ -647,7 +831,9 @@ function renderContentPage(view) {
   root.innerHTML = `<p class="view-intro">${page.description} Changes publish to the employee intranet after you save.</p>${renderCollection(page.key)}`;
   if (page.key === 'announcements') {
     const record = dashboard.announcements.find(item => item.id === editingRecord.announcements) || {};
-    root.querySelector('.form-actions')?.insertAdjacentHTML('beforebegin', `<label class="announcement-visibility"><input type="hidden" name="hidden" value="false" /><input type="checkbox" name="hidden" value="true" ${record.hidden === true || record.hidden === 'true' ? 'checked' : ''} /><span><b>Hide from employees</b><small>Keep this announcement in Administration, but remove it from employee pages until you make it visible again.</small></span></label>`);
+    root.querySelector('.collection-layout > .list')?.insertAdjacentHTML('beforeend', `${announcementScheduleRows()}${announcementTemplateRows()}`);
+    root.querySelector('.form-actions')?.insertAdjacentHTML('beforebegin', `<fieldset class="announcement-visibility"><legend>Publication</legend><label><input type="radio" name="deliveryMode" value="now" checked /> Send now</label><label><input type="radio" name="deliveryMode" value="scheduled" /> Schedule</label><div data-announcement-schedule-options hidden><label>Publish date<input name="scheduleDate" type="date" /></label><label>Publish time<input name="scheduleTime" type="time" value="11:00" /></label><label><input name="repeatAnnouncement" type="checkbox" value="true" /> Repeat this announcement</label><div data-announcement-repeat-options hidden><label>Repeat<select name="scheduleFrequency"><option value="weekly" selected>Every week</option><option value="monthly">Every month</option></select></label><label data-schedule-weekday>Day of week<select name="scheduleDayOfWeek">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => `<option value="${index}" ${index === 2 ? 'selected' : ''}>${day}</option>`).join('')}</select></label><label data-schedule-monthday hidden>Day of month<input name="scheduleDayOfMonth" type="number" min="1" max="31" value="1" /></label></div><small>Choose a date from the calendar. Turn on repeat for a weekly or monthly announcement in Cairo time.</small></div></fieldset><label class="announcement-visibility"><input type="hidden" name="hidden" value="false" /><input type="checkbox" name="hidden" value="true" ${record.hidden === true || record.hidden === 'true' ? 'checked' : ''} /><span><b>Hide from employees</b><small>Keep this announcement in Administration, but remove it from employee pages until you make it visible again.</small></span></label>`);
+    root.querySelector('.form-actions')?.insertAdjacentHTML('afterbegin', '<button class="action-button secondary" type="button" data-save-announcement-template>Save as template</button>');
     root.querySelectorAll('.list-row').forEach((row, index) => { if (dashboard.announcements[index]?.hidden === true || dashboard.announcements[index]?.hidden === 'true') row.querySelector('span')?.insertAdjacentHTML('beforeend', '<small class="hidden-announcement-status">Hidden from employees</small>'); });
   }
   if (page.key === 'sessions') enhanceKnowledgeSessionEditor(root);
@@ -772,30 +958,28 @@ function normaliseYouTubeVideoUrl(value) {
     return /^[A-Za-z0-9_-]{11}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : null;
   } catch { return null; }
 }
-function newSiTrainingVideosForm(copy) {
-  const videos = [
-    ['securityEnglishUrl', 'Security Awareness — English URL'],
-    ['securityArabicUrl', 'Security Awareness — Arabic URL'],
-    ['adminPortalTrainingUrl', 'Admin Portal Training Session URL']
-  ];
-  return `<article class="panel newsi-training-editor"><div class="collection-heading"><div><h2>Training video links</h2><p>Paste the approved YouTube links shown to new Si-Warians. The employee page uses privacy-enhanced YouTube embeds.</p></div></div><form id="newsi-training-videos-form" class="settings-form"><div class="form-grid">${videos.map(([name, label]) => `<label>${label}<input name="${name}" type="url" required value="${escapeHtml(copy[name] || '')}" placeholder="https://www.youtube.com/watch?v=…" /></label>`).join('')}</div><div class="form-actions"><button class="action-button primary">Save training videos</button></div></form></article>`;
-}
+const newSiCopyDefaults = {
+  checklistCompleteTitle:'First week complete',
+  checklistCompleteText:'Excellent work. Your first-week essentials are complete.',
+  checklistEmptyText:'Choose one task to begin. You can change a task later.',
+  checklistInProgressText:'Keep your momentum going.',
+  checklistNextStepText:'Start with the task that gives you access.',
+  checklistReopenText:'You can reopen any task.',
+  heroCompleteText:'First-week essentials complete',
+  trainingWatchAction:'Watch on YouTube',
+  welcomeThanks:'Thank you,',
+  welcomeRecorded:'Your policy acknowledgement has been recorded.',
+  welcomeBody:'Welcome to Si-Ware Systems - we are glad to have you with us.',
+  welcomeAction:'Continue your first week'
+};
 function renderNewSi() {
   const acknowledgement = dashboard.policyAcknowledgementContent || {};
   $('#view-newsi').innerHTML = `<p class="view-intro">Everything employees see on the New Si-Warians page is managed here: policies, acknowledgement wording, first-week guidance, and help portals.</p><div class="manage-stack">${renderCollection('policies')}${renderCollection('firstWeekChecklist')}${renderCollection('supportPortals')}<article class="panel"><div class="collection-heading"><div><h2>Policy acknowledgement</h2><p>Control the exact employee-facing acknowledgement journey and confirmation statement.</p></div></div><form class="inline-editor acknowledgement-editor" id="ack-content-form"><label>Action heading<input required name="actionTitle" maxlength="120" value="${escapeHtml(acknowledgement.actionTitle || '')}" /></label><label>Instruction<textarea required name="instructionText" rows="3" maxlength="360">${escapeHtml(acknowledgement.instructionText || '')}</textarea></label><label>Context heading<input required name="beforeHeading" maxlength="80" value="${escapeHtml(acknowledgement.beforeHeading || '')}" /></label><label>Context text<textarea required name="beforeText" rows="5" maxlength="900">${escapeHtml(acknowledgement.beforeText || '')}</textarea></label><label>Confirmation statement<input required name="confirmationLabel" maxlength="160" value="${escapeHtml(acknowledgement.confirmationLabel || '')}" /></label><label>Confirmation help<input required name="confirmationHelp" maxlength="220" value="${escapeHtml(acknowledgement.confirmationHelp || '')}" /></label><label>Success heading<input required name="acceptedTitle" maxlength="100" value="${escapeHtml(acknowledgement.acceptedTitle || '')}" /></label><label>Success text<textarea required name="afterText" rows="3" maxlength="360">${escapeHtml(acknowledgement.afterText || '')}</textarea></label><div class="form-actions"><button class="action-button primary">Save acknowledgement content</button></div></form></article></div>`;
   const root = $('#view-newsi'), editors = root.querySelector('.manage-stack'), workspace = document.createElement('div');
   const copy = dashboard.newSiPageContent || {}, copyForm = document.createElement('form');
   copyForm.id = 'newsi-page-copy-form'; copyForm.hidden = true;
-  newSiPageCopyTargets.forEach(name => { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = copy[name] || ''; copyForm.append(input); });
-  workspace.className = 'newsi-editor-preview-layout'; editors.before(workspace); workspace.append(editors, copyForm); editors.hidden = true; workspace.insertAdjacentHTML('beforeend', newSiTrainingVideosForm(copy)); workspace.insertAdjacentHTML('beforeend', employeePagePreview('New Si-Warians', '/new-hires.html', [['first-week','Checklist'], ['policies','Policies'], ['training','Training videos'], ['help','Support portals']], 'ack-content-form', ['policies', 'firstWeekChecklist', 'supportPortals']));
-  $('#newsi-training-videos-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
-    const videos = Object.fromEntries(Object.entries(values).map(([name, url]) => [name, normaliseYouTubeVideoUrl(url)]));
-    if (Object.values(videos).some(url => !url)) { flash('Use a valid YouTube or youtu.be link for each training video.'); return; }
-    dashboard.newSiPageContent = { ...dashboard.newSiPageContent, ...videos };
-    await saveDashboard('New Si-Warians training videos saved and published.');
-  });
+  newSiPageCopyTargets.forEach(name => { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = copy[name] || newSiCopyDefaults[name] || ''; copyForm.append(input); });
+  workspace.className = 'newsi-editor-preview-layout'; editors.before(workspace); workspace.append(editors, copyForm); editors.hidden = true; workspace.insertAdjacentHTML('beforeend', employeePagePreview('New Si-Warians', '/new-hires.html', [['first-week','Checklist'], ['policies','Policies'], ['training','Training videos'], ['help','Support portals']], 'ack-content-form', ['policies', 'firstWeekChecklist', 'supportPortals']));
   renderAcknowledgementRecords();
 }
 async function renderAcknowledgementRecords() {
@@ -808,14 +992,78 @@ async function renderAcknowledgementRecords() {
   } catch (error) { panel.innerHTML = `<h2>Acknowledgement records</h2><p class="notice warning">${escapeHtml(error.message)}</p>`; }
 }
 function renderAppearance() {
-  const labels = { announcements:'Announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
+  const labels = { apps:'Main Apps', announcements:'Announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
   const settings = dashboard.settings || { layout:[], hiddenWidgets:[] };
   $('#view-appearance').innerHTML = `<p class="view-intro">Control homepage section order and visibility. Shared brand files remain approved assets, while this workspace safely publishes layout changes.</p><article class="panel"><div class="collection-heading"><div><h2>Homepage sections</h2><p>Use the accessible move controls to set order. Hidden sections remain saved.</p></div><button class="action-button primary" id="save-appearance">Save layout</button></div><div class="layout-editor">${settings.layout.map((key, index) => `<div class="layout-admin-row" data-layout-key="${key}"><span><b>${escapeHtml(labels[key] || key)}</b><small>${settings.hiddenWidgets.includes(key) ? 'Hidden from employees' : 'Visible to employees'}</small></span><label class="visibility"><input type="checkbox" data-layout-visible="${key}" ${settings.hiddenWidgets.includes(key) ? '' : 'checked'} /> Visible</label><div><button type="button" class="tool-button" data-layout-move="${key}:-1" ${index === 0 ? 'disabled' : ''}>Move up</button><button type="button" class="tool-button" data-layout-move="${key}:1" ${index === settings.layout.length - 1 ? 'disabled' : ''}>Move down</button></div></div>`).join('')}</div></article>`;
 }
-async function saveDashboard(message, rethrow = false, recordHistory = true) {
+const defaultHomeWidgetSizes = { apps:'full', announcements:'wide', 'new-members':'compact', 'company-news':'full' };
+const defaultHomeLayout = ['apps', 'announcements', 'new-members', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+const homeHistory = { undo:[], redo:[] };
+function homeSnapshot(source = dashboard) {
+  const settings = source?.settings || {};
+  return structuredClone({ homePageContent:source?.homePageContent || {}, settings:{ layout:settings.layout || [], hiddenWidgets:settings.hiddenWidgets || [], widgetSizes:settings.widgetSizes || {}, removedWidgets:settings.removedWidgets || [], layoutSizingVersion:settings.layoutSizingVersion || 'home-grid-v3' } });
+}
+function applyHomeSnapshot(snapshot) {
+  dashboard.homePageContent = structuredClone(snapshot.homePageContent || {});
+  dashboard.settings = { ...dashboard.settings, ...structuredClone(snapshot.settings || {}) };
+}
+function recordHomeChange(before) {
+  const after = homeSnapshot();
+  if (JSON.stringify(before) === JSON.stringify(after)) return;
+  homeHistory.undo.push({ before, after });
+  if (homeHistory.undo.length > 20) homeHistory.undo.shift();
+  homeHistory.redo = [];
+}
+function changeHome(mutator) { const before = homeSnapshot(); mutator(); recordHomeChange(before); renderHomeEditor(); }
+async function stepHomeHistory(direction) {
+  const source = direction === 'undo' ? homeHistory.undo : homeHistory.redo, destination = direction === 'undo' ? homeHistory.redo : homeHistory.undo;
+  if (pageToolBusy || !source.length) return;
+  pageToolBusy = true;
+  const entry = source.pop(), previous = homeSnapshot();
+  applyHomeSnapshot(direction === 'undo' ? entry.before : entry.after);
+  try { await saveDashboard(`${direction === 'undo' ? 'Undid' : 'Redid'} the last Home change.`, true, false, direction); destination.push(entry); }
+  catch (error) { applyHomeSnapshot(previous); source.push(entry); flash(error.message); renderHomeEditor(); }
+  finally { pageToolBusy = false; }
+}
+async function resetHomeToDefaults() {
+  if (!confirm('Reset the Home page layout and hero copy to the standard defaults? You can undo this change.')) return;
+  const before = homeSnapshot();
+  const response = await api('/api/admin/defaults');
+  dashboard.homePageContent = structuredClone(response.defaults?.homePageContent || {});
+  dashboard.settings = { ...dashboard.settings, layout:[...defaultHomeLayout], hiddenWidgets:[], widgetSizes:{}, removedWidgets:[], layoutSizingVersion:'home-grid-v3' };
+  recordHomeChange(before);
+  try { await saveDashboard('Home page restored to the standard defaults. Use Undo to restore your previous layout.', true, false, 'reset'); }
+  catch (error) { applyHomeSnapshot(before); homeHistory.undo.pop(); throw error; }
+}
+function homeWidgetSize(key) { return dashboard.settings?.widgetSizes?.[key] || defaultHomeWidgetSizes[key] || 'standard'; }
+function renderHomeEditor() {
+  const labels = { apps:'Main Apps', announcements:'Hero & announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
+  const destinations = { apps:'apps', announcements:'announcements', 'new-members':'people', social:'social', moments:'moments', knowledge:'knowledge', events:'events', whistleblower:'whistleblower' };
+  dashboard.settings ||= { layout:[], hiddenWidgets:[], widgetSizes:{}, removedWidgets:[] };
+  dashboard.settings.layout ||= [];
+  dashboard.settings.hiddenWidgets ||= [];
+  dashboard.settings.widgetSizes ||= {};
+  dashboard.settings.removedWidgets ||= [];
+  if (dashboard.settings.layoutSizingVersion !== 'home-grid-v3') { dashboard.settings.widgetSizes = {}; dashboard.settings.layoutSizingVersion = 'home-grid-v3'; }
+  // Older saved layouts used this onboarding-era key for the Company News card.
+  // Normalize it here as well as on the employee page so administration stays accurate.
+  dashboard.settings.layout = dashboard.settings.layout.map(key => key === 'new-warians' ? 'company-news' : key);
+  if (!dashboard.settings.layout.includes('apps') && !dashboard.settings.removedWidgets.includes('apps')) dashboard.settings.layout.unshift('apps');
+  dashboard.homePageContent ||= {};
+  const copy = { heroTitle:'Make room for what’s next.', heroDescription:'One place to find your people, sharpen your craft, and keep the work moving with purpose.', heroAction:'Explore what’s happening', heroActionUrl:'#knowledge', ...dashboard.homePageContent };
+  const layout = dashboard.settings.layout;
+  const storedWidgetSizes = dashboard.settings.widgetSizes;
+  dashboard.settings.widgetSizes = { ...defaultHomeWidgetSizes, ...storedWidgetSizes };
+  $('#view-home').innerHTML = `<p class="view-intro">Select text or a card in the employee preview to edit it. Use the destination picker to place any Home section exactly where you want it, then publish the order.</p><div class="home-editor-layout"><div class="home-editor-controls"><article class="panel"><div class="collection-heading"><div><span class="page-editor-eyebrow">Home hero</span><h2>Welcome message</h2><p>These fields control the introduction and action at the top of the employee Home page.</p></div></div><form id="home-hero-form" class="home-hero-form"><label>Heading<input id="home-hero-title" name="heroTitle" maxlength="90" required value="${escapeHtml(copy.heroTitle)}" /></label><label>Description<textarea name="heroDescription" maxlength="240" required rows="4">${escapeHtml(copy.heroDescription)}</textarea></label><label>Button label<input name="heroAction" maxlength="50" required value="${escapeHtml(copy.heroAction)}" /></label><label>Button link<input name="heroActionUrl" maxlength="500" required value="${escapeHtml(copy.heroActionUrl)}" placeholder="#knowledge, /recently-joined.html, or https://…" /><small>Use a Home anchor, an intranet path, or a secure HTTPS link.</small></label><div class="form-actions"><button class="action-button primary">Publish hero copy</button></div></form></article><article class="panel home-layout-panel"><div class="collection-heading"><div><span class="page-editor-eyebrow">Home layout</span><h2>Section order</h2><p>Choose a destination for a section to place it anywhere on the employee Home page.</p></div><button type="button" class="action-button primary" id="save-home-layout">Publish order</button></div><div class="home-layout-editor">${layout.map((key, index) => `<div class="home-layout-row"><span class="home-layout-number">${index + 1}</span><span><b>${escapeHtml(labels[key] || key)}</b><small>${dashboard.settings.hiddenWidgets?.includes(key) ? 'Hidden from employees' : 'Visible to employees'}</small></span><select aria-label="Move ${escapeHtml(labels[key] || key)} to position" data-home-layout-position="${key}">${layout.map((_, targetIndex) => `<option value="${targetIndex}" ${targetIndex === index ? 'selected' : ''}>Position ${targetIndex + 1}</option>`).join('')}</select>${destinations[key] ? `<button type="button" class="tool-button" data-home-edit-view="${destinations[key]}">Edit content</button>` : '<span></span>'}</div>`).join('')}</div></article></div>${employeePagePreview('Home page', '/', [['top','Hero'], ['knowledge','Knowledge Hub'], ['events','Events']], '', [])}</div>`;
+  const homeActions = `<div class="home-editor-commandbar" aria-label="Home editing actions">${hasAdminPermission('action.undo') ? `<button type="button" class="action-button secondary" data-home-undo ${homeHistory.undo.length ? '' : 'disabled'}>Undo</button>` : ''}${hasAdminPermission('action.redo') ? `<button type="button" class="action-button secondary" data-home-redo ${homeHistory.redo.length ? '' : 'disabled'}>Redo</button>` : ''}${hasAdminPermission('action.reset') ? '<button type="button" class="action-button danger" data-home-reset>Reset to defaults</button>' : ''}</div>`;
+  $('#view-home').innerHTML = `<p class="view-intro">Select text or a card in the employee preview to edit it. Use the destination picker to place any Home section exactly where you want it, then publish the order.</p>${homeActions}<div class="home-editor-layout"><div class="home-editor-controls"><article class="panel"><div class="collection-heading"><div><span class="page-editor-eyebrow">Home hero</span><h2>Welcome message</h2><p>These fields control the introduction and action at the top of the employee Home page.</p></div></div><form id="home-hero-form" class="home-hero-form"><label>Heading<input id="home-hero-title" name="heroTitle" maxlength="90" required value="${escapeHtml(copy.heroTitle)}" /></label><label>Description<textarea name="heroDescription" maxlength="240" required rows="4">${escapeHtml(copy.heroDescription)}</textarea></label><label>Button label<input name="heroAction" maxlength="50" required value="${escapeHtml(copy.heroAction)}" /></label><label>Button link<input name="heroActionUrl" maxlength="500" required value="${escapeHtml(copy.heroActionUrl)}" placeholder="#knowledge, /recently-joined.html, or https://…" /><small>Use a Home anchor, an intranet path, or a secure HTTPS link.</small></label><div class="form-actions"><button class="action-button primary">Publish hero copy</button></div></form></article><article class="panel home-layout-panel"><div class="collection-heading"><div><span class="page-editor-eyebrow">Home layout</span><h2>Section order</h2><p>Set placement, visibility, and size for each Home section. Removed sections can be added back before publishing.</p></div><button type="button" class="action-button primary" id="save-home-layout">Publish layout</button></div><div class="home-layout-editor">${layout.map((key, index) => `<div class="home-layout-row"><span class="home-layout-number">${index + 1}</span><span><b>${escapeHtml(labels[key] || key)}</b><small>${dashboard.settings.hiddenWidgets.includes(key) ? 'Hidden from employees' : 'Visible to employees'}</small></span><select aria-label="Move ${escapeHtml(labels[key] || key)} to position" data-home-layout-position="${key}">${layout.map((_, targetIndex) => `<option value="${targetIndex}" ${targetIndex === index ? 'selected' : ''}>Position ${targetIndex + 1}</option>`).join('')}</select>${destinations[key] ? `<button type="button" class="tool-button" data-home-edit-view="${destinations[key]}">Edit content</button>` : '<span></span>'}<div class="home-layout-controls"><label><input type="checkbox" data-home-layout-visible="${key}" ${dashboard.settings.hiddenWidgets.includes(key) ? '' : 'checked'} /> Visible</label><label>Size<select data-home-layout-size="${key}"><option value="compact" ${dashboard.settings.widgetSizes[key] === 'compact' ? 'selected' : ''}>Compact</option><option value="standard" ${!dashboard.settings.widgetSizes[key] || dashboard.settings.widgetSizes[key] === 'standard' ? 'selected' : ''}>Standard</option><option value="wide" ${dashboard.settings.widgetSizes[key] === 'wide' ? 'selected' : ''}>Wide</option><option value="full" ${dashboard.settings.widgetSizes[key] === 'full' ? 'selected' : ''}>Full width</option></select></label><button type="button" class="tool-button danger-link" data-home-remove-section="${key}">Remove from Home</button></div></div>`).join('')}</div>${(() => { const missing = Object.keys(labels).filter(key => !layout.includes(key)); return missing.length ? `<div class="home-layout-add"><label>Add a removed section<select id="add-home-section">${missing.map(key => `<option value="${key}">${escapeHtml(labels[key])}</option>`).join('')}</select></label><button class="action-button secondary" type="button" id="add-home-section-button">Add section</button></div>` : ''; })()}</article></div>${employeePagePreview('Home page', '/', [['top','Hero'], ['knowledge','Knowledge Hub'], ['events','Events']], '', [])}</div>`;
+  dashboard.settings.widgetSizes = storedWidgetSizes;
+  $('#home-hero-form').addEventListener('submit', async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)), link = String(values.heroActionUrl || '').trim(); if (!/^(#[A-Za-z][\w-]*|\/(?!\/)[^\s]*|https:\/\/[^\s]+)$/i.test(link)) { flash('Use a Home anchor, an intranet path beginning with /, or an HTTPS link for the button.'); return; } const before = homeSnapshot(); dashboard.homePageContent = { ...dashboard.homePageContent, ...values, heroActionUrl:link }; recordHomeChange(before); await saveDashboard('Home hero copy and button link published.', false, false); });
+}
+async function saveDashboard(message, rethrow = false, recordHistory = true, operation = '') {
   const previous = savedDashboard;
   try {
-    dashboard = await api('/api/admin/dashboard', { method:'PATCH', body:JSON.stringify({ data:dashboard, version:dashboard._version }) });
+    dashboard = await api('/api/admin/dashboard', { method:'PATCH', body:JSON.stringify({ data:dashboard, version:dashboard._version, operation }) });
     if (recordHistory && previous) for (const view of editablePageViews) {
       if (!pageChanged(previous, dashboard, view)) continue;
       const history = pageHistory[view];
@@ -826,8 +1074,12 @@ async function saveDashboard(message, rethrow = false, recordHistory = true) {
     savedDashboard = structuredClone(dashboard);
     summary = await api('/api/admin/summary').catch(() => summary);
     flash(message);
-    renderOverview(); renderContent(); contentPages.forEach(page => renderContentPage(page.view)); renderPeople(); renderNewSi(); renderApps(); renderAppearance(); updatePageTools();
-  } catch (error) { flash(error.message); if (rethrow) throw error; }
+    renderAllowedAdminViews(); updatePageTools();
+  } catch (error) {
+    if (previous) dashboard = structuredClone(previous);
+    flash(error.message);
+    if (rethrow) throw error;
+  }
 }
 function activeAdminView() { return document.querySelector('.admin-view.active')?.id.replace(/^view-/, '') || 'overview'; }
 const pageCreateActions = {
@@ -852,12 +1104,13 @@ function pageToolbarMarkup(view, history) {
   const hasPreview = Boolean(saveForm || createActions.some(action => action.preview));
   const importTool = pageImportTools[view];
   const editGroup = [create, saveForm ? `<button type="button" data-page-save-content="${saveForm}">Save content</button>` : '', hasPreview ? '<button type="button" data-page-preview-refresh>Refresh preview</button>' : ''].join('');
-  const dataItems = `${importTool ? `<input id="${importTool.input}" type="file" accept="${importTool.accept}" hidden /><a href="${importTool.template}" download="${importTool.filename}">Download template</a><button type="button" ${importTool.action}>Import CSV</button>` : ''}<button type="button" data-page-export>Export JSON</button>`;
-  const dataMenu = `<details class="admin-page-tools-menu"><summary>Data</summary><div class="admin-page-tools-menu-items" role="menu">${dataItems}</div></details>`;
-  const historyGroup = `<div class="admin-page-tools-group"><button type="button" data-page-undo ${pageToolBusy || !history.undo.length ? 'disabled' : ''}>Undo</button><button type="button" data-page-redo ${pageToolBusy || !history.redo.length ? 'disabled' : ''}>Redo</button></div>`;
-  const moreItems = `${view === 'knowledge' ? `<button type="button" class="admin-page-remove-all" data-page-remove-all-sessions ${dashboard.sessions?.length ? '' : 'disabled'}>Remove all sessions</button>` : ''}<button type="button" data-page-reset class="admin-page-reset" ${pageToolBusy ? 'disabled' : ''}>Reset to default</button>`;
-  const moreMenu = `<details class="admin-page-tools-menu"><summary>More actions</summary><div class="admin-page-tools-menu-items" role="menu">${moreItems}</div></details>`;
-  return `${editGroup ? `<div class="admin-page-tools-group">${editGroup}</div>` : ''}${historyGroup}<div class="admin-page-tools-group">${dataMenu}${moreMenu}</div>`;
+  const dataItems = `${importTool && hasAdminPermission('action.import') ? `<input id="${importTool.input}" type="file" accept="${importTool.accept}" hidden /><a href="${importTool.template}" download="${importTool.filename}">Download template</a><button type="button" ${importTool.action}>Import CSV</button>` : ''}${hasAdminPermission('action.export') ? '<button type="button" data-page-export>Export JSON</button>' : ''}`;
+  const dataMenu = dataItems ? `<details class="admin-page-tools-menu"><summary>Data</summary><div class="admin-page-tools-menu-items" role="menu">${dataItems}</div></details>` : '';
+  const historyItems = `${hasAdminPermission('action.undo') ? `<button type="button" data-page-undo ${pageToolBusy || !history.undo.length ? 'disabled' : ''}>Undo</button>` : ''}${hasAdminPermission('action.redo') ? `<button type="button" data-page-redo ${pageToolBusy || !history.redo.length ? 'disabled' : ''}>Redo</button>` : ''}`;
+  const historyGroup = historyItems ? `<div class="admin-page-tools-group">${historyItems}</div>` : '';
+  const moreItems = `${view === 'knowledge' && hasAdminPermission('action.delete') ? `<button type="button" class="admin-page-remove-all" data-page-remove-all-sessions ${dashboard.sessions?.length ? '' : 'disabled'}>Remove all sessions</button>` : ''}${hasAdminPermission('action.reset') ? `<button type="button" data-page-reset class="admin-page-reset" ${pageToolBusy ? 'disabled' : ''}>Reset to default</button>` : ''}`;
+  const moreMenu = moreItems ? `<details class="admin-page-tools-menu"><summary>More actions</summary><div class="admin-page-tools-menu-items" role="menu">${moreItems}</div></details>` : '';
+  return `${editGroup ? `<div class="admin-page-tools-group">${editGroup}</div>` : ''}${historyGroup}${dataMenu || moreMenu ? `<div class="admin-page-tools-group">${dataMenu}${moreMenu}</div>` : ''}`;
 }
 function updatePageTools() {
   const tools = $('#admin-page-tools'), view = activeAdminView(), available = canEditContent && Boolean(pageDataKeys[view]);
@@ -884,7 +1137,7 @@ async function stepPageHistory(view, direction) {
   const entry = source.pop(), previous = structuredClone(dashboard);
   applyPageSnapshot(dashboard, view, direction === 'undo' ? entry.before : entry.after);
   updatePageTools();
-  try { await saveDashboard(`${direction === 'undo' ? 'Undid' : 'Redid'} the last ${$('#page-title').textContent} change.`, true, false); destination.push(entry); }
+  try { await saveDashboard(`${direction === 'undo' ? 'Undid' : 'Redid'} the last ${$('#page-title').textContent} change.`, true, false, direction); destination.push(entry); }
   catch { dashboard = previous; source.push(entry); }
   pageToolBusy = false;
   updatePageTools();
@@ -895,7 +1148,7 @@ async function resetPageToDefault(view) {
   const defaults = pageSnapshot(response.defaults, view);
   if (JSON.stringify(pageSnapshot(dashboard, view)) === JSON.stringify(defaults)) { flash(`${label} already matches its default.`); return; }
   applyPageSnapshot(dashboard, view, defaults);
-  try { await saveDashboard(`${label} restored to default. Use Undo to restore the previous version.`, true); }
+  try { await saveDashboard(`${label} restored to default. Use Undo to restore the previous version.`, true, true, 'reset'); }
   catch (error) { dashboard = previous; throw error; }
 }
 function setupPageTools() {
@@ -967,6 +1220,47 @@ document.addEventListener('click', event => {
   if (move) { const [key, delta] = move.dataset.layoutMove.split(':'), index = dashboard.settings.layout.indexOf(key), next = index + Number(delta); if (next >= 0 && next < dashboard.settings.layout.length) [dashboard.settings.layout[index], dashboard.settings.layout[next]] = [dashboard.settings.layout[next], dashboard.settings.layout[index]]; renderAppearance(); }
   if (event.target.id === 'save-appearance') saveDashboard('Homepage layout saved.');
 });
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-home-undo]')) { stepHomeHistory('undo'); return; }
+  if (event.target.closest('[data-home-redo]')) { stepHomeHistory('redo'); return; }
+  if (event.target.closest('[data-home-reset]')) { resetHomeToDefaults().catch(error => flash(error.message)); return; }
+  const edit = event.target.closest('[data-home-edit-view]');
+  if (edit) { showView(edit.dataset.homeEditView); return; }
+  const remove = event.target.closest('[data-home-remove-section]');
+  if (remove) {
+    const key = remove.dataset.homeRemoveSection;
+    if (!confirm(`Remove ${key === 'apps' ? 'Main Apps' : key.replace(/-/g, ' ')} from the Home page? Its content will be kept and you can add the section back later.`)) return;
+    changeHome(() => {
+      dashboard.settings.layout = dashboard.settings.layout.filter(item => item !== key);
+      dashboard.settings.hiddenWidgets = dashboard.settings.hiddenWidgets.filter(item => item !== key);
+      dashboard.settings.removedWidgets = [...new Set([...(dashboard.settings.removedWidgets || []), key])];
+    }); return;
+  }
+  if (event.target.id === 'add-home-section-button') {
+    const key = $('#add-home-section')?.value;
+    if (!key) return;
+    changeHome(() => {
+      dashboard.settings.layout.push(key);
+      dashboard.settings.removedWidgets = (dashboard.settings.removedWidgets || []).filter(item => item !== key);
+    }); return;
+  }
+  if (event.target.id === 'save-home-layout') saveDashboard('Home section order published.');
+});
+document.addEventListener('change', event => {
+  const select = event.target.closest('[data-home-layout-position]');
+  if (select) {
+    const layout = dashboard.settings?.layout || [], from = layout.indexOf(select.dataset.homeLayoutPosition), to = Number(select.value);
+    if (from < 0 || !Number.isInteger(to) || to < 0 || to >= layout.length) return;
+    changeHome(() => { const [section] = layout.splice(from, 1); layout.splice(to, 0, section); }); return;
+  }
+  const visible = event.target.closest('[data-home-layout-visible]');
+  if (visible) {
+    const hidden = new Set(dashboard.settings.hiddenWidgets || []), key = visible.dataset.homeLayoutVisible;
+    changeHome(() => { visible.checked ? hidden.delete(key) : hidden.add(key); dashboard.settings.hiddenWidgets = [...hidden]; }); return;
+  }
+  const size = event.target.closest('[data-home-layout-size]');
+  if (size) { const key = size.dataset.homeLayoutSize; changeHome(() => { if (size.value === (defaultHomeWidgetSizes[key] || 'standard')) delete dashboard.settings.widgetSizes[key]; else dashboard.settings.widgetSizes[key] = size.value; }); }
+});
 document.addEventListener('click', event => { const button = event.target.closest('[data-import-new-members]'); if (button) $('#new-members-csv')?.click(); });
 document.addEventListener('change', async event => {
   const input = event.target.closest('#new-members-csv');
@@ -986,6 +1280,24 @@ document.addEventListener('change', async event => {
   finally { input.value = ''; if (button) { button.disabled = false; button.textContent = 'Import CSV'; } }
 });
 document.addEventListener('change', event => { if (!event.target.dataset.layoutVisible) return; const key = event.target.dataset.layoutVisible, hidden = new Set(dashboard.settings.hiddenWidgets || []); event.target.checked ? hidden.delete(key) : hidden.add(key); dashboard.settings.hiddenWidgets = [...hidden]; renderAppearance(); });
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-edit-email]'); if (!button) return;
+  const preview = button.closest('.announcement-email-preview'), frame = preview?.querySelector('[data-email-preview]'), value = preview?.querySelector('[data-email-html]'), document = frame?.contentDocument;
+  if (!preview || !frame || !value || !document?.body) return;
+  const editing = !preview.classList.contains('is-editing');
+  preview.classList.toggle('is-editing', editing); document.body.contentEditable = String(editing); document.body.spellcheck = editing;
+  frame.title = editing ? 'Editable announcement email' : 'Announcement email preview'; button.textContent = editing ? 'Finish editing' : 'Edit email';
+  const capture = () => { value.value = `<!doctype html>${document.documentElement.outerHTML}`; };
+  if (editing) { frame.addEventListener('load', capture, { once:true }); document.addEventListener('input', capture); document.body.focus(); }
+  capture();
+});
+document.addEventListener('paste', event => {
+  const editor = event.target.closest('[data-rich-editor]'), form = editor?.closest('[data-editor="announcements"]'), html = event.clipboardData?.getData('text/html');
+  if (!editor || !form || !isEmailAnnouncementHtml(html)) return;
+  event.preventDefault(); form.dataset.emailClipboardHtml = html;
+  const missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html), richEditor = editor.closest('.rich-editor');
+  richEditor.outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>Original email layout captured. Select Edit email to change its text before saving.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section>`;
+});
 document.addEventListener('click', event => { const control = event.target.closest('[data-rich-command]'); if (!control || control.matches('select,input')) return; const editor = control.closest('form')?.querySelector('[data-rich-editor]'); if (!editor) return; editor.focus(); document.execCommand(control.dataset.richCommand, false, null); });
 document.addEventListener('change', event => { const control = event.target.closest('[data-rich-command]'); if (!control || !control.matches('select,input')) return; const editor = control.closest('form')?.querySelector('[data-rich-editor]'); if (!editor) return; editor.focus(); const command = control.dataset.richCommand, value = command === 'formatBlock' ? `<${control.value}>` : control.value; document.execCommand(command, false, value); });
 function renderAttachmentSelection(input) { const files = input._announcementFiles || []; let output = input.parentElement.querySelector('[data-attachment-selection]'); if (!output) { output = document.createElement('div'); output.className = 'attachment-selection'; output.dataset.attachmentSelection = ''; input.insertAdjacentElement('afterend', output); } output.innerHTML = files.length ? `<b>${files.length} file${files.length === 1 ? '' : 's'} ready to add</b>${files.map((file, index) => `<small>${escapeHtml(file.name)} · ${Math.ceil(file.size / 1024)} KB <button type="button" data-remove-selected-attachment="${index}">Remove</button></small>`).join('')}` : '<b>No new files selected</b><small>Select files together, or choose more files again to add another batch.</small>'; }
@@ -998,56 +1310,188 @@ document.addEventListener('click', event => { const remove = event.target.closes
 document.addEventListener('submit', event => { const form = event.target.closest('[data-editor="sessions"]'); if (!form) return; event.stopImmediatePropagation(); saveKnowledgeSession(event, form); }, true);
 document.addEventListener('submit', event => { const form = event.target.closest('[data-editor="moments"]'); if (!form) return; event.stopImmediatePropagation(); saveMoment(event, form); }, true);
 document.addEventListener('submit', event => { const form = event.target.closest('[data-editor="newMembers"]'); if (!form) return; event.stopImmediatePropagation(); saveMember(event, form); }, true);
+function syncAnnouncementRepeatOptions(form) {
+  const mode = form.querySelector('[name="deliveryMode"]:checked')?.value, scheduled = mode === 'scheduled', repeat = form.querySelector('[name="repeatAnnouncement"]')?.checked, options = form.querySelector('[data-announcement-schedule-options]'), repeatOptions = form.querySelector('[data-announcement-repeat-options]'), scheduleDate = form.querySelector('[name="scheduleDate"]'), time = form.querySelector('[name="scheduleTime"]'), frequency = form.querySelector('[name="scheduleFrequency"]'), weekday = form.querySelector('[name="scheduleDayOfWeek"]'), monthday = form.querySelector('[name="scheduleDayOfMonth"]');
+  if (options) options.hidden = !scheduled;
+  if (repeatOptions) repeatOptions.hidden = !scheduled || !repeat;
+  if (time) time.required = scheduled;
+  if (scheduleDate) scheduleDate.required = scheduled;
+  const weekly = frequency?.value === 'weekly';
+  form.querySelector('[data-schedule-weekday]').hidden = !weekly;
+  form.querySelector('[data-schedule-monthday]').hidden = frequency?.value !== 'monthly';
+  if (!scheduleDate?.value) return;
+  const selected = new Date(`${scheduleDate.value}T12:00:00`);
+  if (weekly && weekday && weekday.dataset.userSelected !== 'true') weekday.value = String(selected.getDay());
+  if (frequency?.value === 'monthly' && monthday) monthday.value = String(selected.getDate());
+}
+document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; syncAnnouncementRepeatOptions(form); });
+document.addEventListener('click', async event => { const action = event.target.closest('[data-toggle-announcement-schedule], [data-remove-announcement-schedule]'); if (!action) return; const id = action.dataset.toggleAnnouncementSchedule || action.dataset.removeAnnouncementSchedule, schedule = dashboard.announcementSchedules?.find(item => item.id === id); if (!schedule) return; if (action.dataset.removeAnnouncementSchedule) { dashboard.announcementSchedules = dashboard.announcementSchedules.filter(item => item.id !== id); await saveDashboard('Announcement schedule removed.'); } else { schedule.enabled = !schedule.enabled; await saveDashboard(`Announcement schedule ${schedule.enabled ? 'resumed' : 'paused'}.`); } });
+document.addEventListener('click', async event => { const use = event.target.closest('[data-use-announcement-template]'), remove = event.target.closest('[data-remove-announcement-template]'); if (!use && !remove) return; const id = (use || remove).dataset.useAnnouncementTemplate || (use || remove).dataset.removeAnnouncementTemplate, template = dashboard.announcementTemplates?.find(item => item.id === id); if (!template) return; if (remove) { dashboard.announcementTemplates = dashboard.announcementTemplates.filter(item => item.id !== id); await saveDashboard('Announcement template removed.'); return; } const form = document.querySelector('[data-editor="announcements"]'); if (!form) return; delete form.dataset.editAnnouncementTemplate; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''), missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>This template keeps its original email layout. Select Edit email to change its text.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; flash(`Template “${template.title}” loaded. Choose Send now, Schedule, or save an updated template.`); });
+document.addEventListener('click', event => { const action = event.target.closest('[data-edit-announcement-template]'); if (!action) return; const template = dashboard.announcementTemplates?.find(item => item.id === action.dataset.editAnnouncementTemplate), form = document.querySelector('[data-editor="announcements"]'); if (!template || !form) return; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email template</h4><p>Edit the original email layout, then select Save changes to update this template.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Editable announcement email template" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" /></section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; form.dataset.editAnnouncementTemplate = template.id; form.querySelector('.form-actions .action-button.primary')?.replaceChildren(document.createTextNode('Update template')); flash(`Editing template “${template.title}”. Save changes updates this template only.`); });
+document.addEventListener('click', event => { const button = event.target.closest('[data-save-announcement-template]'); if (!button) return; const form = button.closest('form'); if (!form) return; form.dataset.saveAsTemplate = 'true'; form.noValidate = true; form.requestSubmit(); });
 document.addEventListener('submit', async event => {
   const form = event.target.closest('[data-editor]');
   if (form) {
     event.preventDefault();
     const key = form.dataset.editor, id = editingRecord[key], record = id && dashboard[key].find(item => item.id === id), formData = new FormData(form), values = Object.fromEntries(formData), iconImage = formData.get('iconImage'), policyDocument = formData.get('policyDocument'), announcementMedia = formData.get('announcementMedia'), announcementAttachments = formData.getAll('announcementAttachment').filter(file => file?.name), attachmentInput = form.querySelector('input[name="announcementAttachment"]'), policyDocumentInput = form.querySelector('input[name="policyDocument"]'), richEditor = form.querySelector('[data-rich-editor]');
-    delete values.iconImage; delete values.policyDocument; delete values.announcementMedia; delete values.announcementAttachment;
-    if (richEditor) { const templateIsUnchanged = isLegacyAnnouncementTemplate(record || {}) && richEditor.innerHTML === editableAnnouncementHtml(record); if (!templateIsUnchanged) values.bodyHtml = richEditor.innerHTML; values.body = richEditor.innerText.trim(); }
+    const editedTemplateId = form.dataset.editAnnouncementTemplate || '', deliveryMode = form.dataset.saveAsTemplate === 'true' || editedTemplateId ? 'template' : values.deliveryMode, schedule = { frequency:values.repeatAnnouncement === 'true' ? values.scheduleFrequency : 'once', scheduledDate:values.scheduleDate, time:values.scheduleTime, dayOfWeek:Number(values.scheduleDayOfWeek), dayOfMonth:Number(values.scheduleDayOfMonth) };
+    delete form.dataset.saveAsTemplate;
+    delete form.dataset.editAnnouncementTemplate;
+    form.noValidate = false;
+    delete values.iconImage; delete values.policyDocument; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
+    const capturedEmailHtml = String(values.legacyEmailHtml || form.dataset.emailClipboardHtml || ''); delete values.legacyEmailHtml; delete form.dataset.emailClipboardHtml;
+    if (key === 'announcements' && capturedEmailHtml) { values.bodyHtml = capturedEmailHtml; values.body = new DOMParser().parseFromString(capturedEmailHtml, 'text/html').body.innerText.trim(); }
+    else if (richEditor) {
+      const sourceHtml = richEditor.innerHTML;
+      if (key === 'announcements' && isLegacyAnnouncementTemplate({ bodyHtml:sourceHtml })) { values.bodyHtml = sourceHtml; values.body = new DOMParser().parseFromString(sourceHtml, 'text/html').body.innerText.trim(); }
+      else { const cleanHtml = editableAnnouncementHtml({ bodyHtml:sourceHtml }), templateIsUnchanged = cleanHtml === editableAnnouncementHtml(record || {}); if (!templateIsUnchanged) values.bodyHtml = cleanHtml; values.body = new DOMParser().parseFromString(cleanHtml, 'text/html').body.innerText.trim(); }
+    }
+    else if (key === 'announcements' && isLegacyAnnouncementTemplate(record || {})) {
+      values.bodyHtml = record.bodyHtml;
+      values.body = new DOMParser().parseFromString(values.bodyHtml, 'text/html').body.innerText.trim() || record.body || '';
+    }
     try {
       const iconUrl = ['apps','supportPortals'].includes(key) ? await uploadAppIcon(iconImage) : '';
       const policyDocumentUrl = key === 'policies' ? await uploadAnnouncementFile(policyDocument, ['application/pdf'], 'policy document') : '';
       const mediaUrl = key === 'announcements' ? await uploadAnnouncementFile(announcementMedia, announcementMediaTypes, 'photo or video') : '';
       const uploadedAttachments = key === 'announcements' ? await Promise.all(announcementAttachments.map(async file => ({ url:await uploadAnnouncementFile(file, announcementAttachmentTypes, 'attachment'), filename:file.name }))) : [];
       const iconData = iconUrl ? { iconUrl, iconFilename:iconImage.name } : {};
-      const existingAttachments = record?.attachments || (record?.attachmentUrl ? [{ url:record.attachmentUrl, filename:record.attachmentFilename || savedFilename({ iconUrl:record.attachmentUrl }) }] : []);
+      const templateSource = key === 'announcements' ? form._announcementTemplate : null;
+      const existingAttachments = record?.attachments || templateSource?.attachments || (record?.attachmentUrl ? [{ url:record.attachmentUrl, filename:record.attachmentFilename || savedFilename({ iconUrl:record.attachmentUrl }) }] : []);
       const removedAttachmentUrls = attachmentInput?._removedAttachmentUrls || new Set();
       const remainingAttachments = existingAttachments.filter(file => !removedAttachmentUrls.has(file.url));
       const attachmentsChanged = key === 'announcements' && (uploadedAttachments.length || removedAttachmentUrls.size);
       const announcementData = {
+        ...(templateSource?.mediaUrl ? { mediaUrl:templateSource.mediaUrl, mediaFilename:templateSource.mediaFilename || '' } : {}),
+        ...(templateSource?.attachments?.length ? { attachments:templateSource.attachments, attachmentUrl:'', attachmentFilename:'' } : {}),
         ...(mediaUrl ? { mediaUrl, mediaFilename:announcementMedia.name } : {}),
         ...(attachmentsChanged ? { attachments:[...remainingAttachments, ...uploadedAttachments], attachmentUrl:'', attachmentFilename:'' } : {})
       };
+      if (key === 'announcements' && deliveryMode === 'now' && !record) { const publishedAt = new Date(); values.date = announcementTimestamp(publishedAt); values.publishedAt = publishedAt.toISOString(); }
       const policyUrl = key === 'policies' ? normalisePolicyUrl(values.canonicalUrl) : '';
       const policyData = key === 'policies' ? (policyDocumentUrl ? { canonicalUrl:policyDocumentUrl } : policyDocumentInput?._removeCurrentDocument ? { canonicalUrl:'' } : { canonicalUrl:policyUrl }) : {};
-      if (record) Object.assign(record, values, iconData, announcementData, policyData); else { const created = createRecord(key, form); Object.assign(created, values, iconData, announcementData, policyData); dashboard[key].push(created); }
+      if (key === 'announcements' && deliveryMode === 'scheduled') { dashboard.announcementSchedules ||= []; dashboard.announcementSchedules.push({ id:`announcement-schedule-${Date.now()}`, ...values, ...schedule, ...announcementData, enabled:true }); }
+      else if (key === 'announcements' && deliveryMode === 'template') { dashboard.announcementTemplates ||= []; const template = editedTemplateId && dashboard.announcementTemplates.find(item => item.id === editedTemplateId); if (template) Object.assign(template, values, announcementData); else dashboard.announcementTemplates.push({ id:`announcement-template-${Date.now()}`, ...values, ...announcementData }); }
+      else if (record) Object.assign(record, values, iconData, announcementData, policyData); else { const created = createRecord(key, form); Object.assign(created, values, iconData, announcementData, policyData); dashboard[key].push(created); }
       editingRecord[key] = '';
-      await saveDashboard(iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and changes published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : policyDocumentInput?._removeCurrentDocument ? 'Policy PDF removed from the employee page.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : mediaUrl || uploadedAttachments.length || removedAttachmentUrls.size ? 'Announcement attachments updated and published.' : 'Changes saved and published to the intranet.');
+      await saveDashboard(deliveryMode === 'scheduled' ? 'Announcement scheduled. It will publish automatically in Cairo time.' : deliveryMode === 'template' ? editedTemplateId ? 'Announcement template updated.' : 'Announcement template saved. Use it any time from this list.' : iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and changes published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : policyDocumentInput?._removeCurrentDocument ? 'Policy PDF removed from the employee page.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : mediaUrl || uploadedAttachments.length || removedAttachmentUrls.size ? 'Announcement attachments updated and published.' : 'Changes saved and published to the intranet.');
     } catch (error) { flash(error.message); }
     return;
   }
   if (event.target.id === 'ack-content-form') {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.target)), copyForm = $('#newsi-page-copy-form'), pageCopy = copyForm ? Object.fromEntries(new FormData(copyForm)) : {};
-    if (Object.entries(pageCopy).some(([, value]) => !String(value).trim())) { flash('Page text cannot be empty. Restore or edit the highlighted text before saving.'); return; }
+    const values = Object.fromEntries(new FormData(event.target)), copyForm = $('#newsi-page-copy-form'), pageCopy = copyForm ? Object.fromEntries([...new FormData(copyForm)].filter(([, value]) => String(value).trim())) : {};
+    if ([...(copyForm?.elements || [])].some(input => input.dataset.previewTouched === 'true' && !input.value.trim())) { flash('Page text cannot be empty. Restore or edit the highlighted text before saving.'); return; }
     if (Object.entries(pageCopy).some(([, value]) => String(value).length > 600)) { flash('Keep each highlighted page text field under 600 characters.'); return; }
-    dashboard.newSiPageContent = pageCopy;
-    dashboard.policyAcknowledgementContent = { ...dashboard.policyAcknowledgementContent, ...values, version:(Number(dashboard.policyAcknowledgementContent?.version) || 1) + 1 };
+    dashboard.newSiPageContent = { ...dashboard.newSiPageContent, ...pageCopy };
+    const acknowledgement = dashboard.policyAcknowledgementContent || {};
+    const acknowledgementChanged = Object.entries(values).some(([name, value]) => String(acknowledgement[name] || '') !== String(value));
+    if (acknowledgementChanged) dashboard.policyAcknowledgementContent = { ...acknowledgement, ...values, version:(Number(acknowledgement.version) || 1) + 1 };
     saveDashboard('New Si-Warians page content saved and published.');
   }
 });
 async function renderMedia() { const root = $('#view-media'); root.innerHTML = '<p class="view-intro">Loading reusable media inventory…</p>'; try { const files = await api('/api/admin/media'); root.innerHTML = `<p class="view-intro">Reusable uploads are checked for current usage before any removal. Direct destructive removal is intentionally unavailable here.</p><div class="media-grid">${files.map(file => `<article class="media-file"><b title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</b><small>${Math.ceil(file.size / 1024)} KB · ${cairo(file.modifiedAt)}</small><a class="tool-link" href="${encodeURI(file.url)}" target="_blank" rel="noopener">Open file ↗</a><span class="record-tag">${file.inUse ? 'In use' : 'Not referenced'}</span></article>`).join('') || '<p class="empty">No uploaded media yet.</p>'}</div>`; } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
-async function renderAccess() { const root = $('#view-access'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { const data = await api('/api/admin/access'); root.innerHTML = `<p class="view-intro">Roles are applied at sign-in. Content editing, publishing, access administration, audit viewing, and audit export are separated. The final administrator cannot be removed or demoted.</p><div class="section-grid"><article class="panel"><h2>Authorized access</h2>${list(data.users, user => `<div class="list-row"><span><b>${escapeHtml(user.name || user.email)}</b><small>${escapeHtml(user.email)}</small></span><span class="record-tag">${escapeHtml(user.role)}</span></div>`)}</article><article class="panel"><h2>Grant or update access</h2><form id="access-form"><div class="form-grid"><label>Name<input name="name" maxlength="80" placeholder="Employee name" /></label><label>Work email<input name="email" required type="email" placeholder="name@si-ware.com" /></label><label>Role<select name="role">${data.roles.map(role => `<option>${role}</option>`).join('')}</select></label></div><p class="notice">Only approved Google Workspace identities can sign in. This assigns an intranet role; it never changes Workspace access.</p><div class="form-actions"><button class="action-button primary">Save role</button></div></form></article></div>`; $('#access-form').addEventListener('submit', saveAccess); } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
-async function saveAccess(event) { event.preventDefault(); const form = new FormData(event.currentTarget); try { await api('/api/admin/access', { method:'PATCH', body:JSON.stringify(Object.fromEntries(form)) }); flash('Access role saved. It takes effect on the person’s next sign-in.'); renderAccess(); } catch (error) { flash(error.message); } }
-const auditContentLabels = { user:'Intranet profile', apps:'Main Apps · app links', announcements:'Announcements', socialLinks:'Social Media · channels', moments:'Moments · cards', momentsPageContent:'Moments · page text', sessions:'Knowledge Hub · sessions', knowledgePageContent:'Knowledge Hub · page text', events:'Events & key dates', whistleblowerConfig:'Whistleblower · guidance', newMembers:'Recently Joined · colleagues', recentlyJoinedPageContent:'Recently Joined · page text', policies:'New Si-Warians · policies', firstWeekChecklist:'New Si-Warians · first-week checklist', supportPortals:'New Si-Warians · support portals', policyAcknowledgementContent:'New Si-Warians · acknowledgement', newSiPageContent:'New Si-Warians · page text', settings:'Appearance' };
-function auditChangedContent(event) { const listed = event.changes?.pages || event.changes?.fields?.map(field => auditContentLabels[field] || field); return listed?.length ? [...new Set(listed)].join(' · ') : event.resource || event.component || event.route || '—'; }
-async function renderActivity() { const root = $('#view-activity'), query = root.querySelector('[name="q"]')?.value || ''; root.innerHTML = `<p class="view-intro">User activity records browser-reported navigation and controls. Audit records are authoritative server results. Anonymous whistleblower flows are deliberately excluded.</p><div class="filters"><label>Event type<select id="audit-category"><option value="audit" ${auditCategory === 'audit' ? 'selected' : ''}>Authoritative audit</option><option value="activity" ${auditCategory === 'activity' ? 'selected' : ''}>User activity</option></select></label><label class="filter-grow">Search<input id="audit-query" value="${escapeHtml(query)}" placeholder="User, action, resource…" /></label><button class="action-button" id="audit-filter">Filter</button>${auditCategory === 'audit' ? '<a class="action-button" href="/api/admin/audit/export">Export audit CSV</a>' : ''}</div><div id="audit-results"><p class="empty">Loading events…</p></div>`; try { const data = await api(`/api/admin/audit?category=${auditCategory}&q=${encodeURIComponent(query)}&page=${activityPage}`); $('#audit-results').innerHTML = `<table class="audit-table"><thead><tr><th>When (Cairo)</th><th>Actor</th><th>Action</th><th>Changed page content</th><th>Outcome</th></tr></thead><tbody>${data.records.map(event => `<tr><td>${cairo(event.serverReceivedAt || event.occurredAt)}</td><td>${escapeHtml(event.actor?.name || 'System')}</td><td>${escapeHtml(event.action || '—')}</td><td>${escapeHtml(auditChangedContent(event))}</td><td class="outcome-${escapeHtml(event.outcome || 'success')}">${escapeHtml(event.outcome || 'reported')}</td></tr>`).join('') || '<tr><td colspan="5">No matching events.</td></tr>'}</tbody></table><div class="pager"><button class="action-button" data-page="prev" ${data.page <= 1 ? 'disabled' : ''}>Previous</button><span>Page ${data.page} of ${data.pages} · ${data.total} events</span><button class="action-button" data-page="next" ${data.page >= data.pages ? 'disabled' : ''}>Next</button></div>`; } catch (error) { $('#audit-results').innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; }
-  $('#audit-category').addEventListener('change', event => { auditCategory = event.target.value; activityPage = 1; renderActivity(); }); $('#audit-filter').addEventListener('click', () => { activityPage = 1; renderActivity(); }); $('#audit-results').addEventListener('click', event => { const direction = event.target.dataset.page; if (!direction) return; activityPage += direction === 'next' ? 1 : -1; renderActivity(); }); }
-function renderSettings() { $('#view-settings').innerHTML = `<p class="view-intro">Retention controls are deliberately limited to governance data. Credentials, SSO settings, and secrets remain environment configuration, not content-management fields.</p><div class="section-grid"><article class="panel"><h2>Retention policy</h2><form class="settings-form" id="settings-form"><div class="form-grid"><label>Audit retention (days)<input required name="auditRetentionDays" type="number" min="30" max="3650" value="${summary.settings?.auditRetentionDays || 365}" /></label><label>Activity retention (days)<input required name="activityRetentionDays" type="number" min="7" max="3650" value="${summary.settings?.activityRetentionDays || 90}" /></label></div><p class="notice">Changes are recorded in the authoritative audit trail. Cleanup applies only to aged records, never selective individual-event deletion.</p><div class="form-actions"><button class="action-button primary">Save retention policy</button></div></form></article><article class="panel"><h2>Environment security</h2><p>Google Workspace SSO is the supported authentication path. Configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>APP_ORIGIN</code>, <code>GOOGLE_WORKSPACE_DOMAIN</code>, <code>GOOGLE_ADMIN_EMAILS</code>, and <code>SECURE_COOKIES=true</code> outside this UI.</p><p class="notice warning">This local prototype uses JSON storage and memory-backed sessions. Use a transactional database and shared session store before production deployment.</p></article></div>`; $('#settings-form').addEventListener('submit', saveSettings); }
-async function saveSettings(event) { event.preventDefault(); try { summary.settings = await api('/api/admin/settings', { method:'PATCH', body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); flash('Retention policy saved.'); renderSettings(); } catch (error) { flash(error.message); } }
-function showView(name) { $$('.admin-sidebar button[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === name)); $$('.admin-view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`)); const titles = { apps:'Apps', access:'Users & access', activity:'Activity & audit', newsi:'New Si-Warians', announcements:'Announcements', social:'Social Media', whistleblower:'Whistleblower', moments:'Moments' }; $('#page-title').textContent = titles[name] || name[0].toUpperCase() + name.slice(1); if (contentPages.some(page => page.view === name)) renderContentPage(name); if (name === 'newsi') renderNewSi(); if (name === 'media') renderMedia(); if (name === 'access') renderAccess(); if (name === 'activity') renderActivity(); updatePageTools(); }
-async function start() { try { const me = await api('/api/auth/me'); if (!me.permissions?.some(permission => ['audit.view', 'content.edit'].includes(permission))) { location.replace('/'); return; } dashboard = await api('/api/dashboard'); savedDashboard = structuredClone(dashboard); canEditContent = me.permissions.includes('content.edit'); summary = await api('/api/admin/summary'); $('#admin-user').textContent = me.name; $('#admin-role').textContent = me.role.replace('_', ' '); $('#admin-avatar').textContent = me.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'AD'; $('#admin-account-toggle').setAttribute('aria-label', `${me.name}, ${me.role.replace('_', ' ')}. Account menu`); if (!me.permissions.includes('access.manage')) $('[data-view="access"]').hidden = true; if (!me.permissions.includes('audit.view')) $('[data-view="activity"]').hidden = true; if (!me.permissions.includes('settings.manage')) $('[data-view="settings"]').hidden = true; renderOverview(); renderContent(); renderPeople(); renderApps(); renderAppearance(); renderSettings(); setupPageTools(); updatePageTools(); $$('.admin-sidebar button[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view))); document.addEventListener('click', event => { const target = event.target.closest('[data-goto]'); if (target) showView(target.dataset.goto); }); const signOut = async () => { await api('/auth/logout', { method:'POST' }); location.assign('/login.html'); }; $('#sign-out').addEventListener('click', signOut); $('#mobile-sign-out').addEventListener('click', signOut); $('#header-sign-out').addEventListener('click', signOut); } catch (_) { location.replace('/login.html?returnTo=/admin.html'); } }
+let accessDirectory = null;
+const roleLabel = role => String(role || '').split('_').map(part => part[0] + part.slice(1).toLowerCase()).join(' ');
+const permissionLabel = permission => ({ 'admin.access':'Admin Panel access', 'content.edit':'Edit content', 'content.publish':'Publish announcements', 'media.manage':'Manage media', 'access.manage':'Manage users', 'audit.view':'View audit trail', 'audit.export':'Export audit trail', 'settings.manage':'Manage settings' }[permission] || intranetPages.find(page => page.permission === permission)?.label || (pagePermissionNames[permission] ? `Admin · ${pagePermissionNames[permission]}` : permission));
+const initialsForUser = user => String(user.name || user.email || 'U').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+const pagePermissionOptions = Object.values(adminViewPermissions);
+const globalActionPermissions = adminActionPermissions;
+async function loadAccessDirectory() { accessDirectory = await api('/api/admin/access'); }
+function usersRoleOptions(roles) { return roles.map(role => `<option value="${escapeHtml(role.id)}">${escapeHtml(roleLabel(role.id))}</option>`).join(''); }
+function renderAccessUsers() { const root = $('#view-access'), data = accessDirectory, users = data.users || [], roles = data.roles || [], roleOptions = usersRoleOptions(roles); root.innerHTML = `<div class="access-page-heading"><div><h1>Users</h1><p>Manage platform users and their access.</p></div><div class="access-actions"><button class="action-button" type="button" data-users-template>Download CSV template</button><label class="action-button" for="users-csv-input">Import CSV</label><input id="users-csv-input" type="file" accept=".csv,text/csv" hidden /><button class="action-button primary" type="button" data-add-user>Add user</button></div></div><div class="user-metrics"><article><span>Total users</span><b>${users.length}</b></article><article><span>Administrators</span><b>${users.filter(user => user.role === 'ADMIN').length}</b></article><article><span>Editors</span><b>${users.filter(user => user.role === 'CONTENT_EDITOR').length}</b></article><article class="user-metric-online"><span><i></i>Role assigned</span><b>${users.length}</b></article><article><span>Employee access</span><b>${users.filter(user => user.role === 'EMPLOYEE').length}</b></article></div><article class="users-workspace"><div class="users-workspace-head"><h2>All users <small>(${users.length})</small></h2><div class="users-filters"><label class="user-search"><span>Search users</span><input id="users-search" type="search" placeholder="Search users…" /></label><label><span>Role</span><select id="users-role-filter"><option value="">All roles</option>${roleOptions}</select></label></div></div><div class="users-table-wrap"><table class="users-table"><thead><tr><th>User</th><th>Role</th><th>Access</th><th>Last updated</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="users-table-body"></tbody></table></div></article><dialog class="access-user-dialog" id="access-user-dialog"><form id="access-form"><div class="dialog-heading"><div><h2>Add user</h2><p>Assign an intranet role to an approved Workspace identity.</p></div><button type="button" class="dialog-close" data-close-user-dialog aria-label="Close">×</button></div><div class="form-grid"><label>Name<input name="name" maxlength="80" placeholder="Employee name" /></label><label>Work email<input name="email" required type="email" placeholder="name@si-ware.com" /></label><label class="form-grid-full">Role<select name="role">${roleOptions}</select></label></div><p class="notice">This never changes Google Workspace access. The role takes effect on the person’s next sign-in.</p><div class="form-actions"><button class="action-button" type="button" data-close-user-dialog>Cancel</button><button class="action-button primary">Save user</button></div></form></dialog>`; const paint = () => { const search = $('#users-search').value.trim().toLowerCase(), role = $('#users-role-filter').value; const filtered = users.filter(user => (!role || user.role === role) && (!search || `${user.name || ''} ${user.email || ''} ${roleLabel(user.role)}`.toLowerCase().includes(search))); $('#users-table-body').innerHTML = filtered.map(user => `<tr><td><span class="user-identity"><span class="user-avatar">${escapeHtml(initialsForUser(user))}</span><span><b>${escapeHtml(user.name || user.email)}</b><small>${escapeHtml(user.email)}</small></span></span></td><td><span class="role-chip role-${escapeHtml(String(user.role).toLowerCase())}">${escapeHtml(roleLabel(user.role))}</span></td><td><span class="access-status"><i></i>Assigned</span></td><td>${escapeHtml(cairo(user.updatedAt || user.createdAt || ''))}</td><td><button class="user-row-action" type="button" data-edit-user="${escapeHtml(user.email)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="5" class="users-empty">No users match these filters.</td></tr>'; }; paint(); $('#users-search').addEventListener('input', paint); $('#users-role-filter').addEventListener('change', paint); root.querySelector('[data-users-template]').addEventListener('click', downloadUsersTemplate); root.querySelector('[data-add-user]').addEventListener('click', () => $('#access-user-dialog').showModal()); root.querySelectorAll('[data-close-user-dialog]').forEach(button => button.addEventListener('click', () => $('#access-user-dialog').close())); root.querySelector('#access-form').addEventListener('submit', saveAccess); root.querySelector('#users-table-body').addEventListener('click', event => { const button = event.target.closest('[data-edit-user]'); if (!button) return; const user = users.find(item => item.email === button.dataset.editUser); if (!user) return; const form = $('#access-form'); form.elements.name.value = user.name || ''; form.elements.email.value = user.email; form.elements.email.readOnly = true; form.elements.role.value = user.role; form.querySelector('h2').textContent = 'Edit user'; $('#access-user-dialog').showModal(); }); root.querySelector('#users-csv-input').addEventListener('change', event => importAccessCsv(event.target.files[0])); }
+function downloadUsersTemplate() { const url = URL.createObjectURL(new Blob(['Name,Work Email,Role\nExample User,example@si-ware.com,EMPLOYEE\n'], { type:'text/csv' })), link = document.createElement('a'); link.href = url; link.download = 'siware-users-import-template.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+async function importAccessCsv(file) { if (!file) return; if (!hasAdminPermission('action.import')) return flash('Import permission is required.'); if (!/\.csv$/i.test(file.name) || file.size > 1024 * 1024) return flash('Choose a CSV file of 1 MB or smaller.'); try { const rows = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean).map(row => row.split(',').map(value => value.trim())), [header, ...records] = rows, fields = header.map(value => value.toLowerCase().replace(/[^a-z]/g, '')), nameAt = fields.indexOf('name'), emailAt = fields.findIndex(value => ['workemail','email'].includes(value)), roleAt = fields.indexOf('role'); if (nameAt < 0 || emailAt < 0 || roleAt < 0) throw new Error('CSV needs Name, Work Email, and Role columns.'); for (const row of records) await api('/api/admin/access', { method:'PATCH', body:JSON.stringify({ name:row[nameAt], email:row[emailAt], role:row[roleAt], operation:'import' }) }); flash(`${records.length} user${records.length === 1 ? '' : 's'} imported.`); await loadAccessDirectory(); renderAccessUsers(); } catch (error) { flash(error.message || 'The CSV could not be imported.'); } }
+async function saveAccess(event) { event.preventDefault(); try { await api('/api/admin/access', { method:'PATCH', body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); $('#access-user-dialog')?.close(); flash('User role saved. It takes effect on the person’s next sign-in.'); await loadAccessDirectory(); renderAccessUsers(); if (activeAdminView() === 'roles') renderRolesCards(); } catch (error) { flash(error.message); } }
+async function renderAccess() { const root = $('#view-access'); root.innerHTML = '<p class="view-intro">Loading users…</p>'; try { await loadAccessDirectory(); renderAccessUsers(); } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
+async function renderRoles() { const root = $('#view-roles'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { if (!accessDirectory) await loadAccessDirectory(); const roles = accessDirectory.roles || [], users = accessDirectory.users || [], permissions = [...new Set(roles.flatMap(role => role.permissions))]; root.innerHTML = `<div class="access-page-heading"><div><h1>Roles</h1><p>Review the permissions that each intranet role grants.</p></div></div><div class="roles-summary"><article><b>${roles.length}</b><span>Configured roles</span></article><article><b>${permissions.length}</b><span>Permission types</span></article><article><b>${users.length}</b><span>Assigned users</span></article></div><article class="roles-workspace"><div class="roles-workspace-head"><h2>Role permissions</h2><p>Roles are fixed safeguards in this local prototype. Assign them from the Users page.</p></div><div class="roles-table-wrap"><table class="roles-table"><thead><tr><th>Permission</th>${roles.map(role => `<th>${escapeHtml(roleLabel(role.id))}<small>${users.filter(user => user.role === role.id).length} users</small></th>`).join('')}</tr></thead><tbody>${permissions.map(permission => `<tr><th>${escapeHtml(permissionLabel(permission))}<small>${escapeHtml(permission)}</small></th>${roles.map(role => `<td>${role.permissions.includes(permission) ? '<span class="permission-granted" aria-label="Granted">✓</span>' : '<span class="permission-none" aria-label="Not granted">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></article>`; } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
+function renderActivity() { return renderAuditTrail($('#view-activity'), hasAdminPermission('audit.export')); }
+function renderSettings() { $('#view-settings').innerHTML = `<p class="view-intro">Audit history is archived daily after 90 days. Credentials, SSO settings, and secrets remain environment configuration.</p><div class="section-grid"><article class="panel"><h2>Audit archive</h2><p>Audit and browser activity older than 90 days are archived automatically at the next daily run, then removed from the active trail.</p><p class="notice">Archive files are saved on the Docker host under <code>data/audit trail archive/</code>. They are not included in Audit Trail search or CSV export and are not deleted automatically. Include this folder in your backups.</p></article><article class="panel"><h2>Environment security</h2><p>Google Workspace SSO is the supported authentication path. Configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>APP_ORIGIN</code>, <code>GOOGLE_WORKSPACE_DOMAIN</code>, <code>GOOGLE_ADMIN_EMAILS</code>, and <code>SECURE_COOKIES=true</code> outside this UI.</p><p class="notice warning">This local prototype uses JSON storage and memory-backed sessions. Use a transactional database and shared session store before production deployment.</p></article></div>`; }
+function renderAllowedAdminViews() {
+  if (canAccessAdminView('overview')) renderOverview();
+  if (canAccessAdminView('content')) renderContent();
+  contentPages.filter(page => canAccessAdminView(page.view)).forEach(page => renderContentPage(page.view));
+  if (canAccessAdminView('people')) renderPeople();
+  if (canAccessAdminView('apps')) renderApps();
+  if (canAccessAdminView('appearance')) renderAppearance();
+  if (canAccessAdminView('home')) renderHomeEditor();
+  if (canAccessAdminView('settings')) renderSettings();
+}
+async function refreshAdminPermissions() {
+  const me = await api('/api/auth/me');
+  grantedPermissions = new Set(me.permissions || []);
+  if (!canOpenAdmin(grantedPermissions)) { location.replace(firstAvailableIntranetPage(grantedPermissions)?.path || '/profile.html'); return; }
+  updateIntranetExitLinks();
+  dashboard = await api('/api/admin/dashboard');
+  savedDashboard = structuredClone(dashboard);
+  summary = await api('/api/admin/summary');
+  canEditContent = hasAdminPermission('content.edit');
+  $$('.admin-sidebar button[data-view]').forEach(button => { button.hidden = !canAccessAdminView(button.dataset.view); });
+  document.body.dataset.canDelete = String(hasAdminPermission('action.delete'));
+  document.body.dataset.canImport = String(hasAdminPermission('action.import'));
+  renderAllowedAdminViews();
+  if (!canAccessAdminView(activeAdminView())) {
+    const first = Object.keys(adminViewPermissions).find(canAccessAdminView);
+    if (first) showView(first);
+  }
+  updatePageTools();
+}
+function showView(name) {
+  if (!canAccessAdminView(name)) { flash('You do not have access to this Administration page.'); return; }
+  $$('.admin-sidebar button[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === name));
+  $$('.admin-view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
+  const titles = { home:'Home', apps:'Apps', access:'Users', roles:'Roles', activity:'Audit Trail', newsi:'New Si-Warians', announcements:'Announcements', social:'Social Media', whistleblower:'Whistleblower', moments:'Moments' };
+  $('#page-title').textContent = titles[name] || name[0].toUpperCase() + name.slice(1);
+  window.dispatchEvent(new CustomEvent('siware:page-view', { detail:{ title:`Administration · ${$('#page-title').textContent}` } }));
+  if (contentPages.some(page => page.view === name)) renderContentPage(name);
+  if (name === 'home') renderHomeEditor();
+  if (name === 'media') renderMedia();
+  if (name === 'access') renderAccess();
+  if (name === 'roles') renderRolesCards();
+  if (name === 'activity') renderActivity();
+  updatePageTools();
+}
+function updateIntranetExitLinks() {
+  const destination = firstAvailableIntranetPage(grantedPermissions)?.path || '/profile.html';
+  document.querySelectorAll('.admin-global-brand, .sidebar-footer a').forEach(link => { link.href = destination; });
+}
+async function start() {
+  try {
+    const me = await api('/api/auth/me');
+    grantedPermissions = new Set(me.permissions || []);
+    if (!canOpenAdmin(me.permissions)) { location.replace(firstAvailableIntranetPage(me.permissions)?.path || '/profile.html'); return; }
+    updateIntranetExitLinks();
+    dashboard = await api('/api/admin/dashboard');
+    savedDashboard = structuredClone(dashboard);
+    canEditContent = hasAdminPermission('content.edit');
+    summary = await api('/api/admin/summary');
+    $('#admin-user').textContent = me.name;
+    $('#admin-role').textContent = me.role.replace('_', ' ');
+    $('#admin-avatar').textContent = me.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'AD';
+    $('#admin-account-toggle').setAttribute('aria-label', `${me.name}, ${me.role.replace('_', ' ')}. Account menu`);
+    $$('.admin-sidebar button[data-view]').forEach(button => { button.hidden = !canAccessAdminView(button.dataset.view); });
+    document.body.dataset.canDelete = String(hasAdminPermission('action.delete'));
+    document.body.dataset.canImport = String(hasAdminPermission('action.import'));
+    renderAllowedAdminViews();
+    setupPageTools(); updatePageTools();
+    $$('.admin-sidebar button[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
+    document.addEventListener('click', event => { const target = event.target.closest('[data-goto]'); if (target) showView(target.dataset.goto); });
+    const initialView = Object.keys(adminViewPermissions).find(view => canAccessAdminView(view));
+    if (initialView) showView(initialView);
+    const signOut = async () => { await api('/auth/logout', { method:'POST' }); location.assign('/login.html'); };
+    $('#sign-out').addEventListener('click', signOut);
+    $('#mobile-sign-out').addEventListener('click', signOut);
+    $('#header-sign-out').addEventListener('click', signOut);
+  } catch (error) {
+    if (error.message === 'Sign in is required to continue.') {
+      location.replace('/login.html?returnTo=/admin.html');
+      return;
+    }
+    console.error('Administration failed to load:', error);
+    $('#page-title').textContent = 'Administration unavailable';
+    $('#view-overview').innerHTML = '<div class="notice warning" role="alert"><p>Administration could not load. Please try again.</p><button class="action-button" type="button" onclick="location.reload()">Try again</button></div>';
+  }
+}
 function setupAdminHeader() {
   const accountButton = $('#admin-account-toggle'), accountMenu = $('#admin-account-menu');
   const searchButton = $('#admin-header-search'), searchPanel = $('#admin-header-search-panel');
@@ -1066,10 +1510,11 @@ function setupAdminHeader() {
   document.addEventListener('click', event => { if (!event.target.closest('.admin-account')) closeAccount(); if (!event.target.closest('.admin-header-search-panel, .admin-header-search')) closeSearch(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeAccount(); closeSearch(); } });
 }
-function setupSidebarToggle() { const shell = document.querySelector('.admin-shell'); const toggle = $('#sidebar-toggle'); if (!shell || !toggle) return; const shortLabels = { overview:'OV', content:'CT', apps:'AP', announcements:'AN', social:'SM', moments:'MO', knowledge:'KH', events:'EV', whistleblower:'WB', people:'RJ', newsi:'NS', appearance:'AR', media:'MD', access:'UA', activity:'AA', settings:'ST' }; $$('.admin-sidebar button[data-view]').forEach(button => { const label = button.textContent.trim(); button.setAttribute('aria-label', label); button.dataset.shortLabel = shortLabels[button.dataset.view] || label.slice(0, 2).toUpperCase(); }); const setCollapsed = collapsed => { shell.classList.toggle('sidebar-collapsed', collapsed); toggle.setAttribute('aria-expanded', String(!collapsed)); toggle.title = collapsed ? 'Expand navigation' : 'Collapse navigation'; toggle.querySelector('span').textContent = collapsed ? 'Expand' : 'Collapse'; try { localStorage.setItem('siware-admin-sidebar-collapsed', String(collapsed)); } catch (_) {} }; let collapsed = false; try { collapsed = localStorage.getItem('siware-admin-sidebar-collapsed') === 'true'; } catch (_) {} setCollapsed(collapsed); toggle.addEventListener('click', () => setCollapsed(!shell.classList.contains('sidebar-collapsed'))); }
+function setupSidebarToggle() { const shell = document.querySelector('.admin-shell'); const toggle = $('#sidebar-toggle'); if (!shell || !toggle) return; const shortLabels = { overview:'OV', home:'HM', content:'CT', apps:'AP', announcements:'AN', social:'SM', moments:'MO', knowledge:'KH', events:'EV', whistleblower:'WB', people:'RJ', newsi:'NS', appearance:'AR', media:'MD', access:'UA', activity:'AA', settings:'ST' }; $$('.admin-sidebar button[data-view]').forEach(button => { const label = button.textContent.trim(); button.setAttribute('aria-label', label); button.dataset.shortLabel = shortLabels[button.dataset.view] || label.slice(0, 2).toUpperCase(); }); const setCollapsed = collapsed => { shell.classList.toggle('sidebar-collapsed', collapsed); toggle.setAttribute('aria-expanded', String(!collapsed)); toggle.title = collapsed ? 'Expand navigation' : 'Collapse navigation'; toggle.querySelector('span').textContent = collapsed ? 'Expand' : 'Collapse'; try { localStorage.setItem('siware-admin-sidebar-collapsed', String(collapsed)); } catch (_) {} }; let collapsed = false; try { collapsed = localStorage.getItem('siware-admin-sidebar-collapsed') === 'true'; } catch (_) {} setCollapsed(collapsed); toggle.addEventListener('click', () => setCollapsed(!shell.classList.contains('sidebar-collapsed'))); }
 function setupSidebarIcons() {
   const iconShapes = {
     overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    home:'<path d="m3 11 9-8 9 8v10H3V11Z"/><path d="M9 21v-6h6v6"/>',
     content:'<path d="M8 3h8l4 4v14H4V3h4Z"/><path d="M16 3v5h4M8 12h8M8 16h8"/>',
     apps:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/>',
     announcements:'<path d="M3 10h5l10-5v14L8 14H3zM8 14l1 6h4l-2-5M21 9v6"/>',
@@ -1083,6 +1528,7 @@ function setupSidebarIcons() {
     appearance:'<path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.7-3c-.5-.8 0-2 1.1-2H18a3 3 0 0 0 3-3c0-5.5-4-10-9-10Z"/><circle cx="7.5" cy="11" r=".7"/><circle cx="10" cy="7" r=".7"/><circle cx="15" cy="7.5" r=".7"/>',
     media:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m4 18 5-5 3 3 3-4 5 6"/>',
     access:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>',
+    roles:'<path d="M12 3 4 7v5c0 4.5 3.1 7.9 8 9 4.9-1.1 8-4.5 8-9V7l-8-4Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/>',
     activity:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
     settings:'<circle cx="12" cy="12" r="3"/><path d="M10 2h4l.5 2.3 1.7.7 2-1.2 2.8 2.8-1.2 2 .7 1.7L23 11v4l-2.5.5-.7 1.7 1.2 2-2.8 2.8-2-1.2-1.7.7L14 24h-4l-.5-2.5-1.7-.7-2 1.2L3 19.2l1.2-2-.7-1.7L1 15v-4l2.5-.5.7-1.7-1.2-2L5.8 4l2 1.2 1.7-.7L10 2Z" transform="translate(1 0) scale(.92)"/>',
     open:'<path d="M13 4h7v7M20 4 10 14"/><path d="M20 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/>',
@@ -1106,3 +1552,105 @@ setupSidebarToggle();
 setupSidebarIcons();
 setupAdminHeader();
 start();
+
+function roleEditorMarkup(permissions) { return permissions.map(permission => `<label class="role-permission-option"><input type="checkbox" name="permissions" value="${escapeHtml(permission)}" /><span><b>${escapeHtml(permissionLabel(permission))}</b><small>${escapeHtml(permission)}</small></span></label>`).join(''); }
+async function renderRolesEditable() { const root = $('#view-roles'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { await loadAccessDirectory(); const roles = accessDirectory.roles || [], users = accessDirectory.users || [], permissions = [...new Set(roles.flatMap(role => role.permissions))]; root.innerHTML = `<div class="access-page-heading"><div><h1>Roles</h1><p>Create roles and choose the exact permissions each role grants.</p></div><div class="access-actions"><button class="action-button primary" type="button" data-add-role>Add role</button></div></div><div class="roles-summary"><article><b>${roles.length}</b><span>Configured roles</span></article><article><b>${permissions.length}</b><span>Permission types</span></article><article><b>${users.length}</b><span>Assigned users</span></article></div><article class="roles-workspace"><div class="roles-workspace-head"><h2>Role permissions</h2><p>Select a role to change its permissions. Administrator always retains user-management access.</p></div><div class="roles-table-wrap"><table class="roles-table"><thead><tr><th>Permission</th>${roles.map(role => `<th>${escapeHtml(roleLabel(role.id))}<small>${users.filter(user => user.role === role.id).length} users</small><button type="button" class="role-edit-button" data-edit-role="${escapeHtml(role.id)}">Edit</button></th>`).join('')}</tr></thead><tbody>${permissions.map(permission => `<tr><th>${escapeHtml(permissionLabel(permission))}<small>${escapeHtml(permission)}</small></th>${roles.map(role => `<td>${role.permissions.includes(permission) ? '<span class="permission-granted" aria-label="Granted">✓</span>' : '<span class="permission-none" aria-label="Not granted">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></article><dialog class="access-user-dialog role-editor-dialog" id="role-editor-dialog"><form id="role-editor-form"><div class="dialog-heading"><div><h2>Add role</h2><p>Give the role a clear name, then select its permissions.</p></div><button type="button" class="dialog-close" data-close-role-dialog aria-label="Close">×</button></div><input type="hidden" name="mode" value="create" /><input type="hidden" name="id" /><label class="role-name-field">Role name<input name="name" required maxlength="41" placeholder="e.g. Department editor" /><small>Use a role name people will recognize. It is saved as an internal uppercase ID.</small></label><fieldset class="role-permission-list"><legend>Permissions</legend>${roleEditorMarkup(permissions)}</fieldset><p class="role-editor-error" role="alert"></p><div class="form-actions"><button class="action-button" type="button" data-close-role-dialog>Cancel</button><button class="action-button primary">Save role</button></div></form></dialog>`; const dialog = $('#role-editor-dialog'), form = $('#role-editor-form'), open = role => { form.reset(); form.elements.mode.value = role ? 'edit' : 'create'; form.elements.id.value = role?.id || ''; form.elements.name.value = role ? roleLabel(role.id) : ''; form.elements.name.readOnly = Boolean(role); form.querySelector('h2').textContent = role ? `Edit ${roleLabel(role.id)}` : 'Add role'; form.querySelector('.role-editor-error').textContent = ''; form.querySelectorAll('[name="permissions"]').forEach(input => { input.checked = role?.permissions.includes(input.value) || false; input.disabled = role?.id === 'ADMIN' && input.value === 'access.manage'; }); dialog.showModal(); }; root.querySelector('[data-add-role]').addEventListener('click', () => open(null)); root.querySelectorAll('[data-edit-role]').forEach(button => button.addEventListener('click', () => open(roles.find(role => role.id === button.dataset.editRole)))); root.querySelectorAll('[data-close-role-dialog]').forEach(button => button.addEventListener('click', () => dialog.close())); form.addEventListener('submit', saveRole); } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
+async function saveRole(event) { event.preventDefault(); const form = event.currentTarget, mode = form.elements.mode.value, id = form.elements.id.value || form.elements.name.value, permissions = [...form.querySelectorAll('[name="permissions"]:checked')].map(input => input.value), error = form.querySelector('.role-editor-error'); if (!permissions.length) { error.textContent = 'Choose at least one permission for this role.'; return; } try { await api('/api/admin/roles', { method:mode === 'create' ? 'POST' : 'PATCH', body:JSON.stringify({ id, permissions }) }); $('#role-editor-dialog').close(); flash(mode === 'create' ? 'Role created.' : 'Role permissions updated.'); renderRolesCards(); } catch (reason) { error.textContent = reason.message || 'This role could not be saved.'; } }
+
+
+document.addEventListener('click', event => { const edit = event.target.closest('[data-edit-role]'); if (!edit) return; window.setTimeout(() => { const form = $('#role-editor-form'), roleId = form?.elements.id?.value; if (!form || !roleId || ['EMPLOYEE','CONTENT_EDITOR','AUDIT_VIEWER','ADMIN'].includes(roleId) || form.querySelector('[data-delete-role]')) return; form.querySelector('.form-actions')?.insertAdjacentHTML('afterbegin', '<button class="action-button danger" type="button" data-delete-role>Remove role</button>'); }, 0); });
+document.addEventListener('click', async event => { const button = event.target.closest('[data-delete-role]'); if (!button) return; const form = $('#role-editor-form'), roleId = form?.elements.id?.value; if (!roleId || !confirm(`Remove ${roleLabel(roleId)}? This cannot be undone.`)) return; try { button.disabled = true; await api(`/api/admin/roles/${encodeURIComponent(roleId)}`, { method:'DELETE' }); $('#role-editor-dialog').close(); flash('Role removed.'); renderRolesEditable(); } catch (error) { form.querySelector('.role-editor-error').textContent = error.message || 'This role could not be removed.'; button.disabled = false; } });
+async function renderRolesCards() { const root = $('#view-roles'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { await loadAccessDirectory(); const roles = accessDirectory.roles || [], users = accessDirectory.users || []; root.innerHTML = `<div class="access-page-heading"><div><h1>Roles</h1><p>Define roles and manage access permissions for Si-Ware Systems.</p></div><div class="access-actions"><button class="action-button primary" type="button" data-add-role>Add role</button></div></div><div class="role-cards">${roles.map(role => `<article class="role-card"><div class="role-card-head"><span class="role-card-mark"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.8 8.3 7 10 4.2-1.7 7-5.6 7-10V6l-7-3Z"/></svg></span><div class="role-card-title"><h2>${escapeHtml(roleLabel(role.id))}</h2><p>${users.filter(user => user.role === role.id).length} assigned users · ${role.permissions.length} permissions</p></div><div class="role-card-actions"><button class="role-card-action" type="button" data-card-edit-role="${escapeHtml(role.id)}" aria-label="Edit ${escapeHtml(roleLabel(role.id))}"><svg viewBox="0 0 24 24"><path d="m4 20 4.2-1 10-10a2.2 2.2 0 0 0-3.1-3.1l-10 10L4 20Z"/><path d="m13.5 7.5 3 3"/></svg></button>${role.id === 'ADMIN' ? '' : `<button class="role-card-action danger" type="button" data-card-delete-role="${escapeHtml(role.id)}" aria-label="Remove ${escapeHtml(roleLabel(role.id))}"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-3h4l1 3M6 7l1 14h10l1-14"/></svg></button>`}</div></div><div class="role-card-permissions">${role.permissions.map(permission => `<span>${escapeHtml(permissionLabel(permission))}</span>`).join('')}</div>${role.id === 'ADMIN' ? '<p class="role-card-note">Administrator is protected from removal.</p>' : ''}</article>`).join('')}</div>`; root.querySelector('[data-add-role]').addEventListener('click', () => { renderRolesEditable(); setTimeout(() => $('#role-editor-dialog')?.showModal(), 0); }); root.addEventListener('click', async event => { const edit = event.target.closest('[data-card-edit-role]'); if (edit) { const id = edit.dataset.cardEditRole; renderRolesEditable(); setTimeout(() => document.querySelector(`[data-edit-role="${id}"]`)?.click(), 0); return; } const remove = event.target.closest('[data-card-delete-role]'); if (!remove || !confirm(`Remove ${roleLabel(remove.dataset.cardDeleteRole)}? This cannot be undone.`)) return; try { await api(`/api/admin/roles/${encodeURIComponent(remove.dataset.cardDeleteRole)}`, { method:'DELETE' }); flash('Role removed.'); renderRolesCards(); } catch (error) { flash(error.message || 'This role could not be removed.'); } }); } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
+function openCardRoleEditor(id) { const role = accessDirectory?.roles?.find(item => item.id === id); if (!role) return; let dialog = $('#role-card-editor-dialog'); if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'role-card-editor-dialog'; dialog.className = 'access-user-dialog role-editor-dialog'; document.body.append(dialog); } const permissions = [...new Set(accessDirectory.roles.flatMap(item => item.permissions))]; dialog.innerHTML = `<form id="role-card-editor-form"><div class="dialog-heading"><div><h2>Edit ${escapeHtml(roleLabel(role.id))}</h2><p>Choose the permissions this role can use.</p></div><button type="button" class="dialog-close" data-card-editor-close aria-label="Close">×</button></div><fieldset class="role-permission-list"><legend>Permissions</legend>${permissions.map(permission => `<label class="role-permission-option"><input type="checkbox" name="permissions" value="${escapeHtml(permission)}" ${role.permissions.includes(permission) ? 'checked' : ''} ${role.id === 'ADMIN' && permission === 'access.manage' ? 'disabled' : ''}/><span><b>${escapeHtml(permissionLabel(permission))}</b><small>${escapeHtml(permission)}</small></span></label>`).join('')}</fieldset><p class="role-editor-error" role="alert"></p><div class="form-actions"><button class="action-button" type="button" data-card-editor-close>Cancel</button><button class="action-button primary">Save role</button></div></form>`; dialog.querySelectorAll('[data-card-editor-close]').forEach(button => button.addEventListener('click', () => dialog.close())); dialog.querySelector('form').addEventListener('submit', async event => { event.preventDefault(); const selected = [...dialog.querySelectorAll('[name="permissions"]:checked')].map(input => input.value), error = dialog.querySelector('.role-editor-error'); if (!selected.length) { error.textContent = 'Choose at least one permission.'; return; } try { await api('/api/admin/roles', { method:'PATCH', body:JSON.stringify({ id:role.id, permissions:selected }) }); dialog.close(); flash('Role permissions updated.'); renderRolesCards(); } catch (reason) { error.textContent = reason.message || 'This role could not be saved.'; } }); dialog.showModal(); }
+const pagePermissionNames = { 'page.overview':'Overview', 'page.home':'Home', 'page.content':'Content', 'page.apps':'Main Apps', 'page.announcements':'Announcements', 'page.social':'Social Media', 'page.moments':'Moments', 'page.knowledge':'Knowledge Hub', 'page.events':'Events & key dates', 'page.whistleblower':'Whistleblower', 'page.people':'Recently Joined', 'page.newsi':'New Si-Warians', 'page.appearance':'Appearance', 'page.media':'Media', 'page.users':'Users', 'page.roles':'Roles', 'page.activity':'Activity & audit', 'page.settings':'Settings' };
+function openGroupedRoleEditor(id) {
+  const role = id ? accessDirectory?.roles?.find(item => item.id === id) : null;
+  if (id && !role) return;
+  let dialog = $('#role-card-editor-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'role-card-editor-dialog';
+    dialog.className = 'access-user-dialog role-editor-dialog';
+    document.body.append(dialog);
+  }
+  const selected = new Set(role?.permissions || ['intranet.home']);
+  const capabilities = ['content.edit','content.publish','media.manage','audit.view','access.manage','audit.export','settings.manage'];
+  const known = new Set(['admin.access', ...intranetPagePermissions, ...capabilities, ...pagePermissionOptions, ...globalActionPermissions]);
+  const other = (role?.permissions || []).filter(permission => !known.has(permission));
+  const intranetNames = Object.fromEntries(intranetPages.map(page => [page.permission, page.label]));
+  const actionNames = { 'action.undo':'Undo changes', 'action.redo':'Redo changes', 'action.reset':'Reset to default', 'action.import':'Import content', 'action.export':'Export content', 'action.delete':'Delete content' };
+  const protectedForAdmin = new Set(['admin.access','access.manage','page.users','page.roles']);
+  const option = permission => `<label class="role-permission-option"><input type="checkbox" name="permissions" value="${escapeHtml(permission)}" ${selected.has(permission) ? 'checked' : ''} ${role?.id === 'ADMIN' && protectedForAdmin.has(permission) ? 'disabled' : ''}/><span><b>${escapeHtml(intranetNames[permission] || pagePermissionNames[permission] || actionNames[permission] || permissionLabel(permission))}</b></span></label>`;
+  const group = (title, items, note = '') => `<section class="role-group"><div class="role-group-head"><h3>${title}</h3><span><button type="button" data-select-group>Select all</button><button type="button" data-deselect-group>Clear</button></span></div>${note ? `<p class="role-group-note">${note}</p>` : ''}<div class="role-group-grid">${items.map(option).join('')}</div></section>`;
+  dialog.innerHTML = `<form><div class="dialog-heading"><div><h2>${role ? `Edit ${escapeHtml(roleLabel(role.id))}` : 'Add role'}</h2><p>Choose what this role can see in the intranet and what it can manage in Administration.</p></div><button type="button" class="dialog-close" data-card-editor-close aria-label="Close">×</button></div>${role ? '' : '<label class="role-name-field">Role name<input name="name" required maxlength="41" placeholder="e.g. Department editor" /><small>Use a name your team will recognize.</small></label>'}${group('Intranet pages access', intranetPagePermissions, 'Controls the employee-facing pages and their content. My profile stays available to every signed-in user.')}<section class="role-admin-section"><div class="role-admin-section-head"><div><h3>Admin Panel (Edit Content)</h3><p>Separate access to Administration from the pages employees can view.</p></div><label class="role-admin-switch"><input type="checkbox" name="permissions" value="admin.access" ${selected.has('admin.access') ? 'checked' : ''} ${role?.id === 'ADMIN' ? 'disabled' : ''}/><span>Allow Admin Panel</span></label></div><div class="role-admin-scope">${group('Administration capabilities', capabilities, 'Choose the work this role can perform.')}${group('Administration page access', pagePermissionOptions, 'Choose the pages visible in the Administration sidebar.')}${group('Administration actions', globalActionPermissions, 'These actions apply only to Administration pages this role can access.')}</div></section>${other.length ? group('Other permissions', other) : ''}<p class="role-editor-error" role="alert"></p><div class="form-actions"><button class="action-button" type="button" data-card-editor-close>Cancel</button><button class="action-button primary">${role ? 'Update role' : 'Create role'}</button></div></form>`;
+  dialog.querySelectorAll('[data-card-editor-close]').forEach(button => button.addEventListener('click', () => dialog.close()));
+  const inputFor = permission => [...dialog.querySelectorAll('[name="permissions"]')].find(input => input.value === permission);
+  const adminToggle = inputFor('admin.access'), adminScope = dialog.querySelector('.role-admin-scope');
+  const syncAdminScope = () => { adminScope.hidden = !adminToggle.checked; };
+  const ensureDependencies = () => {
+    adminScope.querySelectorAll('[name="permissions"]:checked').forEach(input => {
+      if (!input.value.startsWith('page.')) return;
+      const view = Object.keys(adminViewPermissions).find(key => adminViewPermissions[key] === input.value);
+      const dependency = adminViewCapabilities[view];
+      if (dependency) inputFor(dependency).checked = true;
+    });
+    if (inputFor('content.publish').checked) ['content.edit','page.announcements'].forEach(permission => { inputFor(permission).checked = true; });
+    if (inputFor('audit.export').checked) ['audit.view','page.activity'].forEach(permission => { inputFor(permission).checked = true; });
+  };
+  syncAdminScope();
+  dialog.querySelectorAll('[data-select-group], [data-deselect-group]').forEach(button => button.addEventListener('click', () => {
+    const checked = button.hasAttribute('data-select-group');
+    button.closest('.role-group').querySelectorAll('[name="permissions"]').forEach(input => {
+      if (!input.disabled) input.checked = checked;
+    });
+    if (checked && button.closest('.role-admin-scope')) adminToggle.checked = true;
+    if (checked) ensureDependencies();
+    syncAdminScope();
+  }));
+  dialog.querySelector('form').addEventListener('change', event => {
+    const input = event.target;
+    if (input.name !== 'permissions') return;
+    if (input === adminToggle && !input.checked) adminScope.querySelectorAll('[name="permissions"]').forEach(item => { if (!item.disabled) item.checked = false; });
+    if (input !== adminToggle && input.checked && adminScope.contains(input)) {
+      adminToggle.checked = true;
+      const primaryPage = { 'content.edit':'page.content', 'media.manage':'page.media', 'audit.view':'page.activity', 'access.manage':'page.users', 'settings.manage':'page.settings' }[input.value];
+      if (primaryPage) inputFor(primaryPage).checked = true;
+      ensureDependencies();
+    }
+    if (input !== adminToggle && !input.checked && adminScope.contains(input)) {
+      if (['content.edit','media.manage','audit.view','access.manage','settings.manage'].includes(input.value)) {
+        Object.entries(adminViewPermissions).forEach(([view, permission]) => {
+          if (adminViewCapabilities[view] === input.value && !inputFor(permission).disabled) inputFor(permission).checked = false;
+        });
+      }
+      if (input.value === 'content.edit' || input.value === 'page.announcements') inputFor('content.publish').checked = false;
+      if (input.value === 'audit.view' || input.value === 'page.activity') inputFor('audit.export').checked = false;
+    }
+    syncAdminScope();
+    dialog.querySelector('.role-editor-error').textContent = '';
+  });
+  dialog.querySelector('form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const permissions = [...dialog.querySelectorAll('[name="permissions"]:checked')].map(input => input.value);
+    if (role?.id === 'ADMIN') for (const required of protectedForAdmin) if (!permissions.includes(required)) permissions.push(required);
+    const error = dialog.querySelector('.role-editor-error');
+    if (!permissions.length) { error.textContent = 'Choose at least one intranet page or Administration permission.'; return; }
+    const invalidPermissions = rolePermissionError(permissions);
+    if (invalidPermissions) { error.textContent = invalidPermissions; return; }
+    try {
+      const name = role?.id || dialog.querySelector('[name="name"]')?.value.trim();
+      if (!name) { error.textContent = 'Enter a role name.'; return; }
+      await api('/api/admin/roles', { method:role ? 'PATCH' : 'POST', body:JSON.stringify({ id:name, permissions }) });
+      dialog.close();
+      flash(role ? 'Role permissions updated.' : 'Role created.');
+      await refreshAdminPermissions();
+      if (canAccessAdminView('roles')) await renderRolesCards();
+    } catch (reason) {
+      error.textContent = reason.message || 'This role could not be saved.';
+    }
+  });
+  dialog.showModal();
+}
+document.addEventListener('click', event => { const button = event.target.closest('[data-card-edit-role]'); if (!button) return; event.stopImmediatePropagation(); event.preventDefault(); openGroupedRoleEditor(button.dataset.cardEditRole); }, true);
+document.addEventListener('click', event => { const button = event.target.closest('[data-add-role]'); if (!button) return; event.stopImmediatePropagation(); event.preventDefault(); openGroupedRoleEditor(null); }, true);
+api('/api/auth/me').then(me => { const pagePermissions = me.permissions?.filter(permission => permission.startsWith('page.')) || []; if (!pagePermissions.length) return; const views = { overview:'page.overview', home:'page.home', content:'page.content', apps:'page.apps', announcements:'page.announcements', social:'page.social', moments:'page.moments', knowledge:'page.knowledge', events:'page.events', whistleblower:'page.whistleblower', people:'page.people', newsi:'page.newsi', appearance:'page.appearance', media:'page.media', access:'page.users', roles:'page.roles', activity:'page.activity', settings:'page.settings' }; Object.entries(views).forEach(([view, permission]) => { const button = document.querySelector(`[data-view="${view}"]`); if (button && !pagePermissions.includes(permission)) button.hidden = true; }); }).catch(() => {});

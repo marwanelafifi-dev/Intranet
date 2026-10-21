@@ -4,7 +4,12 @@ import { createReadStream, createWriteStream } from 'node:fs';
 import { extname, join, normalize, relative } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { activeSessionActor, hasEmployeeRole } from './auth-session.mjs';
+import { describeContentChanges } from './audit-details.mjs';
+import { archiveExpiredEvents, auditRetentionDays, hasArchiveRunToday } from './audit-archive.mjs';
+import { adminViewPermissions, adminActionPermissions, adminContentKeyPages, adminContentKeys, canOpenAdmin, removedContent, rolePermissionError } from './public/admin-permissions.js';
+import { intranetPagePermissions, intranetRoutePermissions, intranetContentPermissions, firstAvailableIntranetPage } from './public/intranet-permissions.js';
 
 const port = Number(process.env.PORT || 8080);
 const publicDir = join(process.cwd(), 'public');
@@ -21,7 +26,14 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
 const googleWorkspaceDomain = (process.env.GOOGLE_WORKSPACE_DOMAIN || 'si-ware.com').toLowerCase();
 const googleAdminEmails = new Set((process.env.GOOGLE_ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
+const localAdminName = String(process.env.LOCAL_ADMIN_NAME || 'Local Administrator').trim();
+const localAdminEmail = String(process.env.LOCAL_ADMIN_EMAIL || '').trim().toLowerCase();
+const localAdminPassword = String(process.env.LOCAL_ADMIN_PASSWORD || '');
 const sessions = new Map(), oauthStates = new Map();
+const localLoginAttempts = new Map();
+const sessionLifetimeMs = 8 * 60 * 60 * 1000;
+const loginWindowMs = 15 * 60 * 1000;
+const maxLocalAttempts = 5;
 const acknowledgementContentDefault = { version:1, actionTitle:'Action required: acknowledge Si-Ware Policies', instructionText:'Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.', beforeHeading:'Why this matters', beforeText:'Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.', confirmationLabel:'I confirm that I have read and accepted Si-Ware Policies.', confirmationHelp:'This records the current policy versions and confirmation time.', acceptedTitle:'Policies acknowledged', afterText:'Your acknowledgement has been recorded for the current policy versions.' };
 const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
 const execFileAsync = promisify(execFile);
@@ -29,22 +41,36 @@ let youtubeCache = { expiresAt: 0, payload: null }, companyNewsCache = { expires
 const json = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
 const readBody = req => new Promise((resolve, reject) => { let value = '', size = 0, finished = false; req.on('data', chunk => { size += chunk.length; if (size > 70 * 1024 * 1024) { finished = true; reject(new Error('Request body is too large')); req.destroy(); return; } if (!finished) value += chunk; }); req.on('end', () => { if (finished) return; try { resolve(JSON.parse(value || '{}')); } catch { reject(new Error('Invalid JSON')); } }); });
 const cookiesFor = req => Object.fromEntries(String(req.headers.cookie || '').split(';').map(value => value.trim().split('=').map(decodeURIComponent)).filter(([key]) => key));
-const sessionFor = req => sessions.get(cookiesFor(req).siware_session);
+const sessionFor = req => {
+  const id = cookiesFor(req).siware_session, session = sessions.get(id);
+  const actor = activeSessionActor(session);
+  if (!actor && session) sessions.delete(id);
+  return actor;
+};
 const isGoogleConfigured = () => Boolean(googleClientId && googleClientSecret);
-const isAdmin = req => sessionFor(req)?.role === 'ADMIN' || (!isGoogleConfigured() && req.headers['x-demo-role'] === 'ADMIN');
+const isLocalAdminConfigured = () => Boolean(localAdminEmail && localAdminPassword);
+const isAuthenticationConfigured = () => isGoogleConfigured() || isLocalAdminConfigured();
+const isValidLocalAdminPassword = value => { const expected = Buffer.from(localAdminPassword), supplied = Buffer.from(String(value || '')); return expected.length === supplied.length && timingSafeEqual(expected, supplied); };
+const safeReturnTo = value => {
+  const path = String(value || '/');
+  return /^\/(?!\/)/.test(path) && !/[\\\u0000-\u001f]/.test(path) ? path : '/';
+};
 const setCookie = (res, value, maxAge = 28800) => res.setHeader('set-cookie', `siware_session=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.SECURE_COOKIES === 'true' ? '; Secure' : ''}`);
+const adminPagePermissions = Object.values(adminViewPermissions);
 const rolePermissions = {
-  EMPLOYEE: [],
-  CONTENT_EDITOR: ['content.edit', 'content.publish', 'media.manage'],
-  AUDIT_VIEWER: ['audit.view'],
-  ADMIN: ['content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage']
+  EMPLOYEE: [...intranetPagePermissions],
+  CONTENT_EDITOR: [...intranetPagePermissions, 'admin.access', 'content.edit', 'content.publish', 'media.manage', ...adminActionPermissions, 'page.content','page.apps','page.announcements','page.social','page.moments','page.knowledge','page.events','page.whistleblower','page.people','page.newsi','page.media'],
+  AUDIT_VIEWER: [...intranetPagePermissions, 'admin.access', 'audit.view', 'page.activity'],
+  ADMIN: [...intranetPagePermissions, 'admin.access', 'content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage', ...adminActionPermissions, ...adminPagePermissions]
 };
 const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 280);
-const adminDefaultKeys = ['apps','announcements','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','whistleblowerConfig','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','settings'];
+const adminDefaultKeys = ['apps','announcements','announcementSchedules','announcementTemplates','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','whistleblowerConfig','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','settings'];
 const contentChangeLabels = {
   user: 'Intranet profile',
   apps: 'Main Apps · app links',
   announcements: 'Announcements',
+  announcementSchedules: 'Announcements schedule',
+  announcementTemplates: 'Announcement templates',
   socialLinks: 'Social Media · channels',
   moments: 'Moments · cards',
   momentsPageContent: 'Moments · page text',
@@ -62,6 +88,27 @@ const contentChangeLabels = {
   settings: 'Appearance'
 };
 const changedContentLabels = keys => [...new Set(keys.map(key => contentChangeLabels[key] || key))];
+
+// Older seed content predates editable record IDs.  Administration addresses
+// records by ID, so every editable collection must have a stable, persisted
+// identifier before it is returned to the editor.
+function ensureEditableRecordIds(data) {
+  let changed = false;
+  for (const key of ['apps', 'announcements', 'moments', 'sessions', 'events', 'newMembers', 'policies', 'firstWeekChecklist', 'supportPortals']) {
+    if (!Array.isArray(data[key])) continue;
+    const used = new Set();
+    data[key] = data[key].map((item, index) => {
+      const currentId = typeof item?.id === 'string' ? item.id.trim() : '';
+      if (currentId && !used.has(currentId)) { used.add(currentId); return item; }
+      let sequence = index + 1, id = `${key}-legacy-${sequence}`;
+      while (used.has(id)) id = `${key}-legacy-${++sequence}`;
+      used.add(id);
+      changed = true;
+      return { ...item, id };
+    });
+  }
+  return changed;
+}
 const knowledgeSessionName = value => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 function duplicateKnowledgeSessionName(items) {
   if (!Array.isArray(items)) return 'Invalid session list';
@@ -74,18 +121,80 @@ function duplicateKnowledgeSessionName(items) {
   }
   return '';
 }
+const configuredRoles = data => {
+  const roles = { ...Object.fromEntries(Object.entries(rolePermissions).filter(([id]) => !data?.disabledDefaultRoles?.includes(id))), ...(data?.accessRoles || {}) };
+  for (const [id, permissions] of Object.entries(roles)) {
+    roles[id] = [...new Set((Array.isArray(permissions) ? permissions : []).filter(permission => permission !== 'action.edit_save'))];
+  }
+  if (roles.ADMIN) roles.ADMIN = [...new Set([...roles.ADMIN, 'admin.access', 'access.manage', 'page.users', 'page.roles'])];
+  const priority = permission => permission === 'admin.access' ? 0 : permission.startsWith('intranet.') ? 2 : permission.startsWith('page.') ? 3 : 1;
+  for (const permissions of Object.values(roles)) permissions.sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
+  return roles;
+};
 const actorFor = (req, data) => {
   const session = sessionFor(req);
-  if (session) return session;
-  // Local development remains available only when no identity provider has been configured.
-  if (!isGoogleConfigured() && req.headers['x-demo-role'] === 'ADMIN') return { id:'local-admin', name:data.user?.name || 'Local administrator', email:'local.admin@si-ware.com', role:'ADMIN', demo:true };
-  if (!isGoogleConfigured()) return { id:'local-demo-user', name:data.user?.name || 'Local employee', email:data.user?.email || 'local.employee@si-ware.com', role:rolePermissions[data.user?.role] ? data.user.role : 'EMPLOYEE', demo:true };
+  if (session) return configuredRoles(data)[session.role] ? session : null;
+  // The demo identity is available only when no sign-in method was explicitly configured.
+  if (!isAuthenticationConfigured()) return { id:'local-demo-user', name:data.user?.name || 'Local employee', email:data.user?.email || 'local.employee@si-ware.com', role:configuredRoles(data)[data.user?.role] ? data.user.role : 'EMPLOYEE', demo:true };
   return null;
 };
-const can = (actor, permission) => Boolean(actor && rolePermissions[actor.role]?.includes(permission));
+const can = (data, actor, permission) => Boolean(actor && configuredRoles(data)[actor.role]?.includes(permission));
+function allowedLanding(data, actor, requested = '/') {
+  const permissions = configuredRoles(data)[actor?.role] || [], normalized = requested.toLowerCase(), required = intranetRoutePermissions[normalized];
+  if ((required && !permissions.includes(required)) || (normalized === '/admin.html' && !canOpenAdmin(permissions))) {
+    return firstAvailableIntranetPage(permissions)?.path || (canOpenAdmin(permissions) ? '/admin.html' : '/profile.html');
+  }
+  return requested;
+}
 function requirePermission(req, res, data, permission) {
   const actor = actorFor(req, data);
-  if (!can(actor, permission)) { auditEvent(data, actor, { action:'access.denied', resource:permission, route:new URL(req.url, 'http://localhost').pathname, outcome:'denial' }); save(data).catch(() => {}); json(res, actor ? 403 : 401, { error: actor ? 'You do not have permission for this action.' : 'Sign in is required.' }); return null; }
+  if (!can(data, actor, permission)) { auditEvent(data, actor, { action:'access.denied', resource:permission, route:new URL(req.url, 'http://localhost').pathname, outcome:'denial' }); save(data).catch(() => {}); json(res, actor ? 403 : 401, { error: actor ? 'You do not have permission for this action.' : 'Sign in is required.' }); return null; }
+  return actor;
+}
+function requireEveryPermission(req, res, data, permissions) {
+  const actor = actorFor(req, data);
+  const missing = permissions.find(permission => !can(data, actor, permission));
+  if (missing) {
+    auditEvent(data, actor, { action:'access.denied', resource:missing, route:new URL(req.url, 'http://localhost').pathname, outcome:'denial' });
+    save(data).catch(() => {});
+    json(res, actor ? 403 : 401, { error:actor ? `Permission required: ${missing}.` : 'Sign in is required.' });
+    return null;
+  }
+  return actor;
+}
+const employeeDashboardKeys = new Set([
+  'socialLinks','whistleblowerConfig','policyAcknowledgementContent','newSiPageContent',
+  'settings','supportPortals','firstWeekChecklist','newMembers','policies','people',
+  'forms','faqs','serviceRequests','apps','announcements','sessions','feeds','moments',
+  'events','homePageContent','knowledgePageContent','momentsPageContent','recentlyJoinedPageContent','_version'
+]);
+function dashboardResponse(data, actor, admin = false) {
+  const keys = admin ? new Set([...employeeDashboardKeys, ...adminContentKeys.filter(key =>
+    adminContentKeyPages[key]?.some(permission => can(data, actor, permission)))]) : employeeDashboardKeys;
+  const visible = Object.fromEntries(Object.entries(data).filter(([key]) => keys.has(key)).map(([key, value]) => {
+    const required = intranetContentPermissions[key];
+    return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
+  }));
+  return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
+}
+function dashboardMutationError(data, actor, next, operation = '') {
+  const changedKeys = Object.keys(next).filter(key => adminContentKeyPages[key] && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
+  for (const key of changedKeys) {
+    if (!adminContentKeyPages[key].some(permission => can(data, actor, permission))) return { error:`Page access required to change ${key}.`, status:403 };
+  }
+  if (changedKeys.includes('settings') && JSON.stringify(next.settings?.theme) !== JSON.stringify(data.settings?.theme) && !can(data, actor, 'page.appearance')) {
+    return { error:'Appearance page access is required to change the shared theme.', status:403 };
+  }
+  if (changedKeys.some(key => key === 'announcements' || key === 'announcementSchedules') && !can(data, actor, 'content.publish')) return { error:'Publish content permission is required for announcements.', status:403 };
+  if (removedContent(data, next, changedKeys) && !can(data, actor, 'action.delete')) return { error:'Delete permission is required to remove content.', status:403 };
+  const action = { undo:'action.undo', redo:'action.redo', reset:'action.reset', import:'action.import', delete:'action.delete' }[operation];
+  if (action && !can(data, actor, action)) return { error:`Permission required: ${action}.`, status:403 };
+  return { changedKeys };
+}
+async function requireAuthenticatedEmployee(req, res, permission = '') {
+  const data = await dashboard(), actor = actorFor(req, data);
+  if (!hasEmployeeRole(actor, configuredRoles(data))) { json(res, 401, { error:'Sign in is required.' }); return null; }
+  if (permission && !can(data, actor, permission)) { json(res, 403, { error:`Permission required: ${permission}.` }); return null; }
   return actor;
 }
 function redact(value) {
@@ -96,16 +205,29 @@ function redact(value) {
 function auditEvent(data, actor, event) {
   data.auditEvents ||= [];
   data.auditEvents.unshift({ id: randomUUID(), category:'audit', occurredAt:new Date().toISOString(), serverReceivedAt:new Date().toISOString(), actor: actor ? { id:actor.id, name:safeText(actor.name), email:safeText(actor.email), role:actor.role } : null, outcome:'success', ...redact(event) });
-  data.auditEvents = data.auditEvents.slice(0, 20000);
 }
-function activityEvent(data, actor, event) {
+function activityEvent(data, actor, event, ip = '') {
   data.activityEvents ||= [];
   if (data.activityEvents.some(entry => entry.id === event.id)) return false;
-  data.activityEvents.unshift({ id:event.id, category:'activity', occurredAt:event.occurredAt, serverReceivedAt:new Date().toISOString(), actor:{ id:actor.id, name:safeText(actor.name), role:actor.role }, action:safeText(event.action), component:safeText(event.component), route:safeText(event.route).replace(/\?.*/, ''), metadata:redact(event.metadata || {}) });
-  data.activityEvents = data.activityEvents.slice(0, 20000);
+  const route = safeText(event.route).split(/[?#]/)[0];
+  if (/^\/(?:whistleblower(?:\.html|\/|$)|login\.html$)/i.test(route)) return false;
+  const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+  const safeMetadata = Object.fromEntries(['page','control','destination','keyboard'].filter(key => Object.hasOwn(metadata, key)).map(key => [key, key === 'keyboard' ? Boolean(metadata[key]) : safeText(metadata[key])]));
+  const clientTime = Date.parse(event.occurredAt), now = Date.now();
+  data.activityEvents.unshift({ id:event.id, category:'activity', occurredAt:Number.isFinite(clientTime) && Math.abs(now - clientTime) < 86400000 ? new Date(clientTime).toISOString() : new Date(now).toISOString(), serverReceivedAt:new Date(now).toISOString(), actor:{ id:actor.id, name:safeText(actor.name), email:safeText(actor.email), role:actor.role }, action:safeText(event.action), component:safeText(event.component), route, metadata:safeMetadata, ip:safeText(ip).slice(0, 64) });
   return true;
 }
-const initialsFor = name => String(name || '').split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+function auditEventType(event) {
+  if (event.category === 'activity') return /^(page\.|page$)/.test(event.action || '') ? 'page' : /click|activate/.test(event.action || '') ? 'click' : 'system';
+  if (/^(content\.|presentation\.)/.test(event.action || '')) return 'change';
+  if (/^(authentication\.|access\.)/.test(event.action || '')) return 'access';
+  return 'system';
+}
+function auditEventSource(data, category = 'all') {
+  const all = [...data.auditEvents, ...data.activityEvents];
+  const source = category === 'audit' ? data.auditEvents : category === 'activity' ? data.activityEvents : category === 'all' ? all : all.filter(event => auditEventType(event) === category);
+  return [...source].sort((a, b) => Date.parse(b.serverReceivedAt || b.occurredAt) - Date.parse(a.serverReceivedAt || a.occurredAt));
+}
 const decodeXml = value => String(value || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 const xmlValue = (entry, tag) => decodeXml((new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`)).exec(entry)?.[1] || '').trim();
 const isYouTubePayload = payload => Array.isArray(payload?.videos) && payload.videos.length > 0;
@@ -190,18 +312,6 @@ async function latestCompanyNews() {
   })().finally(() => { companyNewsRefresh = null; });
 
   return companyNewsRefresh;
-}
-async function saveMemberPhoto(dataUrl, id) {
-  if (!dataUrl) return '';
-  const match = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl);
-  if (!match) throw new Error('Upload a PNG, JPEG, WebP or GIF image');
-  const content = Buffer.from(match[2], 'base64');
-  if (!content.length || content.length > 2 * 1024 * 1024) throw new Error('Photo must be no larger than 2 MB');
-  const extension = { jpeg: 'jpg', png: 'png', webp: 'webp', gif: 'gif' }[match[1]];
-  const filename = `member-${id}.${extension}`;
-  await mkdir(uploadsDir, { recursive: true });
-  await writeFile(join(uploadsDir, filename), content);
-  return `/uploads/${filename}`;
 }
 const uploadMimeExtensions = {
   'application/pdf':'pdf',
@@ -363,11 +473,17 @@ async function documentHighlights(url, page, query) {
 async function dashboard() {
   const seed = JSON.parse(await readFile(seedFile, 'utf8'));
   const adminDefaults = JSON.parse(await readFile(adminDefaultsFile, 'utf8'));
+  let data;
   try {
-    const data = JSON.parse(await readFile(dataFile, 'utf8'));
+    data = JSON.parse(await readFile(dataFile, 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    await copyFile(seedFile, dataFile);
+    data = JSON.parse(await readFile(dataFile, 'utf8'));
+  }
     let changed = false;
-    for (const key of ['newMembers', 'policies', 'people', 'forms', 'faqs', 'serviceRequests', 'supportPortals', 'firstWeekChecklist']) {
-      if (!Array.isArray(data[key])) { data[key] = seed[key]; changed = true; }
+    for (const key of ['newMembers', 'policies', 'people', 'forms', 'faqs', 'serviceRequests', 'supportPortals', 'firstWeekChecklist', 'announcementSchedules', 'announcementTemplates']) {
+      if (!Array.isArray(data[key])) { data[key] = seed[key] ?? adminDefaults[key] ?? []; changed = true; }
     }
     const socialLinks = { ...(seed.socialLinks || {}), ...(data.socialLinks || {}) };
     if (JSON.stringify(data.socialLinks || {}) !== JSON.stringify(socialLinks)) { data.socialLinks = socialLinks; changed = true; }
@@ -401,13 +517,49 @@ async function dashboard() {
     if (!Array.isArray(data.auditEvents)) { data.auditEvents = []; changed = true; }
     if (!Array.isArray(data.activityEvents)) { data.activityEvents = []; changed = true; }
     if (!Array.isArray(data.accessUsers)) { data.accessUsers = []; changed = true; }
-    data.adminSettings ||= { auditRetentionDays:365, activityRetentionDays:90, layoutHistory:[] };
+    if (!data.accessRoles || typeof data.accessRoles !== 'object' || Array.isArray(data.accessRoles)) { data.accessRoles = {}; changed = true; }
+    if (!Array.isArray(data.disabledDefaultRoles)) { data.disabledDefaultRoles = []; changed = true; }
+    if (data.permissionsSchemaVersion !== 2) {
+      data.accessRoles = Object.fromEntries(Object.entries(data.accessRoles).map(([id, permissions]) => {
+        const existing = Array.isArray(permissions) ? permissions : [];
+        const hadAdminView = existing.some(permission => permission.startsWith('page.'));
+        return [id, [...new Set([...existing, ...intranetPagePermissions, ...(hadAdminView ? ['admin.access'] : [])])]];
+      }));
+      data.permissionsSchemaVersion = 2;
+      changed = true;
+    }
+    data.adminSettings ||= { layoutHistory:[] };
+    if (data.adminSettings.auditRetentionDays !== auditRetentionDays || data.adminSettings.activityRetentionDays !== auditRetentionDays) {
+      data.adminSettings.auditRetentionDays = auditRetentionDays;
+      data.adminSettings.activityRetentionDays = auditRetentionDays;
+      changed = true;
+    }
+    if (!hasArchiveRunToday(data)) changed = true;
+    if (ensureEditableRecordIds(data)) changed = true;
+    if (publishDueAnnouncements(data)) changed = true;
     if (changed) await save(data);
     return withPolicyModifiedDates(data);
-  } catch {
-    await copyFile(seedFile, dataFile);
-    return withPolicyModifiedDates(seed);
+}
+function cairoNowParts(now = new Date()) {
+  const values = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone:'Africa/Cairo', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23', weekday:'short' }).formatToParts(now).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  return { ...values, date:`${values.year}-${values.month}-${values.day}`, time:`${values.hour}:${values.minute}` };
+}
+function announcementDateLabel(now) { return new Intl.DateTimeFormat('en', { timeZone:'Africa/Cairo', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }).format(now); }
+function publishDueAnnouncements(data, now = new Date()) {
+  if (!Array.isArray(data.announcementSchedules)) return false;
+  const parts = cairoNowParts(now), weekday = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 }[parts.weekday];
+  let changed = false;
+  for (const schedule of data.announcementSchedules) {
+    if (!schedule?.enabled || !['once','daily','weekly','monthly'].includes(schedule.frequency) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(schedule.time || '') || parts.time < schedule.time || (schedule.scheduledDate && parts.date < schedule.scheduledDate)) continue;
+    const monthlyDay = Math.min(Math.max(Number(schedule.dayOfMonth) || 1, 1), new Date(Date.UTC(Number(parts.year), Number(parts.month), 0)).getUTCDate());
+    const due = (schedule.frequency === 'once' && parts.date === schedule.scheduledDate) || schedule.frequency === 'daily' || (schedule.frequency === 'weekly' && Number(schedule.dayOfWeek) === weekday) || (schedule.frequency === 'monthly' && Number(parts.day) === monthlyDay);
+    if (!due || schedule.lastPublishedOccurrence === parts.date) continue;
+    const { id, frequency, scheduledDate, time, dayOfWeek, dayOfMonth, enabled, lastPublishedOccurrence, ...template } = schedule;
+    data.announcements.unshift({ ...template, id:`a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, scheduleId:id, date:announcementDateLabel(now), publishedAt:now.toISOString(), postedBy:template.postedBy || data.user?.name || 'Intranet team' });
+    schedule.lastPublishedOccurrence = parts.date;
+    changed = true;
   }
+  return changed;
 }
 function withAnnouncementAudit(data) {
   if (!Array.isArray(data.announcements)) return;
@@ -419,9 +571,24 @@ function withAnnouncementAudit(data) {
   });
 }
 async function save(data) {
+  if (!hasArchiveRunToday(data)) {
+    const archive = await archiveExpiredEvents(data, dataFile);
+    if (archive.archived) console.info(`Archived ${archive.archived} audit trail events in ${archive.files} file(s): ${archive.directory}`);
+  }
   const temporary = `${dataFile}.${randomUUID()}.tmp`;
   await writeFile(temporary, JSON.stringify(data, null, 2));
-  await rename(temporary, dataFile);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rename(temporary, dataFile);
+      return;
+    } catch (error) {
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt === 4) {
+        await unlink(temporary).catch(() => {});
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
 }
 function policyKey(policy) { return `${policy.id}:${policy.version}:${policy.canonicalUrl}`; }
 function requiredPolicies(data) { return (data.policies || []).filter(policy => policy.requiresAcknowledgement !== false); }
@@ -434,9 +601,9 @@ function publishedPolicyUrl(value) {
   } catch { return false; }
 }
 function policyIdentity(req, data) {
-  const session = sessionFor(req);
+  const session = actorFor(req, data);
   if (session) return session;
-  if (isGoogleConfigured()) return null;
+  if (isAuthenticationConfigured()) return null;
   const user = data.user || {};
   return { id:'local-demo-user', name:user.name || 'Local employee', email:user.email || 'local.employee@si-ware.com', role:user.role || 'EMPLOYEE', demo:true };
 }
@@ -449,81 +616,172 @@ function acknowledgementStatus(data, employee) {
 }
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.pdf': 'application/pdf', '.ppt':'application/vnd.ms-powerpoint', '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime' };
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower)\.html$/i.test(url.pathname);
-    if (isGoogleConfigured() && !sessionFor(req) && req.method === 'GET' && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
+    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower)\.html$/i.test(url.pathname);
+    if (isAuthenticationConfigured() && !sessionFor(req) && ['GET','HEAD'].includes(req.method) && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
+    const documentRoute = url.pathname.toLowerCase(), requiredPage = intranetRoutePermissions[documentRoute];
+    if (['GET','HEAD'].includes(req.method) && (requiredPage || documentRoute === '/admin.html')) {
+      const data = await dashboard(), actor = actorFor(req, data), permissions = configuredRoles(data)[actor?.role] || [];
+      if (!actor) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
+      const permitted = documentRoute === '/admin.html' ? canOpenAdmin(permissions) : permissions.includes(requiredPage);
+      if (!permitted) {
+        auditEvent(data, actor, { action:'access.denied', resource:url.pathname, route:url.pathname, outcome:'denial' }); save(data).catch(() => {});
+        const next = firstAvailableIntranetPage(permissions)?.path || (canOpenAdmin(permissions) ? '/admin.html' : '/profile.html');
+        const denied = await readFile(join(publicDir, 'access-denied.html'), 'utf8');
+        res.writeHead(403, { 'content-type':'text/html; charset=utf-8', 'cache-control':'no-store' });
+        return res.end(req.method === 'HEAD' ? '' : denied.replaceAll('@@RETURN_PATH@@', next));
+      }
+    }
+    if (req.method === 'GET' && url.pathname === '/api/auth/options') return json(res, 200, { google:isGoogleConfigured(), local:isLocalAdminConfigured() });
+    if (req.method === 'POST' && url.pathname === '/auth/local') {
+      if (!isLocalAdminConfigured()) return json(res, 503, { error:'Local sign-in is not configured for this environment.' });
+      const attemptKey = req.socket.remoteAddress || 'unknown', now = Date.now();
+      const prior = localLoginAttempts.get(attemptKey);
+      const attempts = prior && now - prior.startedAt < loginWindowMs ? prior : { startedAt:now, count:0 };
+      if (attempts.count >= maxLocalAttempts) return json(res, 429, { error:'Too many sign-in attempts. Try again in 15 minutes.' });
+      const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), returnTo = safeReturnTo(body.returnTo);
+      const passwordMatches = isValidLocalAdminPassword(body.password);
+      if (email !== localAdminEmail || !passwordMatches) {
+        attempts.count += 1; localLoginAttempts.set(attemptKey, attempts);
+        return json(res, 401, { error:'The email or password is incorrect.' });
+      }
+      localLoginAttempts.delete(attemptKey);
+      const current = await dashboard(), sessionId = randomUUID(), actor = { id:'local-admin', name:localAdminName || 'Local Administrator', email:localAdminEmail, role:'ADMIN', local:true }, landing = allowedLanding(current, actor, returnTo);
+      sessions.set(sessionId, { actor, expiresAt:now + sessionLifetimeMs }); setCookie(res, sessionId); auditEvent(current, actor, { action:'authentication.login', resource:'local-session', route:landing, outcome:'success' }); await save(current);
+      res.setHeader('cache-control', 'no-store');
+      return json(res, 200, { ok:true, returnTo:landing });
+    }
     if (req.method === 'GET' && url.pathname === '/auth/google') {
       if (!isGoogleConfigured()) return json(res, 503, { error:'Google Workspace SSO is not configured yet.' });
       const state = randomUUID(), origin = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
-      const returnTo = String(url.searchParams.get('returnTo') || '/');
-      oauthStates.set(state, { createdAt:Date.now(), returnTo:/^\/(?!\/)/.test(returnTo) ? returnTo : '/' });
+      const returnTo = safeReturnTo(url.searchParams.get('returnTo'));
+      oauthStates.set(state, { createdAt:Date.now(), returnTo });
       const target = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       target.search = new URLSearchParams({ client_id:googleClientId, redirect_uri:`${origin}/auth/google/callback`, response_type:'code', scope:'openid email profile', hd:googleWorkspaceDomain, state }).toString();
       res.writeHead(302, { location:target.toString() }); return res.end();
     }
     if (req.method === 'GET' && url.pathname === '/auth/google/callback') {
       const state = url.searchParams.get('state'), stateRecord = oauthStates.get(state), code = url.searchParams.get('code'); oauthStates.delete(state);
-      if (!stateRecord || Date.now() - stateRecord.createdAt > 10 * 60 * 1000 || !code) return json(res, 400, { error:'Google sign-in could not be verified.' });
+      const fail = reason => { res.writeHead(302, { location:`/login.html?error=${reason}&returnTo=${encodeURIComponent(stateRecord?.returnTo || '/')}` }); return res.end(); };
+      if (!stateRecord || Date.now() - stateRecord.createdAt > 10 * 60 * 1000) return fail('rejected');
+      if (url.searchParams.get('error') === 'access_denied') return fail('cancelled');
+      if (!code) return fail('rejected');
       const origin = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ code, client_id:googleClientId, client_secret:googleClientSecret, redirect_uri:`${origin}/auth/google/callback`, grant_type:'authorization_code' }) });
-      if (!tokenResponse.ok) return json(res, 401, { error:'Google sign-in was rejected.' });
-      const token = await tokenResponse.json(), userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers:{ authorization:`Bearer ${token.access_token}` } });
-      const profile = await userResponse.json(), email = String(profile.email || '').toLowerCase();
-      if (!userResponse.ok || !profile.email_verified || !email.endsWith(`@${googleWorkspaceDomain}`)) return json(res, 403, { error:'Use your approved Si-Ware Google Workspace account.' });
+      let profile;
+      try {
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ code, client_id:googleClientId, client_secret:googleClientSecret, redirect_uri:`${origin}/auth/google/callback`, grant_type:'authorization_code' }) });
+        if (!tokenResponse.ok) return fail('rejected');
+        const token = await tokenResponse.json(), userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers:{ authorization:`Bearer ${token.access_token}` } });
+        if (!userResponse.ok) return fail('unavailable');
+        profile = await userResponse.json();
+      } catch { return fail('unavailable'); }
+      const email = String(profile.email || '').toLowerCase();
+      if (!profile.email_verified || !email.endsWith(`@${googleWorkspaceDomain}`)) return fail('account');
       const current = await dashboard();
       const assigned = current.accessUsers.find(user => String(user.email || '').toLowerCase() === email)?.role;
-      const sessionId = randomUUID(); sessions.set(sessionId, { id:String(profile.sub), email, name:profile.name || email, role:assigned || (googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE') }); setCookie(res, sessionId); auditEvent(current, sessions.get(sessionId), { action:'authentication.login', resource:'session', route:stateRecord.returnTo, outcome:'success' }); await save(current); res.writeHead(302, { location:stateRecord.returnTo }); return res.end();
+      const sessionId = randomUUID(), actor = { id:String(profile.sub), email, name:profile.name || email, role:configuredRoles(current)[assigned] ? assigned : (googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE') };
+      const landing = allowedLanding(current, actor, stateRecord.returnTo);
+      sessions.set(sessionId, { actor, expiresAt:Date.now() + sessionLifetimeMs }); setCookie(res, sessionId); auditEvent(current, actor, { action:'authentication.login', resource:'session', route:landing, outcome:'success' }); await save(current); res.writeHead(302, { location:landing }); return res.end();
     }
     if (req.method === 'POST' && url.pathname === '/auth/logout') {
-      const data = await dashboard(), actor = actorFor(req, data), sessionId = cookiesFor(req).siware_session;
+      const actor = sessionFor(req), sessionId = cookiesFor(req).siware_session;
       if (sessionId) sessions.delete(sessionId);
       setCookie(res, '', 0);
-      if (actor) { auditEvent(data, actor, { action:'authentication.logout', resource:'session', route:'/', outcome:'success' }); await save(data); }
+      if (actor) {
+        try {
+          const data = await dashboard();
+          auditEvent(data, actor, { action:'authentication.logout', resource:'session', route:'/', outcome:'success' });
+          await save(data);
+        } catch (error) { console.error('Could not record sign-out audit event:', error); }
+      }
       return json(res, 200, { ok:true });
     }
-    if (req.method === 'GET' && url.pathname === '/api/auth/me') { const data = await dashboard(), employee = actorFor(req, data); return employee ? json(res, 200, { ...employee, permissions:rolePermissions[employee.role] || [] }) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
+    if (req.method === 'GET' && url.pathname === '/api/auth/me') {
+      res.setHeader('cache-control', 'no-store');
+      const data = await dashboard(), employee = actorFor(req, data);
+      return employee ? json(res, 200, { ...employee, permissions:configuredRoles(data)[employee.role] || [] }) : json(res, 401, { error:'Sign in is required to continue.' });
+    }
+    if (isAuthenticationConfigured() && url.pathname.startsWith('/api/') && !sessionFor(req)) return json(res, 401, { error:'Sign in is required.' });
+    if (url.pathname.startsWith('/api/admin/')) {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!can(data, actor, 'admin.access')) return json(res, actor ? 403 : 401, { error:'Admin Panel access is required.' });
+    }
     if (req.method === 'POST' && url.pathname === '/api/activity') {
       const data = await dashboard(), actor = actorFor(req, data), body = await readBody(req);
       if (!actor) return json(res, 401, { error:'Sign in is required.' });
       const events = Array.isArray(body.events) ? body.events.slice(0, 50) : [];
-      const accepted = events.filter(event => /^[a-zA-Z0-9-]{16,80}$/.test(String(event.id || '')) && /^[a-z0-9._-]{2,80}$/i.test(String(event.action || '')) && /^[a-z0-9._-]{2,80}$/i.test(String(event.component || '')) && /^\//.test(String(event.route || ''))).filter(event => activityEvent(data, actor, event)).length;
+      const accepted = events.filter(event => /^[a-zA-Z0-9-]{16,80}$/.test(String(event.id || '')) && /^[a-z0-9._-]{2,80}$/i.test(String(event.action || '')) && /^[a-z0-9._-]{2,80}$/i.test(String(event.component || '')) && /^\/(?!\/)/.test(String(event.route || ''))).filter(event => activityEvent(data, actor, event, req.socket.remoteAddress || '')).length;
       if (accepted) await save(data);
       return json(res, 202, { accepted });
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/summary') {
       const data = await dashboard(), actor = actorFor(req, data);
-      if (!can(actor, 'audit.view') && !can(actor, 'content.edit')) { auditEvent(data, actor, { action:'access.denied', resource:'admin.summary', route:'/admin.html', outcome:'denial' }); save(data).catch(() => {}); return json(res, actor ? 403 : 401, { error:actor ? 'You do not have permission for the administration workspace.' : 'Sign in is required.' }); }
-      const audit = can(actor, 'audit.view') ? data.auditEvents.slice(0, 8) : [], activity = can(actor, 'audit.view') ? data.activityEvents.slice(0, 8) : [];
-      return json(res, 200, { version:data._version, counts:{ announcements:data.announcements?.length || 0, people:data.newMembers?.length || 0, apps:data.apps?.length || 0, media:(await mediaInventory(data)).length, audits:data.auditEvents.length, activity:data.activityEvents.length }, audit, activity, settings:data.adminSettings, actor });
+      if (!canOpenAdmin(configuredRoles(data)[actor?.role])) { auditEvent(data, actor, { action:'access.denied', resource:'admin.summary', route:'/admin.html', outcome:'denial' }); save(data).catch(() => {}); return json(res, actor ? 403 : 401, { error:actor ? 'You do not have permission for the administration workspace.' : 'Sign in is required.' }); }
+      const canViewAudit = can(data, actor, 'audit.view') && can(data, actor, 'page.activity');
+      const audit = canViewAudit ? data.auditEvents.slice(0, 8) : [], activity = canViewAudit ? data.activityEvents.slice(0, 8) : [];
+      return json(res, 200, { version:data._version, counts:{ announcements:data.announcements?.length || 0, people:data.newMembers?.length || 0, apps:data.apps?.length || 0, media:(await mediaInventory(data)).length, audits:canViewAudit ? data.auditEvents.length : 0, activity:canViewAudit ? data.activityEvents.length : 0 }, audit, activity, settings:can(data, actor, 'settings.manage') && can(data, actor, 'page.settings') ? data.adminSettings : null, actor });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/dashboard') {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!canOpenAdmin(configuredRoles(data)[actor?.role])) return json(res, actor ? 403 : 401, { error:actor ? 'Administration access is required.' : 'Sign in is required.' });
+      return json(res, 200, dashboardResponse(data, actor, true));
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
-      const data = await dashboard(), actor = requirePermission(req, res, data, 'audit.view'); if (!actor) return;
-      const source = url.searchParams.get('category') === 'activity' ? data.activityEvents : data.auditEvents;
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['audit.view','page.activity']); if (!actor) return;
+      const source = auditEventSource(data, url.searchParams.get('category') || 'all');
       const query = safeText(url.searchParams.get('q')).toLowerCase(), outcome = safeText(url.searchParams.get('outcome'));
       const page = Math.max(1, Number(url.searchParams.get('page')) || 1), limit = Math.min(100, Math.max(10, Number(url.searchParams.get('limit')) || 25));
       const filtered = source.filter(event => (!query || JSON.stringify(event).toLowerCase().includes(query)) && (!outcome || event.outcome === outcome));
-      return json(res, 200, { records:filtered.slice((page - 1) * limit, page * limit), total:filtered.length, page, pages:Math.max(1, Math.ceil(filtered.length / limit)) });
+      const counts = { all:data.auditEvents.length + data.activityEvents.length, page:0, click:0, change:0, access:0, system:0 };
+      [...data.auditEvents, ...data.activityEvents].forEach(event => { counts[auditEventType(event)] += 1; });
+      return json(res, 200, { records:filtered.slice((page - 1) * limit, page * limit), total:filtered.length, page, pages:Math.max(1, Math.ceil(filtered.length / limit)), counts });
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/audit/export') {
-      const data = await dashboard(), actor = requirePermission(req, res, data, 'audit.export'); if (!actor) return;
-      const rows = data.auditEvents.map(event => [event.id, event.occurredAt, event.category, event.actor?.email || '', event.action || '', event.resource || '', event.outcome || ''].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['audit.view','audit.export','page.activity']); if (!actor) return;
+      const source = auditEventSource(data, url.searchParams.get('category') || 'all');
+      const query = safeText(url.searchParams.get('q')).toLowerCase();
+      const cell = value => { const text = String(value ?? ''); return `"${(/^[=+\-@]/.test(text) ? `'${text}` : text).replace(/"/g, '""')}"`; };
+      const rows = source.filter(event => !query || JSON.stringify(event).toLowerCase().includes(query)).map(event => [event.id, event.serverReceivedAt || event.occurredAt, event.category, event.actor?.name || '', event.actor?.email || '', event.action || '', event.route || '', event.metadata?.page || '', event.metadata?.control || '', event.resource || '', JSON.stringify(event.changes?.details || []), event.ip || '', event.outcome || 'reported'].map(cell).join(',')).join('\n');
       auditEvent(data, actor, { action:'audit.export', resource:'audit-events', route:'/admin.html', outcome:'success' }); await save(data);
-      res.writeHead(200, { 'content-type':'text/csv; charset=utf-8', 'content-disposition':'attachment; filename="siware-audit.csv"' }); return res.end(`id,occurred_at,category,actor,action,resource,outcome\n${rows}`);
+      res.writeHead(200, { 'content-type':'text/csv; charset=utf-8', 'content-disposition':'attachment; filename="siware-audit.csv"' }); return res.end(`id,when_received,category,user,user_email,action,route,page,control,resource,change_details,ip,outcome\n${rows}`);
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/media') {
-      const data = await dashboard(), actor = requirePermission(req, res, data, 'media.manage'); if (!actor) return;
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['media.manage','page.media']); if (!actor) return;
       return json(res, 200, await mediaInventory(data));
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/access') {
       const data = await dashboard(), actor = requirePermission(req, res, data, 'access.manage'); if (!actor) return;
-      return json(res, 200, { users:data.accessUsers, roles:Object.keys(rolePermissions) });
+      if (!can(data, actor, 'page.users') && !can(data, actor, 'page.roles')) return json(res, 403, { error:'Users or Roles page access is required.' });
+      return json(res, 200, { users:can(data, actor, 'page.users') ? data.accessUsers : data.accessUsers.map(user => ({ role:user.role })), roles:Object.entries(configuredRoles(data)).map(([id, permissions]) => ({ id, permissions })) });
+    }
+    if ((req.method === 'POST' || req.method === 'PATCH') && url.pathname === '/api/admin/roles') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['access.manage','page.roles']); if (!actor) return;
+      const body = await readBody(req), id = String(body.id || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, ''), permissions = [...new Set(Array.isArray(body.permissions) ? body.permissions.filter(permission => permission !== 'action.edit_save') : [])];
+      if (!/^[A-Z][A-Z0-9_]{1,40}$/.test(id) || permissions.some(permission => !Object.values(rolePermissions).flat().includes(permission))) return json(res, 422, { error:'Provide a role name and supported permissions.' });
+      const invalidPermissions = rolePermissionError(permissions);
+      if (invalidPermissions) return json(res, 422, { error:invalidPermissions });
+      const roles = configuredRoles(data), exists = Object.hasOwn(roles, id);
+      if (req.method === 'POST' && exists) return json(res, 409, { error:'A role with this name already exists.' });
+      if (req.method === 'PATCH' && !exists) return json(res, 404, { error:'This role no longer exists.' });
+      if (id === 'ADMIN' && ['admin.access','access.manage','page.users','page.roles'].some(permission => !permissions.includes(permission))) return json(res, 422, { error:'Administrator must retain Admin Panel, Manage users, Users page, and Roles page access.' });
+      data.disabledDefaultRoles = data.disabledDefaultRoles.filter(roleId => roleId !== id); data.accessRoles[id] = permissions; data._version += 1; auditEvent(data, actor, { action:exists ? 'access.role.updated' : 'access.role.created', resource:id, route:'/admin.html', outcome:'success', changes:{ permissions } }); await save(data);
+      return json(res, 200, { roles:Object.entries(configuredRoles(data)).map(([roleId, rolePermissions]) => ({ id:roleId, permissions:rolePermissions })) });
+    }
+    if (req.method === 'DELETE' && /^\/api\/admin\/roles\/[A-Z0-9_]+$/.test(url.pathname)) {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['access.manage','page.roles','action.delete']); if (!actor) return;
+      const id = url.pathname.split('/').pop();
+      if (id === 'ADMIN') return json(res, 422, { error:'Administrator cannot be removed.' });
+      if (data.accessUsers.some(user => user.role === id)) return json(res, 422, { error:'Reassign users with this role before removing it.' });
+      if (Object.hasOwn(data.accessRoles, id)) delete data.accessRoles[id]; else if (Object.hasOwn(rolePermissions, id)) data.disabledDefaultRoles.push(id); else return json(res, 404, { error:'This role no longer exists.' }); data._version += 1; auditEvent(data, actor, { action:'access.role.deleted', resource:id, route:'/admin.html', outcome:'success' }); await save(data);
+      return json(res, 200, { roles:Object.entries(configuredRoles(data)).map(([roleId, rolePermissions]) => ({ id:roleId, permissions:rolePermissions })) });
     }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/access') {
-      const data = await dashboard(), actor = requirePermission(req, res, data, 'access.manage'); if (!actor) return;
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['access.manage','page.users']); if (!actor) return;
       const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), role = String(body.role || '');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !rolePermissions[role]) return json(res, 422, { error:'Provide a valid email address and supported role.' });
+      if (body.operation === 'import' && !can(data, actor, 'action.import')) return json(res, 403, { error:'Import permission is required to import users.' });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !configuredRoles(data)[role]) return json(res, 422, { error:'Provide a valid email address and supported role.' });
       const current = data.accessUsers.find(user => user.email === email);
       const accessAdmins = new Set(data.accessUsers.filter(user => user.role === 'ADMIN').map(user => user.email));
       googleAdminEmails.forEach(adminEmail => accessAdmins.add(adminEmail));
@@ -536,83 +794,96 @@ createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/admin/defaults') {
       const data = await dashboard(), actor = requirePermission(req, res, data, 'content.edit'); if (!actor) return;
       const defaults = JSON.parse(await readFile(adminDefaultsFile, 'utf8'));
-      return json(res, 200, { defaults:Object.fromEntries(adminDefaultKeys.map(key => [key, defaults[key] ?? null])) });
+      return json(res, 200, { defaults:Object.fromEntries(adminDefaultKeys.filter(key => adminContentKeyPages[key]?.some(permission => can(data, actor, permission))).map(key => [key, defaults[key] ?? null])) });
     }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/dashboard') {
       const data = await dashboard(), actor = requirePermission(req, res, data, 'content.edit'); if (!actor) return;
       const body = await readBody(req), next = body.data;
       if (!next || typeof next !== 'object' || Array.isArray(next)) return json(res, 422, { error:'A dashboard payload is required.' });
       if (Number(body.version) !== data._version) return json(res, 409, { error:'This content changed elsewhere. Refresh before saving.', version:data._version });
+      const permissionCheck = dashboardMutationError(data, actor, next, body.operation);
+      if (permissionCheck.error) return json(res, permissionCheck.status, { error:permissionCheck.error });
       if (Object.hasOwn(next, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(next.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
-      const protectedKeys = new Set(['auditEvents', 'activityEvents', 'accessUsers', 'adminSettings', '_version']);
-      const changedKeys = Object.keys(next).filter(key => !protectedKeys.has(key) && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
+      const changedKeys = permissionCheck.changedKeys;
+      const contentDetails = describeContentChanges(data, next, changedKeys);
       changedKeys.forEach(key => { data[key] = next[key]; });
       if (changedKeys.includes('settings')) { data.adminSettings.layoutHistory ||= []; data.adminSettings.layoutHistory.unshift({ at:new Date().toISOString(), by:actor.email, settings:data.settings }); data.adminSettings.layoutHistory = data.adminSettings.layoutHistory.slice(0, 12); }
       const changedContent = changedContentLabels(changedKeys);
-      withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent } }); await save(data);
-      return json(res, 200, await withPolicyModifiedDates(data));
+      withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent, details:contentDetails.details, truncated:contentDetails.truncated } }); await save(data);
+      return json(res, 200, dashboardResponse(await withPolicyModifiedDates(data), actor, true));
     }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/settings') {
-      const data = await dashboard(), actor = requirePermission(req, res, data, 'settings.manage'); if (!actor) return;
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
       const body = await readBody(req), auditRetentionDays = Number(body.auditRetentionDays), activityRetentionDays = Number(body.activityRetentionDays);
-      if (!Number.isInteger(auditRetentionDays) || !Number.isInteger(activityRetentionDays) || auditRetentionDays < 30 || activityRetentionDays < 7 || auditRetentionDays > 3650 || activityRetentionDays > 3650) return json(res, 422, { error:'Choose retention periods within the supported limits.' });
-      data.adminSettings.auditRetentionDays = auditRetentionDays; data.adminSettings.activityRetentionDays = activityRetentionDays;
-      const now = Date.now(), auditCutoff = now - auditRetentionDays * 86400000, activityCutoff = now - activityRetentionDays * 86400000;
-      data.auditEvents = data.auditEvents.filter(event => new Date(event.occurredAt).getTime() >= auditCutoff);
-      data.activityEvents = data.activityEvents.filter(event => new Date(event.occurredAt).getTime() >= activityCutoff);
-      data._version += 1; auditEvent(data, actor, { action:'audit.retention.updated', resource:'retention-policy', route:'/admin.html', outcome:'success', changes:{ auditRetentionDays, activityRetentionDays } }); await save(data);
+      if (auditRetentionDays !== 90 || activityRetentionDays !== 90) return json(res, 422, { error:'Audit and activity retention are fixed at 90 days. Older records are archived automatically.' });
       return json(res, 200, data.adminSettings);
     }
     if (req.method === 'POST' && url.pathname === '/api/policy-acknowledgement/viewed') {
       const data = await dashboard(), employee = policyIdentity(req, data), body = await readBody(req); if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
+      if (!can(data, employee, 'intranet.newsi')) return json(res, 403, { error:'New Si-Warians page access is required.' });
       const policy = requiredPolicies(data).find(item => item.id === body.policyId && publishedPolicyUrl(item.canonicalUrl)); if (!policy) return json(res, 422, { error:'That policy document is not ready for acknowledgement.' });
       data.policyReviewViews ||= {}; const email = employee.email.toLowerCase(); data.policyReviewViews[email] ||= {}; data.policyReviewViews[email][policyKey(policy)] = new Date().toISOString(); await save(data); return json(res, 200, acknowledgementStatus(data, employee));
     }
-    if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgement') { const data = await dashboard(), employee = policyIdentity(req, data); return employee ? json(res, 200, acknowledgementStatus(data, employee)) : json(res, 401, { error:'Sign in with Google Workspace to continue.' }); }
+    if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgement') { const data = await dashboard(), employee = policyIdentity(req, data); return !employee ? json(res, 401, { error:'Sign in with Google Workspace to continue.' }) : !can(data, employee, 'intranet.newsi') ? json(res, 403, { error:'New Si-Warians page access is required.' }) : json(res, 200, acknowledgementStatus(data, employee)); }
     if (req.method === 'POST' && url.pathname === '/api/policy-acknowledgement') {
       const data = await dashboard(), employee = policyIdentity(req, data), body = await readBody(req); if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
+      if (!can(data, employee, 'intranet.newsi')) return json(res, 403, { error:'New Si-Warians page access is required.' });
       const status = acknowledgementStatus(data, employee), statement = status.content.confirmationLabel;
       if (body.statement !== statement) return json(res, 422, { error:'The required confirmation statement was not received.' });
       if (status.unpublished.length || status.policies.some(policy => !policy.viewedAt)) return json(res, 422, { error:'Open every required policy document before confirming.' });
       if (!status.acceptance) { data.policyAcknowledgements ||= []; data.policyAcknowledgements.unshift({ id:`ack-${Date.now()}`, employee:{ id:employee.id, name:employee.name, email:employee.email }, statement, contentVersion:data.policyAcknowledgementContent.version, acceptedAt:new Date().toISOString(), policies:status.policies.map(policy => ({ id:policy.id, title:policy.title, version:policy.version, key:policy.key, viewedAt:policy.viewedAt })) }); await save(data); }
       return json(res, 200, acknowledgementStatus(data, employee));
     }
-    if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgements') { if (!isAdmin(req)) return json(res, 403, { error:'Admin role required' }); const data = await dashboard(), query = String(url.searchParams.get('q') || '').trim().toLowerCase(), limit = Math.min(100, Math.max(10, Number(url.searchParams.get('limit')) || 25)), requestedPage = Math.max(1, Number(url.searchParams.get('page')) || 1), matching = (data.policyAcknowledgements || []).filter(record => !query || `${record.employee.name} ${record.employee.email}`.toLowerCase().includes(query)), total = matching.length, pages = Math.max(1, Math.ceil(total / limit)), page = Math.min(requestedPage, pages), records = matching.slice((page - 1) * limit, page * limit); return json(res, 200, { records, total, page, pages, limit }); }
+    if (req.method === 'GET' && url.pathname === '/api/policy-acknowledgements') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['admin.access','audit.view','page.activity']);
+      if (!actor) return;
+      const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
+      const limit = Math.min(100, Math.max(10, Number(url.searchParams.get('limit')) || 25));
+      const requestedPage = Math.max(1, Number(url.searchParams.get('page')) || 1);
+      const matching = (data.policyAcknowledgements || []).filter(record => !query || `${record.employee.name} ${record.employee.email}`.toLowerCase().includes(query));
+      const total = matching.length, pages = Math.max(1, Math.ceil(total / limit)), page = Math.min(requestedPage, pages);
+      const records = matching.slice((page - 1) * limit, page * limit);
+      return json(res, 200, { records, total, page, pages, limit });
+    }
     if (req.method === 'GET' && url.pathname === '/api/dashboard') {
       const data = await dashboard(), actor = actorFor(req, data);
-      if (isGoogleConfigured() && !actor) return json(res, 401, { error:'Sign in is required.' });
-      return json(res, 200, { ...data, user:actor ? { name:actor.name, email:actor.email, role:actor.role, title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user });
+      if (isAuthenticationConfigured() && !actor) return json(res, 401, { error:'Sign in is required.' });
+      return json(res, 200, dashboardResponse(data, actor));
     }
-    if (req.method === 'GET' && url.pathname === '/api/youtube/latest') return json(res, 200, await latestYouTubeVideos());
-    if (req.method === 'GET' && url.pathname === '/api/company-news') return json(res, 200, await latestCompanyNews());
+    if (req.method === 'GET' && url.pathname === '/api/youtube/latest') { if (!await requireAuthenticatedEmployee(req, res, 'intranet.social')) return; return json(res, 200, await latestYouTubeVideos()); }
+    if (req.method === 'GET' && url.pathname === '/api/company-news') { if (!await requireAuthenticatedEmployee(req, res, 'intranet.news')) return; return json(res, 200, await latestCompanyNews()); }
     if (req.method === 'GET' && url.pathname === '/api/search') {
+      const employee = await requireAuthenticatedEmployee(req, res); if (!employee) return;
       const term = (url.searchParams.get('q') || '').trim().toLowerCase();
       if (!term) return json(res, 200, []);
       const data = await dashboard();
       const sources = [
-        ['Policy', 'policies', item => `${item.title} ${item.summary} ${item.owner} ${item.audience}`, item => item.canonicalUrl],
-        ['Person', 'people', item => `${item.name} ${item.detail}`, item => item.url],
-        ['Form', 'forms', item => `${item.title} ${item.detail}`, item => item.url],
-        ['FAQ', 'faqs', item => `${item.title} ${item.detail}`, item => item.url],
-        ['Service request', 'serviceRequests', item => `${item.title} ${item.detail}`, item => item.url],
-        ['New member', 'newMembers', item => `${item.name} ${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'],
-        ['Knowledge', 'sessions', item => `${item.title} ${item.presenter.name} ${item.category}`, () => '/#knowledge'],
-        ['App', 'apps', item => `${item.name} ${item.caption}`, item => item.url]
+        ['intranet.newsi', 'Policy', 'policies', item => `${item.title} ${item.summary} ${item.owner} ${item.audience}`, item => item.canonicalUrl],
+        ['intranet.home', 'Person', 'people', item => `${item.name} ${item.detail}`, item => item.url],
+        ['intranet.home', 'Form', 'forms', item => `${item.title} ${item.detail}`, item => item.url],
+        ['intranet.home', 'FAQ', 'faqs', item => `${item.title} ${item.detail}`, item => item.url],
+        ['intranet.home', 'Service request', 'serviceRequests', item => `${item.title} ${item.detail}`, item => item.url],
+        ['intranet.people', 'New member', 'newMembers', item => `${item.name} ${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'],
+        ['intranet.knowledge', 'Knowledge', 'sessions', item => `${item.title} ${item.presenter.name} ${item.category}`, () => '/knowledge-hub.html'],
+        ['intranet.apps', 'App', 'apps', item => `${item.name} ${item.caption}`, item => item.url]
       ];
-      const results = sources.flatMap(([type, key, text, href]) => data[key].filter(item => text(item).toLowerCase().includes(term)).map(item => ({ id: item.id, type, title: item.title || item.name, detail: item.summary || item.detail || item.caption || item.category, href: href(item) }))).slice(0, 12);
-      const documentMatches = await findInPolicyDocuments(data.policies, term);
+      const results = sources.filter(([permission]) => can(data, employee, permission)).flatMap(([, type, key, text, href]) => (data[key] || []).filter(item => text(item).toLowerCase().includes(term)).map(item => ({ id: item.id, type, title: item.title || item.name, detail: item.summary || item.detail || item.caption || item.category, href: href(item) }))).slice(0, 12);
+      const documentMatches = can(data, employee, 'intranet.newsi') ? await findInPolicyDocuments(data.policies, term) : [];
       documentMatches.slice(0, Math.max(0, 12 - results.length)).forEach(match => results.push({ id:`${match.url}-${match.page}`, type:'Document', title:match.title, detail:`Page ${match.page}: ${match.snippet}`, href:`/new-hires.html#policies` }));
       return json(res, 200, results);
     }
     if (req.method === 'GET' && url.pathname === '/api/documents/search') {
+      if (!await requireAuthenticatedEmployee(req, res, 'intranet.newsi')) return;
       const query = (url.searchParams.get('q') || '').trim();
       if (!query) return json(res, 200, []);
       const data = await dashboard(); return json(res, 200, await findPolicyOccurrences(data.policies, query));
     }
     if (req.method === 'GET' && url.pathname === '/api/documents/highlights') {
+      if (!await requireAuthenticatedEmployee(req, res, 'intranet.newsi')) return;
       const page = Number(url.searchParams.get('page')); return json(res, 200, await documentHighlights(url.searchParams.get('url'), page, url.searchParams.get('q') || ''));
     }
     if (req.method === 'GET' && url.pathname === '/api/documents/info') {
+      if (!await requireAuthenticatedEmployee(req, res, 'intranet.newsi')) return;
       const file = uploadedPdfPath(url.searchParams.get('url'));
       if (!file) return json(res, 404, { error: 'Document not found' });
       try {
@@ -621,20 +892,15 @@ createServer(async (req, res) => {
       } catch { return json(res, 500, { error: 'Unable to read document information' }); }
     }
     if (req.method === 'GET' && url.pathname === '/api/documents/page') {
+      if (!await requireAuthenticatedEmployee(req, res, 'intranet.newsi')) return;
       const file = uploadedPdfPath(url.searchParams.get('url')), page = Number(url.searchParams.get('page'));
       if (!file || !Number.isInteger(page) || page < 1) return json(res, 404, { error: 'Document page not found' });
       const output = join(uploadsDir, `.preview-${Date.now()}-${page}`), image = `${output}.png`;
       try { await execFileAsync('pdftoppm', ['-f', String(page), '-l', String(page), '-scale-to', '1800', '-png', '-singlefile', file, output]); const content = await readFile(image); res.writeHead(200, { 'content-type':'image/png', 'cache-control':'private, max-age=300' }); res.end(content); } finally { await unlink(image).catch(() => {}); }
       return;
     }
-    if (req.method === 'PATCH' && url.pathname === '/api/dashboard') {
-      if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
-      const data = await dashboard(), patch = await readBody(req), actor = actorFor(req, data);
-      if (Object.hasOwn(patch, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(patch.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
-      Object.assign(data, patch); withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:'content.updated.legacy', resource:'dashboard', route:'/', outcome:'success' }); await save(data); return json(res, 200, await withPolicyModifiedDates(data));
-    }
     if (req.method === 'POST' && url.pathname === '/api/uploads') {
-      const data = await dashboard(), actor = requirePermission(req, res, data, 'media.manage'); if (!actor) return;
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['admin.access','media.manage']); if (!actor) return;
       if (req.headers['x-upload-binary'] === '1') {
         const filename = decodeURIComponent(String(req.headers['x-upload-filename'] || 'upload'));
         const uploaded = await saveAdminBinaryUpload(req, filename, req.headers['content-type']); auditEvent(data, actor, { action:'media.uploaded', resource:uploaded, route:'/admin.html', outcome:'success' }); await save(data); return json(res, 201, { url: uploaded });
@@ -642,35 +908,9 @@ createServer(async (req, res) => {
       const item = await readBody(req);
       const uploaded = await saveAdminUpload(item.dataUrl, item.filename); auditEvent(data, actor, { action:'media.uploaded', resource:uploaded, route:'/admin.html', outcome:'success' }); await save(data); return json(res, 201, { url: uploaded });
     }
-    if (req.method === 'POST' && url.pathname === '/api/new-members') {
-      if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
-      const item = await readBody(req), data = await dashboard();
-      const required = ['name', 'role', 'team', 'directManager', 'department', 'division'];
-      if (required.some(field => !item[field] || typeof item[field] !== 'string')) return json(res, 422, { error: 'Name, role, team, department, division and direct manager are required' });
-      if (item.employmentType && !employmentTypes.includes(item.employmentType)) return json(res, 422, { error: 'Choose a valid employment type' });
-      item.id = `member-${Date.now()}`;
-      item.name = item.name.trim(); item.role = item.role.trim(); item.team = item.team.trim(); item.directManager = item.directManager.trim(); item.department = item.department.trim(); item.division = item.division.trim(); item.employmentType = employmentTypes.includes(item.employmentType) ? item.employmentType : 'Full Time';
-      item.initials ||= initialsFor(item.name); item.joined ||= new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date());
-      item.message ||= `Please welcome ${item.name} to ${item.team}.`; item.color ||= '#e7f0ff'; item.photoUrl = await saveMemberPhoto(item.photoData, item.id); delete item.photoData;
-      data.newMembers.unshift(item); await save(data); return json(res, 201, item);
-    }
-    if (req.method === 'POST' && ['/api/sessions', '/api/announcements', '/api/policies'].includes(url.pathname)) {
-      if (!isAdmin(req)) return json(res, 403, { error: 'Admin role required' });
-      const item = await readBody(req), data = await dashboard();
-      if (!item.title || typeof item.title !== 'string') return json(res, 422, { error: 'A title is required' });
-      const key = url.pathname.includes('sessions') ? 'sessions' : url.pathname.includes('policies') ? 'policies' : 'announcements';
-      if (key === 'sessions' && data.sessions.some(session => knowledgeSessionName(session.title) === knowledgeSessionName(item.title))) return json(res, 409, { error:'A Knowledge Hub session with this title already exists. Use a different title or edit the existing session.' });
-      if (key === 'policies') {
-        const required = ['owner', 'audience', 'version'];
-        if (required.some(field => !item[field])) return json(res, 422, { error: 'Policy owner, audience and version are required' });
-        item.canonicalUrl ||= '/new-hires.html#policies';
-      }
-      item.id = `${key === 'sessions' ? 'skh' : key === 'policies' ? 'pol' : 'a'}-${Date.now()}`;
-      data[key].unshift(item); await save(data); return json(res, 201, item);
-    }
     if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method not allowed' });
     if (url.pathname.startsWith('/uploads/')) {
-      if (isGoogleConfigured() && !sessionFor(req)) return json(res, 401, { error:'Sign in is required.' });
+      if (isAuthenticationConfigured() && !actorFor(req, await dashboard())) return json(res, 401, { error:'Sign in is required.' });
       const uploadName = url.pathname.slice('/uploads/'.length);
       const uploadFile = normalize(join(uploadsDir, uploadName));
       if (relative(uploadsDir, uploadFile).startsWith('..')) return json(res, 403, { error: 'Forbidden' });
@@ -683,14 +923,22 @@ createServer(async (req, res) => {
     const filename = normalize(join(publicDir, requested));
     if (!filename.startsWith(publicDir)) return json(res, 403, { error: 'Forbidden' });
     await access(filename); const contentType = types[extname(filename)] || 'application/octet-stream';
-    if (req.method === 'HEAD') { res.writeHead(200, { 'content-type':contentType }); return res.end(); }
+    if (req.method === 'HEAD') { res.writeHead(200, { 'content-type':contentType, 'cache-control':'no-store' }); return res.end(); }
     if (extname(filename) === '.html') {
-      const themeBootstrap = `<script>try{const theme=localStorage.getItem('siware-theme-preference')==='dark'?'dark':'light',root=document.documentElement;root.classList.toggle('dark',theme==='dark');root.dataset.theme=theme;root.style.colorScheme=theme}catch(_){}</script><link rel="stylesheet" href="/page-transition.css" /><script src="/activity.js" defer></script>`;
-      const document = await readFile(filename, 'utf8'); res.writeHead(200, { 'content-type':contentType }); return res.end(document.replace(/<head(\s[^>]*)?>/i, `$&${themeBootstrap}`));
+      const document = await readFile(filename, 'utf8');
+      const hasSharedDedicatedHeader = /<body\b[^>]*\bclass="[^"]*\b(?:destination-page|news-page-body|policy-page)\b/.test(document);
+      const destinationStyles = hasSharedDedicatedHeader ? '<link rel="stylesheet" href="/dedicated-standard.css" /><link rel="stylesheet" href="/header-search.css?v=20261017-white-brand" /><link rel="stylesheet" href="/shared-footer.css" />' : '';
+      const themeBootstrap = `<script>try{const theme=localStorage.getItem('siware-theme-preference')==='dark'?'dark':'light',root=document.documentElement;root.classList.toggle('dark',theme==='dark');root.dataset.theme=theme;root.style.colorScheme=theme}catch(_){}</script>${destinationStyles}<script src="/activity.js" defer></script>`;
+      res.writeHead(200, { 'content-type':contentType, 'cache-control':'no-store' }); return res.end(document.replace(/<head(\s[^>]*)?>/i, `$&${themeBootstrap}`));
     }
-    res.writeHead(200, { 'content-type':contentType }); createReadStream(filename).pipe(res);
+    res.writeHead(200, { 'content-type':contentType, 'cache-control':'no-store' }); createReadStream(filename).pipe(res);
   } catch (error) {
     if (error.code === 'ENOENT') return json(res, 404, { error: 'Not found' });
     console.error(error); return json(res, error.statusCode || 500, { error: error.message || 'Server error' });
   }
 }).listen(port, () => console.log(`Si-Ware intranet is running at http://localhost:${port}`));
+
+// Keep schedules independent from browser activity. `dashboard()` only writes when
+// a schedule is actually due, and its occurrence marker prevents duplicates.
+const announcementScheduleTimer = setInterval(() => { dashboard().catch(error => console.error('Announcement scheduler failed', error)); }, 60_000);
+announcementScheduleTimer.unref();

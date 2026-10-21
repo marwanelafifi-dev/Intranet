@@ -97,24 +97,9 @@
       "color": "#00a6a6"
     }
   ],
-  "announcements": [
-    {
-      "id": "a1",
-      "tag": "All hands",
-      "title": "Zest for Life 2026: nominations are now open",
-      "body": "Celebrate the people who bring curiosity, care and craft to every Si-Ware milestone.",
-      "date": "Oct 14",
-      "priority": "high"
-    },
-    {
-      "id": "a2",
-      "tag": "Learning",
-      "title": "Leadership Lab: difficult conversations",
-      "body": "A practical session for new and aspiring managers. Reserve your seat by Thursday.",
-      "date": "Oct 17",
-      "priority": "normal"
-    }
-  ],
+  "announcements": [],
+  "announcementSchedules": [],
+  "announcementTemplates": [],
   "socialLinks": {
     "linkedinUrl": "https://www.linkedin.com/company/si-ware-systems/?locale=en_US",
     "facebookUrl": "https://www.facebook.com/SiWareSystems/",

@@ -1,0 +1,93 @@
+/*
+  Dashboard responsive composition
+  The dashboard is used both on large shared workstations and compact touch
+  devices.  These rules intentionally come last: earlier iterations compressed
+  the desktop canvas to fit more content above the fold, which made a normal
+  1920px workspace feel undersized and caused the hero columns to collide.
+*/
+
+.shell {
+  max-width: 1920px;
+  padding-inline: clamp(16px, 2.9vw, 56px);
+}
+
+.dashboard {
+  gap: clamp(16px, 1.25vw, 24px);
+  padding-top: clamp(18px, 1.6vw, 30px);
+  padding-bottom: clamp(40px, 4vw, 72px);
+}
+
+/* Desktop: give the welcome message and announcements equal, usable space. */
+@media (min-width: 1180px) {
+  .topbar { height: 94px !important; }
+
+  .app-dock { padding-bottom: 12px !important; }
+
+  .hero {
+    grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr) !important;
+    column-gap: clamp(28px, 4vw, 72px) !important;
+    min-height: 270px;
+    padding: clamp(26px, 2vw, 38px);
+  }
+
+  .hero-copy { max-width: 590px; }
+  .hero h1 { font-size: clamp(32px, 2.25vw, 42px); margin-bottom: 11px; }
+  .hero-copy > p:not(.eyebrow) { max-width: 52ch; margin-bottom: 17px; font-size: 13px; white-space: normal !important; }
+  .hero .primary-button { min-height: 40px; padding: 10px 15px; }
+  .hero-announcements { width: min(100%, 420px); justify-self: end !important; }
+  .hero-announcements .priority-top { margin-bottom: 9px; }
+  .priority-announcement { padding-block: 8px; }
+  .priority-announcement h3 { font-size: 12px; line-height: 1.35; }
+  .priority-preview { font-size: 11px; }
+  .priority-footer .priority-author,
+  .priority-footer .priority-open { font-size: 10px; }
+
+  .new-members-widget { padding: 22px; }
+  .new-member { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; padding-block: 8px; }
+  .new-member-avatar { width: 38px; height: 38px; }
+  .new-member b { font-size: 13px; }
+  .new-member small,
+  .new-members-widget .direct-manager { font-size: 11px; }
+
+  .company-news-widget { padding: 26px; }
+  .company-news-widget .news-shifter-slide { min-height: clamp(340px, 22vw, 420px); }
+  .company-news-widget .news-shifter-story { padding: clamp(26px, 3vw, 48px); }
+  .company-news-widget .news-shifter-story h3 { font-size: clamp(21px, 1.6vw, 29px); }
+  .company-news-widget .news-shifter-story p { font-size: 14px; }
+}
+
+/* Tablet: retain hierarchy without forcing a desktop-width hero rail. */
+@media (min-width: 651px) and (max-width: 1179px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, .8fr);
+    min-height: 286px;
+    padding: 28px;
+  }
+
+  .hero-copy { width: auto; }
+  .hero-copy > p:not(.eyebrow) { white-space: normal; }
+  .hero-announcements { width: 100%; }
+  .company-news-widget .news-shifter-slide { min-height: 360px; }
+}
+
+/* Phone: prioritize reading and tap targets over fitting parallel panels. */
+@media (max-width: 650px) {
+  .shell { padding-inline: 14px; }
+  .dashboard { gap: 14px; padding-top: 16px; }
+  .hero { padding: 24px 20px; }
+  .hero h1 { font-size: clamp(30px, 9vw, 36px); }
+  .hero-copy { width: 100%; padding-right: 50px; }
+  .hero-copy > p:not(.eyebrow) { font-size: 14px; }
+  .hero-announcements { margin-top: 24px; }
+  .priority-announcement { padding-block: 8px; }
+  .priority-announcement h3 { font-size: 11px; }
+  .company-news-widget { padding: 20px; }
+  .company-news-widget .news-shifter-story { padding: 22px; }
+  .company-news-widget .news-shifter-story h3 { font-size: 20px; }
+  .company-news-widget .news-shifter-story p { font-size: 13px; }
+  .company-news-widget .news-shifter-controls { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-grid { scroll-behavior: auto; }
+}

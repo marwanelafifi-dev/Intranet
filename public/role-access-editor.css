@@ -1,0 +1,33 @@
+#role-card-editor-dialog{width:min(820px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);border:1px solid var(--line);border-radius:14px;color:var(--ink);box-shadow:0 22px 65px rgb(9 34 62 / 25%)}
+#role-card-editor-dialog::backdrop{background:rgb(9 29 50 / 44%)}
+#role-card-editor-dialog form{padding:24px}
+#role-card-editor-dialog .dialog-heading{margin-bottom:17px}
+#role-card-editor-dialog .dialog-heading p{max-width:60ch;line-height:1.5}
+#role-card-editor-dialog .role-name-field{margin:0 0 22px}
+#role-card-editor-dialog .role-group{margin:22px 0 0}
+#role-card-editor-dialog .role-group-head{margin-bottom:7px}
+#role-card-editor-dialog .role-group-head h3{font-size:13px}
+#role-card-editor-dialog .role-group-head button{min-height:28px;padding:5px 9px}
+#role-card-editor-dialog .role-group-note{margin:0 0 11px;color:var(--muted);font-size:11px}
+#role-card-editor-dialog .role-group-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--surface);padding:8px}
+#role-card-editor-dialog .role-permission-option{min-height:38px;align-items:center;padding:8px 9px}
+#role-card-editor-dialog .role-permission-option b{font-size:11px;line-height:1.35}
+#role-card-editor-dialog .role-permission-option:has(input:checked){background:var(--soft);color:var(--ink)}
+#role-card-editor-dialog .role-permission-option:has(input:disabled){opacity:.75;cursor:default}
+#role-card-editor-dialog .role-admin-section{margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}
+#role-card-editor-dialog .role-admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:18px}
+#role-card-editor-dialog .role-admin-section-head h3{margin:0 0 4px;font-size:15px;letter-spacing:-.02em}
+#role-card-editor-dialog .role-admin-section-head p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
+#role-card-editor-dialog .role-admin-switch{display:inline-flex;align-items:center;gap:8px;flex:none;min-height:38px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:11px;font-weight:800;cursor:pointer}
+#role-card-editor-dialog .role-admin-switch:has(input:checked){border-color:#9cbede;background:#edf5fb}
+#role-card-editor-dialog .role-admin-switch input{width:16px;height:16px;margin:0;padding:0;accent-color:var(--blue)}
+#role-card-editor-dialog .role-admin-scope[hidden]{display:none}
+#role-card-editor-dialog .role-admin-scope>.role-group:first-child{margin-top:17px}
+#role-card-editor-dialog .role-editor-error:not(:empty){margin-top:19px;padding:10px 12px;border-radius:7px;background:#fff1f2}
+#role-card-editor-dialog .form-actions{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+html.dark #role-card-editor-dialog .role-admin-switch:has(input:checked){background:var(--soft)}
+html.dark #role-card-editor-dialog .role-editor-error:not(:empty){background:#4c2632}
+.role-card-permissions span:nth-child(n+9){display:none}
+.role-card-permissions:has(span:nth-child(9))::after{content:'More permissions · Edit to review';align-self:center;color:var(--muted);font-size:10px;font-weight:700}
+@media(max-width:640px){#role-card-editor-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}#role-card-editor-dialog form{padding:17px}#role-card-editor-dialog .role-group-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#role-card-editor-dialog .role-admin-section-head{align-items:flex-start;flex-direction:column;gap:10px}}
+@media(max-width:390px){#role-card-editor-dialog .role-group-grid{grid-template-columns:1fr}}

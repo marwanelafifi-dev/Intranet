@@ -1,6 +1,6 @@
 export const pageDataKeys = Object.freeze({
   apps:['apps'],
-  announcements:['announcements'],
+  announcements:['announcements','announcementSchedules','announcementTemplates'],
   social:['socialLinks'],
   moments:['moments','momentsPageContent'],
   knowledge:['sessions','knowledgePageContent'],

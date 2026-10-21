@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Access restricted | Si-Ware Intranet</title>
+    <link rel="icon" type="image/png" href="/Icon.png" />
+    <style>
+      :root{font-family:Manrope,Inter,Arial,sans-serif;color:#13233b;background:#f3f7fa}
+      *{box-sizing:border-box}
+      body{margin:0;min-height:100vh}
+      header{height:76px;display:flex;align-items:center;padding:0 clamp(20px,5vw,70px);border-bottom:1px solid #dce6ef;background:#fff}
+      header img{width:115px;height:auto}
+      header span{margin-left:13px;padding-left:13px;border-left:1px solid #dce6ef;font-size:12px;font-weight:800;letter-spacing:.04em}
+      main{max-width:590px;margin:clamp(60px,13vh,150px) auto;padding:0 24px}
+      h1{margin:0 0 12px;font-size:clamp(26px,4vw,34px);letter-spacing:-.03em}
+      p{max-width:55ch;margin:0;color:#4b617e;font-size:15px;line-height:1.65}
+      .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+      .actions a{min-height:42px;display:inline-flex;align-items:center;padding:10px 15px;border:1px solid #0758a9;border-radius:8px;color:#0758a9;background:#fff;font-size:13px;font-weight:800;text-decoration:none}
+      .actions a:first-child{color:#fff;background:#0758a9}
+      .actions a:hover{background:#edf5fb}
+      .actions a:first-child:hover{background:#063d72}
+      .actions a:focus-visible{outline:3px solid #77b8de;outline-offset:3px}
+    </style>
+  </head>
+  <body>
+    <header><img src="/siware-logo.png" alt="Si-Ware Systems" /><span>INTRANET</span></header>
+    <main>
+      <h1>Access to this page is restricted</h1>
+      <p>Your current role does not include this page. If you need it for your work, ask an intranet administrator to review your role.</p>
+      <div class="actions"><a href="@@RETURN_PATH@@">Go to an available page</a><a href="/profile.html">My profile</a></div>
+    </main>
+  </body>
+</html>

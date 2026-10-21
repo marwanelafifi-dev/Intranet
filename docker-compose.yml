@@ -12,6 +12,9 @@ services:
       GOOGLE_WORKSPACE_DOMAIN: ${GOOGLE_WORKSPACE_DOMAIN:-si-ware.com}
       GOOGLE_ADMIN_EMAILS: ${GOOGLE_ADMIN_EMAILS:-}
       SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      LOCAL_ADMIN_NAME: ${LOCAL_ADMIN_NAME:-}
+      LOCAL_ADMIN_EMAIL: ${LOCAL_ADMIN_EMAIL:-}
+      LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:-}
     volumes:
       - ./data:/app/data
     restart: unless-stopped

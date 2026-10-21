@@ -5,6 +5,7 @@
   if (!list) return;
   const label = document.querySelector('#checklist-progress-label');
   const description = document.querySelector('#checklist-progress-description');
+  const nextStep = document.querySelector('.checklist-next-step');
   const heroProgress = document.querySelector('#onboarding-hero-progress');
   const bar = document.querySelector('#checklist-progress-bar');
   const attachmentViewer = document.querySelector('#attachment-viewer');
@@ -15,9 +16,42 @@
   const attachmentDownload = document.querySelector('#attachment-viewer-download');
   let completed = new Set();
   let currentItems = [];
+  let pageCopy = {
+    checklistCompleteTitle:'First week complete',
+    checklistCompleteText:'Excellent work. Your first-week essentials are complete.',
+    checklistEmptyText:'Choose one task to begin. You can change a task later.',
+    checklistInProgressText:'Keep your momentum going.',
+    checklistNextStepText:'Start with the task that gives you access.',
+    checklistReopenText:'You can reopen any task.',
+    heroCompleteText:'First-week essentials complete'
+  };
   try { completed = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch {}
   const save = () => { try { localStorage.setItem(storageKey, JSON.stringify([...completed])); } catch {} };
-  const updateProgress = total => { const count = completed.size, complete = count === total && total; label.textContent = complete ? 'First week complete' : `${count} of ${total} complete`; if (description) description.textContent = complete ? 'Excellent work. Your first-week essentials are complete.' : count ? `${total - count} action${total - count === 1 ? '' : 's'} left. Keep your momentum going.` : 'Choose one task to begin. Each confirmed task is recorded once.'; if (heroProgress) heroProgress.textContent = complete ? 'First-week essentials complete' : count ? `${count} of ${total} actions complete` : `${total} essential actions ahead`; bar.style.width = `${total ? (count / total) * 100 : 0}%`; };
+  const editableStatus = (element, key) => {
+    if (!element) return;
+    if (element.dataset.newsiCopy !== key) {
+      element.removeAttribute('contenteditable');
+      element.removeAttribute('data-admin-preview-newsi-page-copy');
+      element.removeAttribute('role');
+      element.removeAttribute('aria-multiline');
+      element.removeAttribute('aria-label');
+      element.removeAttribute('tabindex');
+      element.removeAttribute('title');
+    }
+    if (key) element.dataset.newsiCopy = key;
+    else element.removeAttribute('data-newsi-copy');
+  };
+  const updateProgress = total => {
+    const count = completed.size, complete = Boolean(total && count === total);
+    const descriptionKey = complete ? 'checklistCompleteText' : count ? 'checklistInProgressText' : 'checklistEmptyText';
+    const nextStepKey = complete ? 'checklistReopenText' : 'checklistNextStepText';
+    label.textContent = complete ? pageCopy.checklistCompleteTitle : `${count} of ${total} complete`;
+    editableStatus(label, complete ? 'checklistCompleteTitle' : '');
+    if (description) { description.textContent = pageCopy[descriptionKey]; editableStatus(description, descriptionKey); }
+    if (nextStep) { nextStep.textContent = pageCopy[nextStepKey]; editableStatus(nextStep, nextStepKey); }
+    if (heroProgress) { heroProgress.textContent = complete ? pageCopy.heroCompleteText : count ? `${count} of ${total} actions complete` : `${total} essential actions ahead`; editableStatus(heroProgress, complete ? 'heroCompleteText' : ''); }
+    bar.style.width = `${total ? (count / total) * 100 : 0}%`;
+  };
   const render = items => {
     currentItems = items;
     const validIds = new Set(items.map(item => item.id));
@@ -29,13 +63,25 @@
       const resources = `${!link.startsWith('/uploads/') ? makeLink(link, item.resourceLabel || 'Open resource') : ''}${makeLink(attachment, item.attachmentLabel || 'Open attachment', true)}`;
       const resourceMarkup = resources ? `<div class="checklist-resources">${resources}</div>` : '';
       const isNext = item.id === nextItemId;
-      return `<li><div class="checklist-entry${isNext ? ' is-next-step' : ''}"><label class="checklist-item"><input type="checkbox" data-checklist-item="${escapeHtml(item.id)}" ${completed.has(item.id) ? 'checked disabled' : ''} /><span>${escapeHtml(item.text)}</span></label>${isNext ? '<span class="checklist-next-badge">Next up</span>' : ''}${resourceMarkup}</div></li>`;
+      return `<li><div class="checklist-entry${isNext ? ' is-next-step' : ''}"><label class="checklist-item"><input type="checkbox" data-checklist-item="${escapeHtml(item.id)}" ${completed.has(item.id) ? 'checked' : ''} /><span>${escapeHtml(item.text)}</span></label>${isNext ? '<span class="checklist-next-badge">Next up</span>' : ''}${resourceMarkup}</div></li>`;
     }).join('');
     list.querySelectorAll('.checklist-item').forEach(label => label.classList.toggle('is-complete', label.querySelector('input').checked));
     updateProgress(items.length);
     save();
+    document.dispatchEvent(new Event('first-week-checklist:rendered'));
   };
-  list.addEventListener('change', event => { const input = event.target.closest('[data-checklist-item]'); if (!input || !input.checked) return; completed.add(input.dataset.checklistItem); save(); render(currentItems); });
+  list.addEventListener('change', event => {
+    const input = event.target.closest('[data-checklist-item]');
+    if (!input) return;
+    if (input.checked) completed.add(input.dataset.checklistItem);
+    else completed.delete(input.dataset.checklistItem);
+    render(currentItems);
+  });
+  document.addEventListener('newsi-copy:preview-updated', event => {
+    pageCopy = { ...pageCopy, ...event.detail };
+    updateProgress(currentItems.length);
+    document.dispatchEvent(new Event('first-week-checklist:rendered'));
+  });
   list.addEventListener('click', event => {
     const link = event.target.closest('[data-attachment-preview]');
     if (!link || !attachmentViewer || !attachmentContent) return;
@@ -72,5 +118,8 @@
   window.addEventListener('scroll', syncActiveNavigation, { passive:true });
   window.addEventListener('resize', syncActiveNavigation);
   syncActiveNavigation();
-  fetch('/api/dashboard').then(response => response.ok ? response.json() : Promise.reject()).then(data => render(Array.isArray(data.firstWeekChecklist) ? data.firstWeekChecklist : [])).catch(() => render([]));
+  fetch('/api/dashboard').then(response => response.ok ? response.json() : Promise.reject()).then(data => {
+    pageCopy = Object.fromEntries(Object.entries(pageCopy).map(([name, fallback]) => [name, String(data.newSiPageContent?.[name] || fallback)]));
+    render(Array.isArray(data.firstWeekChecklist) ? data.firstWeekChecklist : []);
+  }).catch(() => render([]));
 })();

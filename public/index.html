@@ -27,14 +27,14 @@
     <link rel="stylesheet" href="/facebook-feed.css" />
     <link rel="stylesheet" href="/explore-nudge.css" />
     <link rel="stylesheet" href="/whistleblower.css?v=20261017-dark-contrast" />
-    <link rel="stylesheet" href="/admin-workspace.css" />
     <link rel="stylesheet" href="/dark-mode-fixes.css?v=20261017-hero-light-colour" />
-    <link rel="stylesheet" href="/admin-editing-layout.css" />
-    <link rel="stylesheet" href="/policy-acknowledgement-admin.css" />
-    <link rel="stylesheet" href="/news-shifter.css?v=20261017-current-administration" />
+    <link rel="stylesheet" href="/news-shifter.css?v=20261018-right-crop" />
     <link rel="stylesheet" href="/destination-pages.css?v=20261017-member-contact-icons" />
     <link rel="stylesheet" href="/rnd-command-surface.css" />
-    <link rel="stylesheet" href="/header-search.css?v=20261017-white-brand" />
+    <link rel="stylesheet" href="/header-search.css?v=20261021-admin-entry" />
+    <link rel="stylesheet" href="/member-profile.css" />
+    <link rel="stylesheet" href="/account-menu.css" />
+    <link rel="stylesheet" href="/responsive-dashboard.css?v=20261019-responsive-layout" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -44,13 +44,13 @@
         <nav class="nav" aria-label="Primary navigation"><a class="active" href="#main">Home</a><a href="#knowledge">Knowledge Hub</a><a href="/news.html">Company news</a></nav>
         <button class="header-search-toggle" data-intranet-search-trigger type="button" aria-expanded="false" aria-controls="intranet-search-results" aria-label="Search intranet"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg></button>
         <button class="theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Enable dark mode" title="Enable dark mode"><svg class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="theme-moon" d="M20 15.4A8.4 8.4 0 0 1 8.6 4 8.4 8.4 0 1 0 20 15.4Z" /><circle class="theme-sun" cx="12" cy="12" r="3.5" /><path class="theme-rays" d="M12 2.5v2M12 19.5v2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" /></svg><span class="theme-toggle-label">Dark mode</span></button>
-        <button class="profile" id="profile-button" aria-label="Marwan Elafifi, Full Access" aria-expanded="false" aria-controls="profile-menu"><span class="avatar avatar-user has-photo" style="background-image:url('/uploads/b35626c7-5c7a-4ebf-b281-a4bb81c6754f-jpg-1792073896315.jpg')">ME</span><span class="profile-copy"><b id="profile-name">Marwan Elafifi</b><small id="profile-role">Full Access</small></span><span aria-hidden="true">⌄</span></button>
-        <div class="profile-menu" id="profile-menu" hidden><b>Demo access</b><button data-role="ADMIN">Admin view</button><button data-role="EMPLOYEE">Employee view</button><hr><button>My profile</button><button>Sign out</button></div>
+        <a class="header-cms-link" id="admin-panel-link" href="/admin.html" hidden>Admin Panel</a>
+        <button class="profile" id="profile-button" aria-label="Account menu" aria-expanded="false" aria-controls="profile-menu"><span class="avatar avatar-user">SW</span><span class="profile-copy"><b id="profile-name">Account</b><small id="profile-role">Loading</small></span><span aria-hidden="true">⌄</span></button>
+        <div class="profile-menu" id="profile-menu" hidden><b>Account</b><a href="/profile.html">My profile</a><button type="button" id="home-sign-out">Sign out</button><p class="account-menu-status" id="home-sign-out-status" role="alert" hidden></p></div>
       </header>
 
-      <section class="app-dock" aria-label="Application shortcuts"><div class="app-carousel"><button class="app-carousel-button" id="app-carousel-prev" type="button" aria-label="Show previous applications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7" /></svg></button><div id="app-grid" class="app-grid" aria-label="Application shortcuts" aria-describedby="app-carousel-status" tabindex="0"></div><button class="app-carousel-button" id="app-carousel-next" type="button" aria-label="Show next applications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7" /></svg></button></div><p class="sr-only" id="app-carousel-status" aria-live="polite"></p></section>
-
       <main id="main" class="dashboard" tabindex="-1">
+        <section class="app-dock" data-widget="apps" aria-label="Application shortcuts"><div class="app-carousel"><button class="app-carousel-button" id="app-carousel-prev" type="button" aria-label="Show previous applications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7" /></svg></button><div id="app-grid" class="app-grid" aria-label="Application shortcuts" aria-describedby="app-carousel-status" tabindex="0"></div><button class="app-carousel-button" id="app-carousel-next" type="button" aria-label="Show next applications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 5 7 7-7 7" /></svg></button></div><p class="sr-only" id="app-carousel-status" aria-live="polite"></p></section>
         <section class="widget hero widget-announcements" data-widget="announcements" aria-labelledby="hero-title">
           <div class="hero-copy"><p class="eyebrow">ONE SI-WARE · OCTOBER EDITION</p><h1 id="hero-title">Make room for <em>what’s next.</em></h1><p>One place to find your people, sharpen your craft, and keep the work moving with purpose.</p><button class="primary-button" id="hero-action">Explore what’s happening <span>→</span></button></div>
           <div class="hero-orbit" aria-hidden="true"><div class="orb orb-one"></div><div class="orb orb-two"></div><div class="orbit-line"></div><div class="hero-word">SI<br>WARE</div><div class="orbit-dot">✦</div></div>
@@ -75,11 +75,9 @@
         <section class="widget events-widget widget-events" data-widget="events" id="events" aria-labelledby="events-title"><header class="widget-header"><div><p class="eyebrow">SAVE THE DATE</p><h2 id="events-title">Events & key dates</h2></div><button class="plain-button" id="calendar-button">Calendar <span>↗</span></button></header><div class="events-layout"><div id="event-list" class="event-list"></div><aside class="appraisal-card"><span class="calendar-icon">▦</span><div><p>Performance cycle</p><b>Self-appraisals open Oct 21</b></div><button aria-label="Open performance cycle">→</button></aside></div></section>
       </main>
     </div>
-    <button class="cms-toggle" id="cms-toggle" hidden>Admin Panel</button>
-<aside class="cms-panel" id="cms-panel" hidden aria-label="Legacy administration workspace" aria-hidden="true"><div class="cms-head"><div><h2>Administration</h2><p>Manage what employees see and use.</p></div><button class="icon-button" id="cms-close" aria-label="Close administration panel">×</button></div><nav class="cms-tabs" aria-label="Administration areas"><button class="active" data-tab="overview">Overview</button><button data-tab="content">Content</button><button data-tab="people">People</button><button data-tab="layout">Layout</button><button data-tab="apps">Apps</button><button data-tab="portals">Portals</button></nav><div class="cms-body"><section class="cms-tab active" id="tab-overview"><div id="admin-overview"></div></section><section class="cms-tab" id="tab-content"><p class="cms-intro">Create, update, or remove dashboard announcements, Knowledge Hub sessions, Moments cards, and policy records.</p><div class="content-type-switch" role="group" aria-label="Content type"><button class="active" data-content-type="announcement">Announcements</button><button data-content-type="session">Knowledge</button><button data-content-type="moment">Moments</button><button data-content-type="policy">Policies</button></div><div id="content-manager" class="record-manager"></div><form id="content-form" class="admin-form"></form></section><section class="cms-tab" id="tab-people"><p class="cms-intro">Keep Recently Joined accurate with the role, employment type, and organisation details employees need.</p><div id="member-manager" class="record-manager"></div><form id="new-member-form" class="admin-form member-admin-form"></form></section><section class="cms-tab" id="tab-layout"><p class="cms-intro">Drag sections to set the dashboard order. Use visibility to temporarily remove a section without losing it.</p><div id="layout-list" class="layout-list"></div><div class="admin-actions"><button id="reset-layout" class="secondary-button" type="button">Restore default</button><button id="save-layout" class="primary-button" type="button">Save layout</button></div></section><section class="cms-tab" id="tab-apps"><p class="cms-intro">Manage the shortcuts employees see in Quick Launch.</p><div id="app-manager" class="app-manager"></div><form id="app-form" class="admin-form"></form></section><section class="cms-tab" id="tab-portals"><p class="cms-intro">Set each portal’s link, supporting description, and icon for the New Si-Warians! help page.</p><div id="portal-manager" class="app-manager"></div><form id="app-form" class="admin-form"></form></section></div></aside>
     <dialog class="media-modal" id="media-modal"><div class="modal-top"><div><p class="eyebrow" id="modal-type">KNOWLEDGE HUB</p><h2 id="modal-title">Session title</h2></div><button class="icon-button" id="modal-close" aria-label="Close modal">×</button></div><div id="modal-content"></div></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="/app.js?v=20261017-member-icon-hover"></script>
+    <script type="module" src="/app.js?v=20261021-admin-entry"></script>
     <script type="module" src="/destination-nav.js"></script>
   </body>
 </html>

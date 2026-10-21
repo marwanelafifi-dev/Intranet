@@ -1,0 +1,12 @@
+body[data-can-delete="false"] :is(
+  [data-remove-record], [data-remove-announcement-template],
+  [data-remove-announcement-schedule], [data-remove-social-card],
+  [data-home-remove-section], [data-card-delete-role], [data-delete-role],
+  [data-page-remove-all-sessions], [data-preview-editor-remove],
+  [data-remove-existing-attachment], [data-remove-policy-document]
+){display:none!important}
+
+body[data-can-import="false"] :is(
+  [data-import-new-members], [data-import-knowledge-sessions],
+  label[for="users-csv-input"]
+){display:none!important}

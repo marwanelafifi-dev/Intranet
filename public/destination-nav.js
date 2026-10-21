@@ -1,20 +1,30 @@
-const destinations = [
-  ['/', 'Home'], ['/apps.html', 'Main Apps'], ['/announcements.html', 'Announcements'], ['/news.html', 'Company news'], ['/social-media.html', 'Social Media'], ['/moments.html', 'Moments'], ['/knowledge-hub.html', 'Knowledge Hub'], ['/events.html', 'Events & key dates'], ['/whistleblower.html', 'Whistleblower'], ['/recently-joined.html', 'Recently Joined'], ['/new-hires.html', 'New Si-Warians'],
-];
+import { signOut } from './account-actions.js';
+import { canOpenAdmin } from './admin-permissions.js';
+import { intranetPages, firstAvailableIntranetPage } from './intranet-permissions.js';
+
+const destinations = intranetPages;
 
 const currentPath = location.pathname === '/index.html' ? '/' : location.pathname;
 const routeSurface = document.querySelector('#main, #destination-root, .company-news-page, .policy-content');
-if (routeSurface) routeSurface.setAttribute('data-route-content', '');
-document.documentElement.dataset.routeMotion = 'ready';
+if (routeSurface) routeSurface.removeAttribute('data-route-content');
+document.documentElement.removeAttribute('data-route-motion');
 
-const footerStyles = document.createElement('link');
-footerStyles.rel = 'stylesheet';
-footerStyles.href = '/shared-footer.css';
-document.head.append(footerStyles);
+if (!document.querySelector('link[href^="/shared-footer.css"]')) {
+  const footerStyles = document.createElement('link');
+  footerStyles.rel = 'stylesheet';
+  footerStyles.href = '/shared-footer.css';
+  document.head.append(footerStyles);
+}
+if (!document.querySelector('link[href^="/account-menu.css"]')) {
+  const accountStyles = document.createElement('link');
+  accountStyles.rel = 'stylesheet';
+  accountStyles.href = '/account-menu.css';
+  document.head.append(accountStyles);
+}
 
 let standardStylesReady = Promise.resolve();
 let searchStylesReady = Promise.resolve();
-if (currentPath !== '/') {
+if (currentPath !== '/' && !document.querySelector('link[href^="/dedicated-standard.css"]')) {
   const standardStyles = document.createElement('link');
   standardStyles.rel = 'stylesheet';
   standardStyles.href = '/dedicated-standard.css';
@@ -39,7 +49,16 @@ const nav = existingNav || document.createElement('nav');
 
 nav.classList.add('destination-nav-inline');
 nav.setAttribute('aria-label', 'Intranet destinations');
-nav.innerHTML = destinations.map(([href, label]) => `<a href="${href}"${href === currentPath ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+nav.innerHTML = destinations.map(({ path, label, permission }) => `<a href="${path}" data-intranet-permission="${permission}"${path === currentPath ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+nav.style.visibility = 'hidden';
+const identityRequest = fetch('/api/auth/me').then(response => response.ok ? response.json() : null).catch(() => null);
+identityRequest.then(identity => {
+  const permissions = new Set(identity?.permissions || []);
+  nav.querySelectorAll('[data-intranet-permission]').forEach(link => { const allowed = permissions.has(link.dataset.intranetPermission); link.hidden = !allowed; link.style.display = allowed ? '' : 'none'; });
+  const landing = firstAvailableIntranetPage(permissions)?.path || (canOpenAdmin(permissions) ? '/admin.html' : '/profile.html');
+  document.querySelectorAll('header a[href="/"]').forEach(link => { link.href = landing; });
+  nav.style.visibility = '';
+});
 
 if (!existingNav && header) {
   const headerAction = header.querySelector('.policy-topbar-actions, .theme-toggle');
@@ -66,9 +85,9 @@ if (currentPath !== '/' && header) {
   `);
   if (themeToggle) tools.append(themeToggle);
   tools.insertAdjacentHTML('beforeend', `
-    <a class="header-cms-link" href="/admin.html" data-admin-panel hidden>Admin Panel</a>
-    <button class="header-profile" type="button" aria-label="Marwan Elafifi, Full Access" aria-expanded="false" aria-controls="shared-profile-menu"><span class="avatar avatar-user has-photo" style="background-image:url('/uploads/b35626c7-5c7a-4ebf-b281-a4bb81c6754f-jpg-1792073896315.jpg')">ME</span><span class="profile-copy"><b>Marwan Elafifi</b><small>Full Access</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></button>
-    <div class="shared-profile-menu" id="shared-profile-menu" hidden><b>Demo access</b><a href="/">Employee view</a><hr><a href="/">My profile</a><button type="button" data-close-profile>Sign out</button></div>
+    <a class="header-cms-link" href="/admin.html" target="_self" data-admin-panel hidden>Admin Panel</a>
+    <button class="header-profile" type="button" aria-label="Account menu" aria-expanded="false" aria-controls="shared-profile-menu"><span class="avatar avatar-user">SW</span><span class="profile-copy"><b>Account</b><small>Loading</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></button>
+    <div class="shared-profile-menu" id="shared-profile-menu" hidden><b>Account</b><a href="/profile.html">My profile</a><button type="button" data-sign-out>Sign out</button><p class="account-menu-status" role="alert" hidden></p></div>
   `);
   headerActions?.remove();
   header.append(tools);
@@ -88,10 +107,11 @@ if (currentPath !== '/' && header) {
     profileButton.querySelector('.profile-copy small').textContent = accessLabel;
     profileButton.setAttribute('aria-label', `${user.name}, ${accessLabel}`);
   }).catch(() => {});
-  fetch('/api/auth/me').then(response => response.ok ? response.json() : null).then(identity => {
+  identityRequest.then(identity => {
     const permissions = identity?.permissions;
-    const canOpenAdminPanel = identity?.role !== 'EMPLOYEE' && Array.isArray(permissions) && permissions.some(permission => ['content.edit', 'audit.view'].includes(permission));
+    const canOpenAdminPanel = canOpenAdmin(permissions);
     adminPanelLink.hidden = !canOpenAdminPanel;
+    profileMenu.querySelector('[data-sign-out]').hidden = Boolean(identity?.demo);
   }).catch(() => { adminPanelLink.hidden = true; });
   const closeProfileMenu = () => {
     profileMenu.hidden = true;
@@ -103,7 +123,8 @@ if (currentPath !== '/' && header) {
     profileButton.setAttribute('aria-expanded', String(!isOpen));
   });
   profileMenu.addEventListener('click', event => {
-    if (event.target.matches('[data-close-profile]')) closeProfileMenu();
+    const button = event.target.closest('[data-sign-out]');
+    if (button) signOut(button, profileMenu.querySelector('.account-menu-status'));
   });
   document.addEventListener('click', event => {
     if (!tools.contains(event.target)) closeProfileMenu();

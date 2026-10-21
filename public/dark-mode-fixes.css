@@ -92,6 +92,7 @@ html.dark .session-page-button:hover:not(:disabled) { background: #1e5da8; borde
 .moment.has-media small { color: #fff; text-shadow: 0 1px 3px rgb(0 20 48 / 60%); }
 .moment small em { display: block; font-size: 9px; font-style: normal; font-weight: 800; margin-top: 3px; opacity: .92; }
 .moment.has-media:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+html.dark .moment-kind { color: #a9c8ec; }
 .moments-gallery { border-top: 1px solid var(--line); display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; padding-top: 16px; }
 .moments-gallery[hidden] { display: none; }
 #moments-grid[hidden] { display: none; }

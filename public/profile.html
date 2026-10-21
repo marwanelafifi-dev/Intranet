@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Your Si-Ware intranet account" />
+    <title>My profile | Si-Ware Intranet</title>
+    <link rel="icon" type="image/png" href="/Icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/search-and-policies.css" />
+    <link rel="stylesheet" href="/brand-assets.css" />
+    <link rel="stylesheet" href="/theme-toggle.css" />
+    <link rel="stylesheet" href="/destination-pages.css" />
+    <link rel="stylesheet" href="/profile.css" />
+    <script src="/theme.js" defer></script>
+  </head>
+  <body class="policy-page account-page">
+    <a class="skip-link" href="#account-main">Skip to content</a>
+    <main class="policy-shell">
+      <header class="policy-topbar">
+        <a class="brand" href="/"><img class="brand-logo" src="/siware-logo.png" alt="Si-Ware Systems" /></a>
+        <div class="policy-topbar-actions"><button class="theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Enable dark mode">Dark mode</button><a class="back-link" href="/">Back to intranet</a></div>
+      </header>
+      <section class="account-main" id="account-main" aria-labelledby="account-title">
+        <div class="account-intro"><h1 id="account-title">My profile</h1><p>The account you use to access the Si-Ware intranet.</p></div>
+        <div class="account-card" id="account-card" aria-busy="true">
+          <div class="account-feedback" id="account-feedback" role="status" aria-live="polite"><p id="account-message">Loading your account…</p><button id="account-retry" type="button" hidden>Try again</button></div>
+          <div id="account-details" hidden>
+            <div class="account-identity"><span class="account-avatar" id="account-avatar" aria-hidden="true"></span><div><h2 id="account-name"></h2><p id="account-role"></p></div></div>
+            <dl class="account-facts">
+              <div><dt>Email address</dt><dd id="account-email"></dd></div>
+              <div><dt>Access level</dt><dd id="account-access"></dd></div>
+              <div><dt>Sign-in method</dt><dd id="account-method"></dd></div>
+            </dl>
+            <p class="account-note" id="account-note"></p>
+            <div class="account-actions"><a href="/">Back to intranet</a><button id="account-sign-out" type="button">Sign out</button></div>
+            <p class="account-error" id="account-sign-out-status" role="alert" hidden></p>
+          </div>
+        </div>
+      </section>
+      <footer class="policy-footer"><span>Si-Ware Systems · Intranet</span><span>Internal access only</span></footer>
+    </main>
+    <script type="module" src="/profile.js"></script>
+    <script type="module" src="/destination-nav.js"></script>
+  </body>
+</html>

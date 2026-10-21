@@ -1,9 +1,9 @@
+@view-transition { navigation: none; }
+
 /*
  * Route transitions are deliberately anchored: navigation should retain the
  * employee's sense of place, not make the entire intranet feel like a slide.
  */
-@view-transition { navigation: auto; }
-
 @supports (view-transition-name: intranet-route-content) {
   html[data-route-motion="ready"] [data-route-content] {
     view-transition-name: intranet-route-content;

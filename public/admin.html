@@ -3,15 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Administration · Si-Ware Intranet</title>
+    <title>Si-Ware | Global Intranet</title>
+    <link rel="icon" type="image/png" href="/Icon.png" />
     <link rel="stylesheet" href="/admin.css" />
     <link rel="stylesheet" href="/admin-editor.css?v=20261018-preview-first-newsi" />
+    <link rel="stylesheet" href="/admin-home-editor.css?v=20261019-home-preview-editor" />
     <link rel="stylesheet" href="/admin-sidebar.css?v=20261018-footer-continuity" />
     <link rel="stylesheet" href="/admin-page-tools.css?v=20261018-standard-command-bar" />
     <link rel="stylesheet" href="/admin-dark.css?v=20261018-knowledge-remove-confirmation" />
     <link rel="stylesheet" href="/admin-header.css?v=20261018-back-to-intranet" />
+    <link rel="stylesheet" href="/access-admin.css?v=20261020-users-roles" />
+    <link rel="stylesheet" href="/role-editor.css?v=20261020-editable-roles" />
+    <link rel="stylesheet" href="/role-cards.css?v=20261020-role-cards" />
+    <link rel="stylesheet" href="/role-permission-groups.css?v=20261020-grouped-permissions" />
+    <link rel="stylesheet" href="/role-access-editor.css?v=20261021-intranet-access" />
+    <link rel="stylesheet" href="/admin-permissions.css?v=20261021-role-permissions" />
+    <link rel="stylesheet" href="/audit-trail.css?v=20261021-detailed-activity" />
     <script src="/theme.js?v=20261017-admin-theme-sync" defer></script>
-    <script type="module" src="/admin.js?v=20261018-training-video-editor-top"></script>
+    <script type="module" src="/admin.js?v=20261021-intranet-access"></script>
   </head>
   <body>
     <a class="skip" href="#admin-main">Skip to content</a>
@@ -23,7 +32,7 @@
         <a class="admin-current-area" href="/" aria-label="Back to intranet">Back to intranet</a>
         <div class="admin-account">
           <button class="admin-account-toggle" id="admin-account-toggle" type="button" aria-expanded="false" aria-controls="admin-account-menu"><span class="admin-account-avatar" id="admin-avatar">ME</span><span class="admin-account-copy"><b id="admin-user">Administrator</b><small id="admin-role">Administrator</small></span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button>
-          <div class="admin-account-menu" id="admin-account-menu" hidden><a href="/" target="_blank" rel="noopener">View intranet ↗</a><button id="header-sign-out" type="button">Sign out</button></div>
+          <div class="admin-account-menu" id="admin-account-menu" hidden><a href="/profile.html">My profile</a><button id="header-sign-out" type="button">Sign out</button></div>
         </div>
       </div>
       <div class="admin-header-search-panel" id="admin-header-search-panel" hidden><label for="admin-header-search-input">Search administration</label><input id="admin-header-search-input" type="search" placeholder="Find a section…" autocomplete="off" /><div id="admin-header-search-results" role="listbox" aria-label="Administration sections"></div></div>
@@ -39,6 +48,7 @@
         <nav id="admin-navigation" aria-label="Administration navigation">
           <p>Workspace</p>
           <button class="active" data-view="overview">Overview</button>
+          <button data-view="home">Home</button>
           <p>Manage</p>
           <button data-view="content">Content</button>
           <div class="admin-subnav" aria-label="Content pages">
@@ -54,7 +64,7 @@
           </div>
           <button data-view="appearance">Appearance</button><button data-view="media">Media</button>
           <p>Governance</p>
-          <button data-view="access">Users &amp; access</button><button data-view="activity">Activity &amp; audit</button><button data-view="settings">Settings</button>
+          <button data-view="access">Users</button><button data-view="roles">Roles</button><button data-view="activity">Activity &amp; audit</button><button data-view="settings">Settings</button>
         </nav>
         <div class="sidebar-footer"><a href="/" target="_blank" rel="noopener">View intranet <span aria-hidden="true">↗</span></a><button id="sign-out">Sign out</button></div>
       </aside>
@@ -63,6 +73,7 @@
         <div class="admin-page-tools" id="admin-page-tools" hidden role="toolbar" aria-label="Page actions"><div class="admin-page-tools-actions"></div></div>
         <div id="flash" class="flash" role="status" aria-live="polite"></div>
         <section class="admin-view active" id="view-overview"></section>
+        <section class="admin-view" id="view-home"></section>
         <section class="admin-view" id="view-content"></section>
         <section class="admin-view" id="view-announcements"></section>
         <section class="admin-view" id="view-social"></section>
@@ -76,6 +87,7 @@
         <section class="admin-view" id="view-appearance"></section>
         <section class="admin-view" id="view-media"></section>
         <section class="admin-view" id="view-access"></section>
+        <section class="admin-view" id="view-roles"></section>
         <section class="admin-view" id="view-activity"></section>
         <section class="admin-view" id="view-settings"></section>
       </main>

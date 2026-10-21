@@ -1,6 +1,14 @@
 node_modules/
+.env
 .impeccable/
+.local-app*.log
+knowledge-hub-*.png
+recording-frame-*.png
+recording-wpf-frame.png
+video-inspect.html
 data/intranet.json
+data/audit trail archive/
+data/intranet.json.*.tmp
 data/company-news-latest.json
 data/uploads/*
 !data/uploads/.gitkeep
