@@ -6,12 +6,21 @@
 - The app is available at `http://localhost:8081`.
 - Persistent dashboard data is stored in `data/intranet.json`; seed defaults are in `data/seed.json`.
 
+## Verify changes
+
+- Run `node --test tests/*.test.mjs` and `node --check server.mjs` for server or integration changes; check any edited browser JavaScript with `node --check <file>`.
+- Run `git diff --check` before handing off. Rebuild with `docker compose up --build -d` when Docker is available; never assume a successful Node test proves the container image builds.
+- Keep local `.env`, `data/intranet.json`, uploaded media, and `data/audit trail archive/` out of Git. Do not place Google service-account keys in the repository or Docker image.
+
 ## Administration workspace
 
-- `/admin.html` is the dedicated **Administration Panel**. It replaces the legacy modal CMS and is shown only to people with `content.edit` or `audit.view`; the employee header exposes the same restricted entry point as **Admin Panel**.
-- The panel uses a consistent preview-first pattern: add or edit an item, make changes in the editor alongside the employee-page preview, then use **Save content** to publish. Page actions are grouped consistently into primary creation, save/refresh, data, history, and destructive actions.
+- `/admin.html` is the dedicated **Administration Panel**; do not reintroduce the legacy modal editor. Entry requires `admin.access` plus at least one permitted Administration page and its matching capability. The employee header exposes the restricted **Admin Panel** entry point.
+- Content editors use page previews and focused forms. Save through each page's current action (for example, **Save changes**); do not assume one global save button.
 - Every managed page has JSON export, reset-to-default, undo/redo, and a per-page baseline in `data/admin-defaults.json`. Destructive removal requires an explicit confirmation, including a typed `DELETE` confirmation for collection-level removals.
 - The panel manages Main Apps, Announcements, Social Media, Moments, Knowledge Hub, Events & key dates, Whistleblower, Recently Joined, New Si-Warians, Appearance, Media, users/access, and activity/audit records.
+- **Users** assigns authorized identities to roles. **Roles** presents editable cards for built-in and custom roles, with create, edit, and delete controls.
+- Role editors separate `intranet.*` employee-page access from `admin.access`, Administration capabilities, `page.*` Administration-page access, and global actions. Enforce the same permissions on server routes and APIs, not only in navigation.
+- Global-action permissions are `action.undo`, `action.redo`, `action.reset`, `action.import`, `action.export`, and `action.delete`. Content editing uses `content.edit`; there is no `action.edit_save` permission.
 - Policies are managed only in **New Si-Warians → Policies**. A policy can use either a safe URL or an uploaded document; an upload replaces the URL, and clearing the URL removes the document reference.
 - New Si-Warians manages first-week content, policies, checklist items, support portals, and the Security Awareness/Admin Portal training links directly from its employee-page preview.
 
@@ -19,13 +28,27 @@
 
 - Employee photos use `photoUrl` when present and fall back to initials if unavailable or unable to load.
 - The editor captures department and division; legacy `team` values remain only as a compatibility fallback for existing records.
+- Records in `newMembers` are display content, not authentication accounts or role assignments. Add or edit them in Administration > Recently Joined, or import the supplied `public/recently-joined-import-template.csv` (up to 500 rows per import). Match imported records by company email where possible.
+- Google Workspace sign-in currently requests only `openid email profile` for the person signing in. Creating a Workspace user does **not** create a Recently Joined card. A future read-only Directory API sync would need explicit administrator authorization, a stable Google user ID for upserts, eligibility rules, and review before employee-wide publication. `creationTime` is an account-creation timestamp, not a reliable hire date; obtain the actual start date from HR or a Workspace custom field.
+
+## Events & key dates
+
+- `events` is currently edited in Administration and rendered by `public/portal-pages.js` from `day`, `month`, `title`, `time`, and `type`. It is **not** connected to Google Calendar; adding a Google event does not publish it to the intranet.
+- A future Calendar integration should use an explicit allowlist of calendar IDs or resource emails, read-only server credentials, stable source IDs, full dates and time zones, recurring-instance and cancellation handling, and a clear publishing/privacy rule. Room/resource calendar bookings must not be exposed to all employees by default.
+
+## Audit trail and archive
+
+- Server-side audit events and browser-reported page/control activity are separate streams in `data/intranet.json`. Browser activity is best-effort; authoritative content and access changes belong in server-side audit events. Whistleblower activity is excluded.
+- Both streams have a fixed 90-day active retention period. On the first data load each UTC day, expired events are archived before removal. `audit-archive.mjs` writes one combined compressed JSON Lines file per calendar quarter, `data/audit trail archive/audit-trail-YYYY-QN.jsonl.gz`.
+- `docker-compose.yml` bind-mounts `./data:/app/data`, so archives persist on the Ubuntu host beside `intranet.json`. Archives are not automatically deleted or included in active Audit Trail search/CSV export; include the folder in backups and monitor disk use. The former 20,000-event cap has been removed.
+- This remains JSON-file storage with memory-backed sessions, **not** a 1,000-user production-ready audit store. Use transactional storage, shared sessions, and tested backup/restore before production.
 
 ## New Si-Warians policies
 
 - The Essential Policies section renders its live data from `/api/dashboard`.
 - Each policy card contains its summary, owner, audience, version, update status, and PDF actions; there is no separate policy register.
 - Mandatory acknowledgements are recorded server-side in `policyAcknowledgements`, including the employee identity, policy versions, review timestamps, exact acceptance statement, and acceptance timestamp. An acknowledgement is invalidated automatically when a policy ID, version, or document URL changes.
-- Google Workspace SSO is enabled by setting `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_ORIGIN`, `GOOGLE_WORKSPACE_DOMAIN`, `GOOGLE_ADMIN_EMAILS`, and `SECURE_COOKIES=true` from `.env.example`. Until then, local Docker uses a clearly marked demo employee identity for testing only.
+- Google Workspace SSO uses `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_ORIGIN`, `GOOGLE_WORKSPACE_DOMAIN`, `GOOGLE_ADMIN_EMAILS`, and `SECURE_COOKIES=true`. Local administrator sign-in uses `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD`. The demo employee identity applies only when neither sign-in method is configured.
 
 ## Theme and interaction behavior
 
@@ -51,6 +74,7 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 
 ## Architecture
 
+- `audit-archive.mjs` handles 90-day audit/activity retention and one compressed archive file per calendar quarter under `data/audit trail archive/`.
 - `server.mjs` — dependency-free Node HTTP server and JSON API.
 - `data/seed.json` — initial dashboard, policy, search and content data.
 - `data/intranet.json` — runtime persistence; bind-mounted by Docker and intentionally ignored by Git.
@@ -66,8 +90,8 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 - Responsive Si-Ware branded dashboard with real `siware-logo.png` and `Icon.png` assets.
 - Dark-theme toggle, responsive Quick Launch dock, Knowledge Hub filtering/video modal, RSS selector, Moments, social widgets and events.
 - Universal search UI and API indexing policies, people, apps, forms, Knowledge Hub sessions, FAQs and service requests with type labels and destinations.
-- Welcome-to-Si-Ware announcement widget showing the two newest colleagues, their Direct Managers and optional employee photos, with the complete welcome announcement list on the New Hires page.
-- Admin CMS New Members tab for publishing welcome announcements, including local image upload (PNG/JPEG/WebP/GIF, maximum 2 MB).
+- The dashboard highlights recent colleagues; the full directory is `/recently-joined.html`, separate from New Si-Warians onboarding at `/new-hires.html`.
+- Administration > Recently Joined edits employee display cards and accepts local image uploads (PNG/JPEG/WebP/GIF, maximum 2 MB) or CSV import.
 - Dashboard content order: Industry Pulse, Facebook, Si-Ware on YouTube and LinkedIn share the first content row; Moments is a single four-item row; Knowledge Hub sessions and Calendar follow as full-width sections.
 - Policy governance records with `owner`, `reviewDate`, `audience`, `version`, and `canonicalUrl` fields.
 - Shareable New Si-Warians! page at `/new-hires.html` with first-week guidance and policy content.
@@ -77,17 +101,21 @@ Open `http://localhost:8081`. Host port `8081` maps to container port `8080` bec
 - Social Media is a configurable collection rather than four fixed fields. Each card has a title, safe HTTP(S) destination, link label, and approved SVG icon (`LinkedIn`, `Facebook`, `YouTube`, `website`, `Instagram`, `X`, or generic). The employee directory responds to any number of cards.
 - New Si-Warians keeps its employee-facing layout configurable from the preview. Policies support uploaded files or URLs; Security Awareness (English and Arabic) and Admin Portal Training are configurable video links displayed before everyday tools.
 - Media inventory/upload tooling accepts the approved document, image, and video types and identifies uploaded files that are currently in use.
-- Role-based access has `EMPLOYEE`, `CONTENT_EDITOR`, `AUDIT_VIEWER`, and `ADMIN` permissions. Server-side endpoints enforce permissions, audit content changes and authentication events, accept client activity batches, and preserve a bounded event history.
+- Role-based access starts with `EMPLOYEE`, `CONTENT_EDITOR`, `AUDIT_VIEWER`, and `ADMIN`; administrators can also create and maintain custom roles. Persisted role configuration is stored in the intranet data as `accessRoles` and `disabledDefaultRoles`.
+- Role definitions include capability permissions, page-access permissions, and global-action permissions. `ADMIN` always retains `access.manage`; it cannot be deleted, and a role with assigned users cannot be removed.
+- Server-side endpoints enforce capability and page permissions, audit content changes and authentication events, and accept client activity batches. Active events are archived after 90 days rather than silently truncated by a record-count cap.
 - Accessibility improvements: skip link, labelled controls, keyboard search shortcut, dialog semantics, reduced-motion support, contrast and readable-text refinements.
 
 ## API
 
 - `GET /api/dashboard`
 - `GET /api/search?q=<query>`
-- `PATCH /api/dashboard` (demo admin header required)
-- `POST /api/announcements`, `POST /api/sessions`, `POST /api/policies` (demo admin header required)
-- `GET /api/auth/me`, `GET /api/admin/defaults`, `GET /api/admin/summary`, `GET /api/admin/audit`, and `GET /api/admin/activity` power restricted administration and audit views.
-- `POST /api/admin/upload`, `GET /api/admin/media`, and `DELETE /api/admin/media` manage approved binary assets. Content/import/reset operations must use the corresponding authenticated Administration Panel endpoints.
+- `GET /api/auth/options`, `GET /api/auth/me`, `POST /auth/local`, `GET /auth/google`, `GET /auth/google/callback`, and `POST /auth/logout` handle sign-in and sessions.
+- `GET /api/admin/dashboard` and `PATCH /api/admin/dashboard` load and save Administration content with the required permissions; `GET /api/admin/defaults` supplies approved reset baselines.
+- `GET /api/admin/summary`, `GET /api/admin/audit`, and `GET /api/admin/audit/export` power the restricted audit view; `POST /api/activity` accepts browser-reported activity batches.
+- `POST /api/uploads` and `GET /api/admin/media` handle approved media uploads and inventory. Content/import/reset operations must use authenticated Administration endpoints.
+- `GET /api/admin/access` lists access users and resolved roles; `PATCH /api/admin/access` assigns a role to an authorized identity.
+- `POST /api/admin/roles` creates a custom role, `PATCH /api/admin/roles` updates its permissions, and `DELETE /api/admin/roles/:roleId` removes an unassigned non-`ADMIN` role.
 
 ## UI design direction
 
@@ -97,7 +125,7 @@ The current visual system follows the supplied Si-Ware portal reference: clean w
 
 `public/viewport-efficiency.css` provides a wide-screen density pass so the complete Industry Pulse, Facebook, YouTube and LinkedIn row fits in the first viewport at 100% zoom while preserving the existing tablet and mobile layouts.
 
-`public/explore-nudge.css` adds a dismissible, one-session discovery prompt in the lower-right corner. It guides employees to Moments and the Si-Ware Knowledge Hub without blocking dashboard work. The Admin CMS trigger now sits in the header beside the profile controls, keeping administrative access visible while freeing the lower-right area for employee discovery.
+`public/explore-nudge.css` adds a dismissible, one-session discovery prompt in the lower-right corner. It guides employees to Moments and the Si-Ware Knowledge Hub without blocking dashboard work. The restricted Admin Panel entry sits in the header beside the profile controls, freeing the lower-right area for employee discovery.
 
 The compact discovery prompt tells employees about the dashboard sections below the company-channel cards: Moments, Knowledge Hub, Events & key dates and Employee Voice. The structured default dashboard order is hero beside New Si-Warians!, LinkedIn/Facebook/YouTube/Industry Pulse, Moments, Knowledge Hub, Events & key dates, then Whistleblower. The saved layout is versioned so this structured default replaces the earlier flexible layout once, while future CMS layouts remain customizable.
 
@@ -119,7 +147,7 @@ The Facebook and LinkedIn cards now use intranet-owned, English social summaries
 
 ## Policy documents, onboarding and administration
 
-- The Administration workspace is a full-width modal workspace with Overview, Content, People, Layout and Apps tabs. It provides GUI management for announcements, Knowledge Hub sessions, policies, Recently Joined records, Quick Launch shortcuts and onboarding support portals.
+- Administration is the dedicated `/admin.html` workspace, not a modal or legacy employee-page editor. Its sidebar separates content, media, access management, audit, and settings.
 - Policy PDFs are uploaded through the Content > Policies form, stored under `/uploads/`, and rendered in an in-app full-screen document viewer. Employees can View or Download an approved PDF from the Essential policies cards; the Policy register remains informational.
 - The document viewer uses Poppler (`pdfinfo`, `pdftotext` and `pdftoppm`) to render pages and provide document search. Search shows a precise occurrence count, highlights every matching word, moves to the next match with Enter, and marks the active occurrence.
 - Global search includes matching policy document pages in addition to the existing intranet content. The server exposes `/api/documents/search`, `/api/documents/highlights` and `/api/documents/page` for the viewer and search experience.
@@ -129,10 +157,11 @@ The Facebook and LinkedIn cards now use intranet-owned, English social summaries
 
 ## Production follow-up
 
-- Replace demo roles with Azure AD or Google Workspace SSO and real server-side RBAC.
+- Consider mapping roles to approved identity-provider groups; keep server-side `intranet.*`, `admin.access`, `page.*`, capability, and action checks aligned with the role editor.
 - Connect policy cards to approved document storage and add policy publishing/editing controls to the CMS.
 - Replace demo social/RSS data with server-side feed integrations.
-- Add persistent database storage, audit logs, malware-safe uploads and policy approval workflows.
+- Replace JSON-file persistence and in-memory sessions with transactional/shared storage; harden upload scanning, audit durability, archive monitoring, backup/restore, and policy approval workflows.
+- Add Google Workspace Directory sync for approved Recently Joined drafts and read-only Google Calendar sync for an allowlist of approved company calendars/resources. Neither integration exists yet; do not imply that Google sign-in provides directory/calendar data.
 - Add automated accessibility and browser E2E tests before launch.
 
 ## Current portal destinations and live content
@@ -148,7 +177,7 @@ The Facebook and LinkedIn cards now use intranet-owned, English social summaries
 - The employee-facing shell uses a compact two-row desktop header. The first row contains the linked official Si-Ware logo plus an `Intranet` label; the right side contains the intranet search trigger, theme control, restricted Admin CMS action, and the signed-in employee photo, name, and access level. The second row contains all primary destinations with a clear active state.
 - `public/destination-nav.js` owns the shared dedicated-page header, full employee profile display, search panel, navigation active state, and shared footer. Do not create page-specific copies of these controls.
 - The header search trigger appears before the theme control. It opens an inline, right-anchored search field and results panel; the older dedicated-page search field was removed. It is keyboard accessible and closes with Escape or outside click.
-- The dashboard profile and dedicated-page profile display `Marwan Elafifi` with `Full Access` and use the configured uploaded avatar when available. The user identity is also refreshed from `/api/dashboard` by `destination-nav.js`.
+- Employee headers display the authenticated user's profile and access level, with an uploaded avatar when available. Do not hard-code a specific employee identity into shared UI.
 - Main Apps are a one-row carousel rather than a grid. It advances one card at a time automatically, pauses while an app card is hovered or focused, and has previous/next controls aligned immediately beside the visible first/last card. It intentionally has no section heading, search field, scroll rail, or divider lines.
 - Dedicated destination pages use the compact intro spacing in `public/dedicated-standard.css`. This includes the generic destinations and the special policy/news templates: Whistleblower, Recently Joined, New Si-Warians, and Company News.
 - `public/news-shifter.js` waits for the requested official news image to load and decode before showing its slide. It preserves source order, starts on the first source story, and does not substitute a later story when an image is temporarily unavailable.
