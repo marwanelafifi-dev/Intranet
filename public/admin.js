@@ -16,7 +16,7 @@ const actionControlPermissions = [
   ['[data-page-reset], [data-home-reset]', 'action.reset'],
   ['[data-page-export]', 'action.export'],
   ['[data-import-new-members], [data-import-knowledge-sessions], label[for="users-csv-input"]', 'action.import'],
-  ['[data-remove-record], [data-remove-announcement-template], [data-remove-announcement-schedule], [data-remove-social-card], [data-home-remove-section], [data-card-delete-role], [data-delete-role], [data-page-remove-all-sessions], [data-preview-editor-remove], [data-remove-existing-attachment], [data-remove-policy-document]', 'action.delete']
+  ['[data-remove-record], [data-remove-announcement-template], [data-remove-announcement-schedule], [data-remove-social-card], [data-home-remove-section], [data-card-delete-role], [data-delete-role], [data-page-remove-all-sessions], [data-page-delete-all-people], [data-preview-editor-remove], [data-remove-existing-attachment], [data-remove-policy-document]', 'action.delete']
 ];
 document.addEventListener('click', event => {
   const blocked = actionControlPermissions.find(([selector, permission]) => event.target.closest(selector) && !hasAdminPermission(permission));
@@ -541,6 +541,7 @@ function openPreviewCollectionEditor(frame, key, record = null) {
     const colourField = fieldsRoot.querySelector('.admin-preview-colour-control')?.closest('label');
     fieldsRoot.insertBefore(upload, colourField || null);
   }
+  if (key === 'newMembers') editor.querySelector('[data-preview-editor-remove]').textContent = 'Delete colleague';
   // The preview iframe is expanded to the full employee page. A fixed editor would
   // stay at the iframe's top and disappear when a lower session is selected.
   const viewportHeight = window.innerHeight || 800;
@@ -1109,7 +1110,7 @@ function pageToolbarMarkup(view, history) {
   const dataMenu = dataItems ? `<details class="admin-page-tools-menu"><summary>Data</summary><div class="admin-page-tools-menu-items" role="menu">${dataItems}</div></details>` : '';
   const historyItems = `${hasAdminPermission('action.undo') ? `<button type="button" data-page-undo ${pageToolBusy || !history.undo.length ? 'disabled' : ''}>Undo</button>` : ''}${hasAdminPermission('action.redo') ? `<button type="button" data-page-redo ${pageToolBusy || !history.redo.length ? 'disabled' : ''}>Redo</button>` : ''}`;
   const historyGroup = historyItems ? `<div class="admin-page-tools-group">${historyItems}</div>` : '';
-  const moreItems = `${view === 'knowledge' && hasAdminPermission('action.delete') ? `<button type="button" class="admin-page-remove-all" data-page-remove-all-sessions ${dashboard.sessions?.length ? '' : 'disabled'}>Remove all sessions</button>` : ''}${hasAdminPermission('action.reset') ? `<button type="button" data-page-reset class="admin-page-reset" ${pageToolBusy ? 'disabled' : ''}>Reset to default</button>` : ''}`;
+  const moreItems = `${view === 'knowledge' && hasAdminPermission('action.delete') ? `<button type="button" class="admin-page-remove-all" data-page-remove-all-sessions ${dashboard.sessions?.length ? '' : 'disabled'}>Remove all sessions</button>` : ''}${view === 'people' && hasAdminPermission('action.delete') ? `<button type="button" class="admin-page-remove-all" data-page-delete-all-people ${dashboard.newMembers?.length ? '' : 'disabled'}>Delete all colleagues</button>` : ''}${hasAdminPermission('action.reset') ? `<button type="button" data-page-reset class="admin-page-reset" ${pageToolBusy ? 'disabled' : ''}>Reset to default</button>` : ''}`;
   const moreMenu = moreItems ? `<details class="admin-page-tools-menu"><summary>More actions</summary><div class="admin-page-tools-menu-items" role="menu">${moreItems}</div></details>` : '';
   return `${editGroup ? `<div class="admin-page-tools-group">${editGroup}</div>` : ''}${historyGroup}${dataMenu || moreMenu ? `<div class="admin-page-tools-group">${dataMenu}${moreMenu}</div>` : ''}`;
 }
@@ -1168,6 +1169,7 @@ function setupPageTools() {
     const create = event.target.closest('[data-page-create]');
     if (create) { if (create.dataset.pageCreate === 'social-card') { editingRecord.socialCard = ''; renderSocial(); } else { editingRecord[create.dataset.pageCreate] = ''; renderEditorArea(create.dataset.pageCreate); } updatePageTools(); }
     if (event.target.closest('[data-page-remove-all-sessions]')) openKnowledgeRemoveDialog();
+    if (event.target.closest('[data-page-delete-all-people]')) openPeopleDeleteAllDialog();
   });
 }
 function openKnowledgeRemoveDialog() {
@@ -1175,6 +1177,35 @@ function openKnowledgeRemoveDialog() {
   if (!dialog) return;
   dialog.querySelector('[name="confirmation"]').value = '';
   dialog.querySelector('.knowledge-remove-error').textContent = '';
+  dialog.showModal();
+  dialog.querySelector('[name="confirmation"]').focus();
+}
+function openPeopleDeleteAllDialog() {
+  if (!dashboard.newMembers?.length) return;
+  let dialog = $('#people-delete-all-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'people-delete-all-dialog';
+    dialog.className = 'knowledge-remove-dialog';
+    dialog.innerHTML = '<form><h2>Delete all Recently Joined colleagues?</h2><p data-people-delete-description></p><label>Type DELETE to confirm<input name="confirmation" autocomplete="off" spellcheck="false" required /></label><p class="knowledge-remove-error" role="alert"></p><div class="knowledge-remove-dialog-actions"><button type="button" class="action-button" data-people-delete-cancel>Cancel</button><button type="submit" class="action-button knowledge-remove-all">Delete all colleagues</button></div></form>';
+    document.body.append(dialog);
+    dialog.querySelector('[data-people-delete-cancel]').addEventListener('click', () => dialog.close());
+    dialog.querySelector('form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const input = dialog.querySelector('[name="confirmation"]'), error = dialog.querySelector('[role="alert"]'), submit = dialog.querySelector('[type="submit"]');
+      if (input.value !== 'DELETE') { error.textContent = 'Type DELETE exactly to remove every colleague.'; input.focus(); return; }
+      const previous = dashboard.newMembers;
+      submit.disabled = true;
+      dashboard.newMembers = [];
+      editingRecord.newMembers = '';
+      try { await saveDashboard(`${previous.length} Recently Joined colleague${previous.length === 1 ? '' : 's'} deleted. Use Undo to restore them in this browser tab.`, true, true, 'delete'); dialog.close(); }
+      catch (saveError) { dashboard.newMembers = previous; error.textContent = saveError.message || 'Colleagues were not deleted. Try again.'; submit.disabled = false; }
+    });
+  }
+  const count = dashboard.newMembers.length;
+  dialog.querySelector('[data-people-delete-description]').textContent = `This removes all ${count} colleague${count === 1 ? '' : 's'} from Recently Joined, including Google-synced cards. It does not delete Google Workspace accounts. You can use Undo in this browser tab after a successful deletion.`;
+  dialog.querySelector('[name="confirmation"]').value = '';
+  dialog.querySelector('[role="alert"]').textContent = '';
   dialog.showModal();
   dialog.querySelector('[name="confirmation"]').focus();
 }
