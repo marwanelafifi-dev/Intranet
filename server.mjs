@@ -1004,20 +1004,36 @@ runGoogleSync = async () => {
     const sourceSnapshot = await readFile(dataFile, 'utf8');
     const data = JSON.parse(sourceSnapshot), settings = data.adminSettings?.googleSync || defaultGoogleSyncSettings();
     if (!settings.enabled) return googleSyncStatus;
+    const syncBaseline = {
+      newMembers: JSON.stringify(data.newMembers || []),
+      events: JSON.stringify(data.events || []),
+      settings: JSON.stringify(settings)
+    };
     googleSyncStatus.lastAttemptAt = new Date().toISOString();
     const selectedCalendars = approvedResourceCalendars.filter(calendar => settings.calendarIds.includes(calendar.id));
     const config = workspaceSyncConfig({ ...process.env, GOOGLE_RECENTLY_JOINED_OU:'', GOOGLE_RECENTLY_JOINED_OUS:settings.ouPaths.join(','), GOOGLE_CALENDAR_RESOURCES:selectedCalendars.map(calendar => `${calendar.label}|${calendar.id}`).join(',') });
     const client = await createWorkspaceClient(config);
     const result = await syncWorkspaceContent(data, config, client);
     if (result.changed) {
+      let target = data;
       if (await readFile(dataFile, 'utf8') !== sourceSnapshot) {
-        googleSyncStatus.lastError = 'Intranet content changed during sync. The next run will retry safely.';
-        console.info('Google Workspace sync deferred because intranet data changed during the Google request.');
-        return googleSyncStatus;
+        const latest = JSON.parse(await readFile(dataFile, 'utf8'));
+        const relevantContentChanged = JSON.stringify(latest.newMembers || []) !== syncBaseline.newMembers
+          || JSON.stringify(latest.events || []) !== syncBaseline.events
+          || JSON.stringify(latest.adminSettings?.googleSync || defaultGoogleSyncSettings()) !== syncBaseline.settings;
+        if (relevantContentChanged) {
+          googleSyncStatus.lastError = 'Recently Joined, Events, or sync settings changed during sync. The next run will retry safely.';
+          console.info('Google Workspace sync deferred because relevant intranet content changed during the Google request.');
+          return googleSyncStatus;
+        }
+        // Preserve audit/activity and unrelated page changes written while Google responded.
+        latest.newMembers = data.newMembers;
+        latest.events = data.events;
+        target = latest;
       }
-      data._version += 1;
-      auditEvent(data, null, { action:'workspace.content.synced', resource:'Recently Joined / Events & key dates', route:'/system/google-workspace-sync', changes:{ members:result.members, calendars:result.calendars }, outcome:'success' });
-      await save(data);
+      target._version += 1;
+      auditEvent(target, null, { action:'workspace.content.synced', resource:'Recently Joined / Events & key dates', route:'/system/google-workspace-sync', changes:{ members:result.members, calendars:result.calendars }, outcome:'success' });
+      await save(target);
     }
     googleSyncStatus.membersCreated = result.members.created;
     googleSyncStatus.membersUpdated = result.members.updated;
