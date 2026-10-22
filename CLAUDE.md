@@ -29,12 +29,25 @@
 - Employee photos use `photoUrl` when present and fall back to initials if unavailable or unable to load.
 - The editor captures department and division; legacy `team` values remain only as a compatibility fallback for existing records.
 - Records in `newMembers` are display content, not authentication accounts or role assignments. Add or edit them in Administration > Recently Joined, or import the supplied `public/recently-joined-import-template.csv` (up to 500 rows per import). Match imported records by company email where possible.
-- Google Workspace sign-in currently requests only `openid email profile` for the person signing in. Creating a Workspace user does **not** create a Recently Joined card. A future read-only Directory API sync would need explicit administrator authorization, a stable Google user ID for upserts, eligibility rules, and review before employee-wide publication. `creationTime` is an account-creation timestamp, not a reliable hire date; obtain the actual start date from HR or a Workspace custom field.
+- Google sign-in still requests only `openid email profile`. A separate read-only delegated service account powers Directory sync. In Administration > Settings, admins select live employee/intern OUs; Guests and Consultants are excluded. Sync is disabled until explicitly enabled. It uses a 30-day creation lookback by default and Google user IDs/email for upserts, retains manual edits, and never treats `creationTime` as a hire date. Configure `GOOGLE_HIRE_DATE_FIELD` for Joined; otherwise it remains “To be confirmed.” See README for setup and privacy boundaries.
+
+## Google Workspace content sync
+
+- This is separate from Google Workspace SSO. It is a server-side, read-only service-account integration. Never place a service-account JSON key in browser code, `data/intranet.json`, `.env`, Git, or the Docker image.
+- Store the key only at `secrets/google-workspace.json` on the Docker host. Docker mounts `./secrets` read-only at `/run/secrets`; set `GOOGLE_SERVICE_ACCOUNT_KEY_FILE=/run/secrets/google-workspace.json` and set `GOOGLE_SYNC_SUBJECT` to the delegated Workspace administrator email in the untracked `.env` file.
+- Enable Admin SDK API and Google Calendar API in the Google Cloud project. Configure Domain-wide Delegation in Google Admin console for the service account's numeric client ID with exactly these read-only scopes: `admin.directory.user.readonly`, `admin.directory.orgunit.readonly`, and `calendar.events.readonly` (each with the full `https://www.googleapis.com/auth/` prefix). The delegated subject must be allowed to read the directory and selected calendar event details.
+- The Settings API and controls require both `settings.manage` and `page.settings`; enforce this server-side. The browser must never receive the key, delegated subject, OAuth assertion, or Google access token. A failed setup must render a clear setup/error state rather than exposing credentials.
+- Administration > Settings > Google Workspace content sync queries live Organization Units and allows only employee/intern branches. Reject Guests, Consultants, stale OU paths, non-approved calendar IDs, malformed inputs, and requests from roles missing either Settings permission. The UI may search/filter these OUs, but selection validation remains authoritative on the server.
+- The approved resource calendars are `c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com` (3rd Floor Meeting Room, resource ID `61221782182`) and `c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com` (Recreational Area Space, resource ID `2913182464`). A resource calendar ID is its `resourceEmail`, not its display name or internal resource ID.
+- Sync is opt-in and disabled by default. Saving sources only persists the allowlist; enabling it schedules an immediate check and then a 15-minute server-side poll. **Sync now** is an administrator action that runs the same safe job. Never make Google calls from the employee browser.
+- Directory imports include active, non-guest users who are direct members of the selected OUs and were created within `GOOGLE_RECENTLY_JOINED_LOOKBACK_DAYS` (default 30). Use Google user IDs/email for idempotent upserts. Preserve fields that an administrator manually corrected; do not use `creationTime` as a hire date. Remove no existing people card merely because its OU was later deselected.
+- Calendar imports expand recurring events in a rolling window from seven days ago through 90 days ahead. Import only non-private event title/start-time metadata; never import descriptions, attendees, or confidential/private entries. Preserve manual events. When a resource is deselected, remove only events previously imported from that resource and record the count in the audit event.
+- Google sync writes an authoritative audit event for settings changes and completed content syncs. Guard file writes with a source snapshot check so the sync job never overwrites concurrent administrator edits. Failed resource reads preserve the prior imported events for that resource and appear as status errors.
+- Google Directory propagation/search can be delayed. A new account may not appear immediately even with a successful sync; use the Settings status and audit trail to distinguish a permissions/setup error from Google propagation delay.
 
 ## Events & key dates
 
-- `events` is currently edited in Administration and rendered by `public/portal-pages.js` from `day`, `month`, `title`, `time`, and `type`. It is **not** connected to Google Calendar; adding a Google event does not publish it to the intranet.
-- A future Calendar integration should use an explicit allowlist of calendar IDs or resource emails, read-only server credentials, stable source IDs, full dates and time zones, recurring-instance and cancellation handling, and a clear publishing/privacy rule. Room/resource calendar bookings must not be exposed to all employees by default.
+- `events` remains editable in Administration. Optional read-only Calendar sync imports only resource calendars selected in Administration > Settings. The 3rd Floor Meeting Room and Recreational Area Space are the approved choices. It expands recurring instances, uses stable source IDs, excludes private events, and preserves manually entered events. Selected resource event titles become employee-visible automatically.
 
 ## Audit trail and archive
 
@@ -161,7 +174,7 @@ The Facebook and LinkedIn cards now use intranet-owned, English social summaries
 - Connect policy cards to approved document storage and add policy publishing/editing controls to the CMS.
 - Replace demo social/RSS data with server-side feed integrations.
 - Replace JSON-file persistence and in-memory sessions with transactional/shared storage; harden upload scanning, audit durability, archive monitoring, backup/restore, and policy approval workflows.
-- Add Google Workspace Directory sync for approved Recently Joined drafts and read-only Google Calendar sync for an allowlist of approved company calendars/resources. Neither integration exists yet; do not imply that Google sign-in provides directory/calendar data.
+- Evaluate a reviewed-draft publishing workflow for Google-sourced people and events if automatic publication from the approved OU/calendar allowlist is not sufficient. Google sign-in alone still does not provide directory/calendar data.
 - Add automated accessibility and browser E2E tests before launch.
 
 ## Current portal destinations and live content

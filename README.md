@@ -18,6 +18,30 @@ For local Docker use, set `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD` in an u
 
 Authentication uses an HTTP-only, same-site session cookie. Set `SECURE_COOKIES=true` when serving over HTTPS. Sessions are kept in memory for up to eight hours, so restarting the container signs users out. Local credentials and memory-backed sessions are intended for this Docker environment; a production deployment needs a managed identity provider and shared session storage.
 
+## Google Workspace content sync
+
+Configure sources in **Administration > Settings > Google Workspace content sync**, not in `.env`. Select employee/intern OUs from the live Google list; Guests and Consultants are not selectable. The 3rd Floor Meeting Room (`c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com`) and Recreational Area Space (`c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com`) are preselected. Sync remains off until an administrator enables and saves it. Use **Sync now** for an immediate check. Grant the delegated service account these three read-only scopes: `https://www.googleapis.com/auth/admin.directory.user.readonly`, `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, and `https://www.googleapis.com/auth/calendar.events.readonly`.
+
+Google sign-in alone does not provide directory or calendar data. To automatically publish new accounts from selected OUs to Recently Joined and events from selected resource calendars to Events & key dates:
+
+1. Enable the **Admin SDK API** and **Google Calendar API** in a Google Cloud project. Create a service account with domain-wide delegation and download its JSON key. Keep the key only at `./secrets/google-workspace.json` on the Docker host (this folder is ignored by Git and excluded from the image), and restrict its file permissions.
+2. In Google Admin console → Security → Access and data control → API controls → Domain-wide delegation, authorize the service account's **numeric client ID** for the three read-only scopes listed above. Use a delegated admin account that can read the directory and has access to the selected resource calendars with event details.
+3. Add the following to the untracked `.env`. Choose the OU paths and resources in Administration after starting the app. Do not paste the service-account key into `.env` or Git.
+
+```dotenv
+GOOGLE_SYNC_SUBJECT=directory-sync@si-ware.com
+GOOGLE_RECENTLY_JOINED_LOOKBACK_DAYS=30
+# Optional Workspace custom fields; the date must be YYYY-MM-DD.
+GOOGLE_HIRE_DATE_FIELD=Employment.hireDate
+GOOGLE_DIVISION_FIELD=Employment.division
+```
+
+The server polls every 15 minutes after sync is enabled. Google Directory search results can lag, so new accounts may not appear immediately. Only active, non-guest users directly in the selected OUs are imported; child OUs are not included unless selected, and accounts created more than the configured lookback ago are not backfilled. Imported cards are matched by Google's stable user ID or company email. Existing manual edits are preserved. The Workspace account creation timestamp is **not** used as an employment start date: without the optional hire-date field, Joined remains “To be confirmed.” Employment type is inferred for the four named Egypt employment/intern OUs; other missing HR details require manual completion in Administration. Imported cards appear to employees automatically, so select only OUs approved for employee-wide publication.
+
+Calendar sync expands recurring events and shows only the chosen calendars' non-private events in a rolling window from seven days ago through 90 days ahead. It imports only the event title and start time—not descriptions, attendees, or private events—and leaves manually entered events alone. A successful refresh removes cancelled or out-of-window imported events; a failed resource read leaves that resource's previous events untouched. Configure only calendars whose event titles are approved for employee-wide visibility. This is read-only: the intranet never changes Google users or calendars. Restart the container after changing `.env` or the key. See [Google's Directory search documentation](https://developers.google.com/workspace/admin/directory/v1/guides/search-users), [domain-wide delegation setup](https://developers.google.com/identity/protocols/oauth2/service-account), and [Calendar events API](https://developers.google.com/workspace/calendar/api/v3/reference/events/list).
+
+For a room or other Google Workspace resource, use its `resourceEmail` as the calendar ID—not its display name or internal resource ID. [Google documents this mapping](https://developers.google.com/workspace/calendar/api/concepts/domain).
+
 ## Role access
 
 Administration → Roles separates employee-page access from Administration access. `intranet.*` permissions control the employee-facing page routes and corresponding dashboard/search content. `admin.access` opens the Admin Panel only when the role also has an allowed Administration page (`page.*`) and its required capability, such as `content.edit` or `audit.view`. Administration actions remain separate. My profile is available to every signed-in user. Existing saved roles receive the previously available intranet pages during the one-time permissions migration; administrators can then narrow each role.

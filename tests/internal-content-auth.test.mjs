@@ -105,6 +105,8 @@ async function startIsolatedServer({ demoRole = '', permissions = [], legacy = f
       LOCAL_ADMIN_PASSWORD: demoRole ? '' : 'test-only-password',
       GOOGLE_CLIENT_ID: '',
       GOOGLE_CLIENT_SECRET: '',
+      GOOGLE_SERVICE_ACCOUNT_KEY_FILE: '',
+      GOOGLE_SYNC_SUBJECT: '',
       SECURE_COOKIES: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -205,6 +207,14 @@ test('administration routes enforce page, publishing, import, deletion, and audi
     const request = (path, method = 'GET', body) => fetch(`${server.origin}${path}`, {
       method, headers, ...(body === undefined ? {} : { body:JSON.stringify(body) })
     });
+    const googleSync = await request('/api/admin/google-sync');
+    assert.equal(googleSync.status, 200);
+    const googleSyncData = await googleSync.json();
+    assert.equal(googleSyncData.settings.enabled, false);
+    assert.equal(googleSyncData.resources.length, 2);
+    assert.equal(googleSyncData.connected, false);
+    assert.equal((await request('/api/admin/google-sync', 'PATCH', { enabled:true, ouPaths:['/Egypt/Consultants'], calendarIds:[] })).status, 422);
+    assert.equal((await request('/api/admin/google-sync', 'PATCH', { enabled:true, ouPaths:['/Egypt/Full-Time Employees'], calendarIds:[] })).status, 422);
     for (const [path, method] of [
       ['/api/dashboard','PATCH'], ['/api/new-members','POST'], ['/api/sessions','POST'],
       ['/api/announcements','POST'], ['/api/policies','POST']
@@ -224,6 +234,9 @@ test('administration routes enforce page, publishing, import, deletion, and audi
     assert.equal((await request('/api/admin/audit')).status, 403);
     assert.equal((await request('/api/admin/media')).status, 403);
     assert.equal((await request('/api/admin/settings', 'PATCH', { auditRetentionDays:365, activityRetentionDays:90 })).status, 403);
+    assert.equal((await request('/api/admin/google-sync')).status, 403);
+    assert.equal((await request('/api/admin/google-sync', 'PATCH', { enabled:false, ouPaths:[], calendarIds:[] })).status, 403);
+    assert.equal((await request('/api/admin/google-sync/run', 'POST', {})).status, 403);
     assert.equal((await request('/api/admin/access', 'PATCH', { email:'import@test.local', role:'EMPLOYEE', operation:'import' })).status, 403);
     const adminDashboard = await (await request('/api/admin/dashboard')).json();
     assert.equal(Object.hasOwn(adminDashboard, 'accessUsers'), false);

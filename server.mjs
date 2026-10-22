@@ -8,6 +8,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { activeSessionActor, hasEmployeeRole } from './auth-session.mjs';
 import { describeContentChanges } from './audit-details.mjs';
 import { archiveExpiredEvents, auditRetentionDays, hasArchiveRunToday } from './audit-archive.mjs';
+import { workspaceSyncConfig, createWorkspaceClient, syncWorkspaceContent, eligibleEmployeeOu } from './google-workspace-sync.mjs';
 import { adminViewPermissions, adminActionPermissions, adminContentKeyPages, adminContentKeys, canOpenAdmin, removedContent, rolePermissionError } from './public/admin-permissions.js';
 import { intranetPagePermissions, intranetRoutePermissions, intranetContentPermissions, firstAvailableIntranetPage } from './public/intranet-permissions.js';
 
@@ -26,6 +27,13 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
 const googleWorkspaceDomain = (process.env.GOOGLE_WORKSPACE_DOMAIN || 'si-ware.com').toLowerCase();
 const googleAdminEmails = new Set((process.env.GOOGLE_ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
+const approvedResourceCalendars = Object.freeze([
+  { id:'c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com', label:'3rd Floor Meeting Room', resourceId:'61221782182' },
+  { id:'c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com', label:'Recreational Area Space', resourceId:'2913182464' }
+]);
+const defaultGoogleSyncSettings = () => ({ enabled:false, ouPaths:[], calendarIds:approvedResourceCalendars.map(calendar => calendar.id) });
+const googleSyncStatus = { lastAttemptAt:null, lastSuccessAt:null, lastError:'', membersCreated:0, membersUpdated:0, calendarEvents:0 };
+let runGoogleSync = async () => googleSyncStatus;
 const localAdminName = String(process.env.LOCAL_ADMIN_NAME || 'Local Administrator').trim();
 const localAdminEmail = String(process.env.LOCAL_ADMIN_EMAIL || '').trim().toLowerCase();
 const localAdminPassword = String(process.env.LOCAL_ADMIN_PASSWORD || '');
@@ -35,7 +43,7 @@ const sessionLifetimeMs = 8 * 60 * 60 * 1000;
 const loginWindowMs = 15 * 60 * 1000;
 const maxLocalAttempts = 5;
 const acknowledgementContentDefault = { version:1, actionTitle:'Action required: acknowledge Si-Ware Policies', instructionText:'Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.', beforeHeading:'Why this matters', beforeText:'Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.', confirmationLabel:'I confirm that I have read and accepted Si-Ware Policies.', confirmationHelp:'This records the current policy versions and confirmation time.', acceptedTitle:'Policies acknowledged', afterText:'Your acknowledgement has been recorded for the current policy versions.' };
-const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
+const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern', 'To be confirmed'];
 const execFileAsync = promisify(execFile);
 let youtubeCache = { expiresAt: 0, payload: null }, companyNewsCache = { expiresAt: 0, payload: null }, companyNewsRefresh = null;
 const json = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
@@ -529,6 +537,7 @@ async function dashboard() {
       changed = true;
     }
     data.adminSettings ||= { layoutHistory:[] };
+    if (!data.adminSettings.googleSync) { data.adminSettings.googleSync = defaultGoogleSyncSettings(); changed = true; }
     if (data.adminSettings.auditRetentionDays !== auditRetentionDays || data.adminSettings.activityRetentionDays !== auditRetentionDays) {
       data.adminSettings.auditRetentionDays = auditRetentionDays;
       data.adminSettings.activityRetentionDays = auditRetentionDays;
@@ -812,6 +821,49 @@ const server = createServer(async (req, res) => {
       withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent, details:contentDetails.details, truncated:contentDetails.truncated } }); await save(data);
       return json(res, 200, dashboardResponse(await withPolicyModifiedDates(data), actor, true));
     }
+    if (req.method === 'GET' && url.pathname === '/api/admin/google-sync') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
+      const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim(), subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim();
+      if (!keyFile || !subject) return json(res, 200, { settings:data.adminSettings.googleSync, resources:approvedResourceCalendars, availableOus:[], connected:false, message:'Set the delegated Google service-account key and GOOGLE_SYNC_SUBJECT on the server to load organizational units.', status:googleSyncStatus });
+      try {
+        const client = await createWorkspaceClient({ keyFile, subject });
+        return json(res, 200, { settings:data.adminSettings.googleSync, resources:approvedResourceCalendars, availableOus:await client.orgUnits(), connected:true, message:'', status:googleSyncStatus });
+      } catch (error) { return json(res, 200, { settings:data.adminSettings.googleSync, resources:approvedResourceCalendars, availableOus:[], connected:false, message:`Could not load Google organizational units: ${error.message}`, status:googleSyncStatus }); }
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/google-sync') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
+      const body = await readBody(req), ouPaths = Array.isArray(body.ouPaths) ? [...new Set(body.ouPaths.map(value => String(value).trim()))] : null;
+      const calendarIds = Array.isArray(body.calendarIds) ? [...new Set(body.calendarIds.map(value => String(value).trim()))] : null;
+      if (!ouPaths || !calendarIds || ouPaths.length > 20 || calendarIds.length > approvedResourceCalendars.length || ouPaths.some(path => !eligibleEmployeeOu(path)) || calendarIds.some(id => !approvedResourceCalendars.some(calendar => calendar.id === id))) return json(res, 422, { error:'Choose eligible employee/intern OUs and only the approved resource calendars.' });
+      const enabled = body.enabled === true;
+      if (enabled && !ouPaths.length && !calendarIds.length) return json(res, 422, { error:'Select at least one OU or resource calendar before enabling sync.' });
+      if (ouPaths.length || enabled) {
+        const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim(), subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim();
+        if (!keyFile || !subject) return json(res, 422, { error:'Configure the Google service-account key and delegated administrator email on the server first.' });
+        try {
+          const client = await createWorkspaceClient({ keyFile, subject });
+          const available = new Set((await client.orgUnits()).map(unit => unit.path));
+          if (ouPaths.some(path => !available.has(path))) return json(res, 422, { error:'An OU is no longer available or is not an employee/intern OU. Refresh the list and try again.' });
+        } catch (error) { return json(res, 502, { error:`Could not verify the selected OUs with Google: ${error.message}` }); }
+      }
+      const next = { enabled, ouPaths, calendarIds };
+      if (JSON.stringify(data.adminSettings.googleSync) !== JSON.stringify(next)) {
+        const priorEvents = Array.isArray(data.events) ? data.events.length : 0;
+        if (Array.isArray(data.events)) data.events = data.events.filter(event => event.source !== 'google-calendar' || calendarIds.includes(event.sourceCalendarId));
+        const removedEvents = priorEvents - (data.events?.length || 0);
+        data.adminSettings.googleSync = next;
+        data._version += 1;
+        auditEvent(data, actor, { action:'workspace.sync.settings.updated', resource:'Google Workspace content sync', route:'/admin.html', changes:{ enabled, ouPaths, calendarIds, removedEvents }, outcome:'success' });
+        await save(data);
+      }
+      if (enabled) { const refresh = setTimeout(() => runGoogleSync(), 1000); refresh.unref(); }
+      return json(res, 200, { settings:data.adminSettings.googleSync, status:googleSyncStatus });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/google-sync/run') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
+      await runGoogleSync();
+      return json(res, 200, { status:googleSyncStatus });
+    }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/settings') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
       const body = await readBody(req), auditRetentionDays = Number(body.auditRetentionDays), activityRetentionDays = Number(body.activityRetentionDays);
@@ -942,3 +994,45 @@ const server = createServer(async (req, res) => {
 // a schedule is actually due, and its occurrence marker prevents duplicates.
 const announcementScheduleTimer = setInterval(() => { dashboard().catch(error => console.error('Announcement scheduler failed', error)); }, 60_000);
 announcementScheduleTimer.unref();
+
+let googleSyncRunning = false;
+runGoogleSync = async () => {
+  if (googleSyncRunning) return googleSyncStatus;
+  googleSyncRunning = true;
+  try {
+    await dashboard();
+    const sourceSnapshot = await readFile(dataFile, 'utf8');
+    const data = JSON.parse(sourceSnapshot), settings = data.adminSettings?.googleSync || defaultGoogleSyncSettings();
+    if (!settings.enabled) return googleSyncStatus;
+    googleSyncStatus.lastAttemptAt = new Date().toISOString();
+    const selectedCalendars = approvedResourceCalendars.filter(calendar => settings.calendarIds.includes(calendar.id));
+    const config = workspaceSyncConfig({ ...process.env, GOOGLE_RECENTLY_JOINED_OU:'', GOOGLE_RECENTLY_JOINED_OUS:settings.ouPaths.join(','), GOOGLE_CALENDAR_RESOURCES:selectedCalendars.map(calendar => `${calendar.label}|${calendar.id}`).join(',') });
+    const client = await createWorkspaceClient(config);
+    const result = await syncWorkspaceContent(data, config, client);
+    if (result.changed) {
+      if (await readFile(dataFile, 'utf8') !== sourceSnapshot) {
+        googleSyncStatus.lastError = 'Intranet content changed during sync. The next run will retry safely.';
+        console.info('Google Workspace sync deferred because intranet data changed during the Google request.');
+        return googleSyncStatus;
+      }
+      data._version += 1;
+      auditEvent(data, null, { action:'workspace.content.synced', resource:'Recently Joined / Events & key dates', route:'/system/google-workspace-sync', changes:{ members:result.members, calendars:result.calendars }, outcome:'success' });
+      await save(data);
+    }
+    googleSyncStatus.membersCreated = result.members.created;
+    googleSyncStatus.membersUpdated = result.members.updated;
+    googleSyncStatus.calendarEvents = result.calendars.reduce((sum, calendar) => sum + calendar.count, 0);
+    googleSyncStatus.lastError = result.errors.join('; ');
+    if (!result.errors.length) googleSyncStatus.lastSuccessAt = new Date().toISOString();
+    if (result.errors.length) console.error('Google Workspace sync completed with errors:', googleSyncStatus.lastError);
+    else console.info(`Google Workspace sync completed: ${result.members.created} new members, ${result.members.updated} updated members, ${googleSyncStatus.calendarEvents} calendar events.`);
+  } catch (error) {
+    googleSyncStatus.lastError = error.message;
+    console.error('Google Workspace sync failed:', error.message);
+  } finally { googleSyncRunning = false; }
+  return googleSyncStatus;
+};
+const initialGoogleSync = setTimeout(runGoogleSync, 10_000);
+initialGoogleSync.unref();
+const googleSyncTimer = setInterval(runGoogleSync, 15 * 60_000);
+googleSyncTimer.unref();

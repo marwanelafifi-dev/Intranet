@@ -1,7 +1,7 @@
 import { openMemberProfile } from './member-profile.js';
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
-const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
+const employmentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern', 'To be confirmed'];
 const select = id => document.querySelector(id);
 let members = [];
 function memberContactIcon(type) {

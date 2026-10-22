@@ -2,7 +2,7 @@ FROM node:22-alpine
 RUN apk add --no-cache poppler-utils
 WORKDIR /app
 COPY package.json ./
-COPY server.mjs auth-session.mjs audit-details.mjs audit-archive.mjs ./
+COPY server.mjs auth-session.mjs audit-details.mjs audit-archive.mjs google-workspace-sync.mjs ./
 COPY public ./public
 COPY data ./data
 ENV PORT=8080

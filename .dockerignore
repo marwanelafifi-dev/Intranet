@@ -2,6 +2,7 @@ node_modules
 .git
 .agents
 .codex
+secrets
 npm-debug.log
 .local-app*.log
 knowledge-hub-*.png
