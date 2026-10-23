@@ -1,0 +1,90 @@
+/*
+ * Shared dark-mode finish for every employee-facing route.  It deliberately
+ * uses the product tokens instead of page-specific light values, so a new
+ * page inherits a coherent dark surface without reimplementing the palette.
+ */
+html.dark {
+  color-scheme: dark;
+  --ink: #edf4ff;
+  --muted: #b9c9dc;
+  --line: #2e4a68;
+  --paper: #0a1728;
+  --card: #132943;
+  --blue: #8dc5ff;
+  --blue2: #b6d8ff;
+  --navy: #081426;
+  --shadow: 0 16px 36px rgb(0 0 0 / 24%);
+}
+
+html.dark body { background: var(--paper); color: var(--ink); }
+html.dark ::selection { background: #245b82; color: #f7fbff; }
+html.dark :focus-visible { outline-color: #8dc5ff; }
+html.dark :is(input, select, textarea) { color-scheme: dark; }
+html.dark :is(input, select, textarea)::placeholder { color: #9eb4cb; opacity: 1; }
+html.dark ::-webkit-scrollbar { width: 12px; height: 12px; }
+html.dark ::-webkit-scrollbar-track { background: #0d2036; }
+html.dark ::-webkit-scrollbar-thumb { border: 3px solid #0d2036; border-radius: 999px; background: #466889; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #6389ae; }
+
+/* Shared controls and neutral surfaces. */
+html.dark :is(.widget, .policy-card, .destination-page, .destination-shell, .policy-nav, .profile-menu, .shared-profile-menu, .media-modal, .cms-panel) { border-color: var(--line); }
+html.dark :is(.global-search, .search-control, .widget-header select, .tag-filters button, .layout-row, .manager-row, .publish-switch, .profile-menu, .shared-profile-menu, .cms-panel, .media-modal) { background: var(--card); color: var(--ink); }
+html.dark :is(.global-search, .search-control, .widget-header select, .tag-filters button, .layout-row, .manager-row, .publish-switch, .profile-menu, .shared-profile-menu, .cms-panel, .media-modal) { border-color: var(--line); }
+html.dark :is(.profile-menu button, .shared-profile-menu button, .profile-menu a, .shared-profile-menu a) { color: var(--ink); }
+html.dark :is(.profile-menu button, .shared-profile-menu button):hover { background: #193754; }
+html.dark :is(.topic, .date-block, .appraisal-card, .appraisal-card button, .tag-filters button.active) { background: #173757; color: #b9dcff; }
+html.dark .appraisal-card p { color: #bfd1e5; }
+html.dark .appraisal-card button:hover { background: #244d76; }
+html.dark .topic { color: #acd4ff; }
+html.dark .app-link:hover { background: #16324e; }
+html.dark .icon-button:hover { background: #173757; }
+html.dark .global-search { color: #a9bdd3; }
+html.dark .global-search kbd { border-color: #466889; color: #c6d7ea; }
+
+/* Tables, streams, and dashboard data retain hierarchy instead of turning white. */
+html.dark :is(.session-table-wrap, .social-feed-scroll, .linkedin-feed-scroll, .facebook-feed-scroll) { border-color: #34536f; background: #0e2138; color: var(--ink); }
+html.dark :is(.social-feed-scroll .network-post, .linkedin-feed-scroll .network-post, .facebook-feed-scroll .network-post) { border-color: #294967; }
+html.dark :is(.social-feed-scroll .network-post-meta, .social-feed-scroll .network-post p, .linkedin-feed-scroll .network-post-meta, .linkedin-feed-scroll .network-post p, .facebook-feed-scroll .network-post-meta, .facebook-feed-scroll .network-post p) { color: #c3d2e4; }
+html.dark :is(.session-table-wrap th, th) { color: #b8c9dc; }
+html.dark :is(.session-table-wrap td, td) { color: #e2ecf8; }
+html.dark :is(.session-table-wrap tr:hover, .news-item:hover, .fb-post:hover) { background: #132f4b; }
+html.dark .session-table-wrap .topic { background: #193d67; color: #c9e4ff; }
+
+/* Destination pages, dialogs, and in-page calendars. */
+html.dark .destination-page-header, html.dark .policy-topbar { border-color: var(--line); }
+html.dark .events-standard-day-heading, html.dark .events-standard-room, html.dark .events-location-section + .events-location-section, html.dark .events-standard-calendar > p { border-color: #2e4a68; }
+html.dark :is(.events-standard-day-heading, .events-standard-room header, .events-standard-event strong, .events-location-section > header h2) { color: #edf4ff; }
+html.dark :is(.events-standard-day-heading span, .events-standard-room header span, .events-standard-event p span, .events-standard-empty, .events-standard-calendar-head span, .events-standard-picker, .events-standard-picker small, .events-standard-weekdays, .events-standard-calendar > p, .events-location-section > header p) { color: #b9c9dc; }
+html.dark .events-standard-event { border-color: #2e4a68; }
+html.dark .events-standard-event:hover, html.dark .event-page-open:hover { background: #173757; }
+html.dark .events-standard-event > div { background: #173757; color: #a9d3ff; }
+html.dark .events-standard-calendar { border-color: #385b7c; background: #10243e; color: #edf4ff; }
+html.dark .events-standard-calendar button { border-color: #537697; background: #173757; color: #bde0ff; }
+html.dark .events-standard-calendar button:hover { background: #244d76; }
+html.dark .events-standard-picker input { border-color: #537697; background: #0d2036; color: #edf4ff; }
+html.dark .events-standard-days button { color: #d8e8f9; }
+html.dark .events-standard-days button.is-outside { color: #7089a4; }
+html.dark .events-standard-days button.is-today { outline-color: #8dc5ff; }
+html.dark .event-page-detail-list div::before { border-color: #b7cbe0; }
+html.dark .event-page-meeting-link-list a { background: #1b416e; color: #c6e3ff; }
+
+/* Directory and onboarding cards. */
+html.dark .new-member-announcement p, html.dark .member-card-identity p { color: #c0d1e4; }
+html.dark :is(.member-directory-facts dt, .member-filter-bar label, .member-result-count) { color: #b9c9dc; }
+html.dark .member-pagination button { border-color: #466889; background: #142c47; color: #b9dcff; }
+html.dark .member-pagination button:hover:not(:disabled) { border-color: #6e9dca; background: #1f456c; }
+html.dark .member-empty-state button { border-color: #7cb7ef; background: #173757; color: #c5e2ff; }
+html.dark .member-empty-state button:hover { background: #244d76; }
+html.dark .policy-nav a:hover, html.dark .policy-nav a[aria-current='page'] { background: #173757; color: #edf4ff; }
+html.dark .policy-nav a[href='#recently-joined'] { color: #c7e2ff; }
+
+/* Media, modals, and externally sourced content need a stable frame in dark mode. */
+html.dark :is(.modal-document, .modal-note, .modal-image, .attachment-viewer-content video, .pdf-viewer, .voice-frame) { background: #0b1d31; color: #c5d5e7; }
+html.dark .announcement-template-frame { background: #0b1d31; }
+html.dark .voice-modal, html.dark .voice-modal-head { border-color: #34536f; background: #10243e; color: #edf4ff; }
+html.dark .voice-modal-close { border-color: #466889; background: #173757; color: #c7e2ff; }
+html.dark .voice-modal-close:hover { background: #244d76; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.dark *, html.dark *::before, html.dark *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}

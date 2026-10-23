@@ -39,4 +39,32 @@ html.dark .admin-theme-toggle:hover{background:#214b73}
 html.dark .knowledge-remove-all{border-color:#f0a2b3!important;color:#ffd5de!important;background:#3a2234!important}
 html.dark .knowledge-remove-all:hover:not(:disabled){background:#4a2a3c!important}
 html.dark .knowledge-remove-error{color:#ffd5de}
+/* Access management: role cards, tables, and editors share the same quiet dark surface. */
+html.dark .user-metric-online{border-color:#2e9570!important;background:#103b35!important}
+html.dark .user-metric-online span{color:#88e4bc!important}
+html.dark .users-table th,html.dark .roles-table thead th{background:#10243e;color:#bfd1e5}
+html.dark .user-avatar{background:#1c4773;color:#d8edff}
+html.dark .role-chip{background:#1b416e;color:#cce5ff}
+html.dark .role-admin{background:#4a3c18;color:#ffe3a0}
+html.dark .role-content_editor{background:#123f39;color:#9ce8d2}
+html.dark .permission-granted{background:#123f39;color:#9ce8d2}
+html.dark .permission-none{color:#7f98b3}
+html.dark .access-user-dialog,html.dark .role-editor-dialog{background:#142943;color:#edf4ff;box-shadow:0 24px 64px rgb(0 0 0 / 42%)}
+html.dark .access-user-dialog::backdrop{background:rgb(2 10 22 / 68%)}
+html.dark .role-card{border-color:#3a5b7b;background:#142943;color:#edf4ff}
+html.dark .role-card-mark{background:#3e3519;color:#ffd87d}
+html.dark .role-card-title p{color:#b9cce1}
+html.dark .role-card-action{color:#9dcaff}
+html.dark .role-card-action:hover{background:#1d4168}
+html.dark .role-card-permissions span{border-color:#315b56;background:#112f31;color:#c6eee3}
+html.dark .role-card-permissions span::before{color:#6de0aa}
+html.dark .role-card-note{color:#f1ce83}
+html.dark .role-permission-list{border-color:#36516f;background:#10243e}
+html.dark .role-permission-option:hover{border-color:#426a94;background:#183655}
+html.dark .role-group-head button{border-color:#55718f;background:#173757;color:#b8d8ff}
+html.dark .role-group-head button:hover{background:#214b73}
+html.dark .role-group-grid{border-color:#36516f;background:#10243e}
+html.dark .role-group-note{color:#b9cce1}
+html.dark .role-editor-error{color:#ffb4c2}
+html.dark :is(.roles-workspace,.users-workspace) :is(tbody tr:hover,tbody tr:focus-within){background:#183655}
 @media(max-width:580px){.topbar-actions .admin-theme-toggle{order:-1}}

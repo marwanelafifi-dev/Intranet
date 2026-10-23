@@ -8,13 +8,14 @@ export const intranetPages = Object.freeze([
   { permission:'intranet.knowledge', path:'/knowledge-hub.html', label:'Knowledge Hub' },
   { permission:'intranet.events', path:'/events.html', label:'Events & key dates' },
   { permission:'intranet.whistleblower', path:'/whistleblower.html', label:'Whistleblower' },
-  { permission:'intranet.people', path:'/recently-joined.html', label:'Recently Joined' },
+  { permission:'intranet.people', path:'/recently-joined.html', label:'Our Team' },
   { permission:'intranet.newsi', path:'/new-hires.html', label:'New Si-Warians' }
 ]);
 
 export const intranetPagePermissions = Object.freeze(intranetPages.map(page => page.permission));
 export const intranetRoutePermissions = Object.freeze(Object.fromEntries([
   ...intranetPages.map(page => [page.path, page.permission]),
+  ['/employee-voice.html', 'intranet.whistleblower'],
   ['/index.html', 'intranet.home']
 ]));
 

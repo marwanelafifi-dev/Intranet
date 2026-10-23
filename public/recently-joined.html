@@ -2,8 +2,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Recently joined Si-Ware colleagues" />
-    <title>Recently Joined | Si-Ware Intranet</title>
+    <meta name="description" content="Find and connect with colleagues across Si-Ware Systems" />
+    <title>Our Team | Si-Ware Intranet</title>
     <link rel="icon" type="image/png" href="/Icon.png" />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/search-and-policies.css" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/accessibility-pass.css" />
     <link rel="stylesheet" href="/policy-governance.css" />
     <link rel="stylesheet" href="/new-members.css" />
-    <link rel="stylesheet" href="/recently-joined.css?v=20261019-member-cards" />
+    <link rel="stylesheet" href="/recently-joined.css?v=20261023-our-team" />
     <link rel="stylesheet" href="/resilience.css" />
     <link rel="stylesheet" href="/professional-polish.css" />
     <link rel="stylesheet" href="/professional-corrections.css" />
@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="/member-profile.css" />
     <script src="/theme.js" defer></script>
   </head>
-  <body class="policy-page">
+  <body class="policy-page team-directory-page">
     <main class="policy-shell">
       <header class="policy-topbar">
         <a class="brand" href="/"><img class="brand-logo" src="/siware-logo.png" alt="Si-Ware Systems" /></a>
@@ -31,36 +31,40 @@
       </header>
       <section class="policy-hero">
         <div>
-          <p class="policy-eyebrow">PEOPLE AT SI-WARE</p>
-          <h1><span>Recently</span> <em>joined.</em></h1>
-          <p>Meet the newest colleagues bringing fresh energy and expertise to Si-Ware. Welcome them, find their teams and see who to connect with.</p>
+          <h1><span>Our</span> <em>Team.</em></h1>
+          <p>Get to know the people across Si-Ware. Find a colleague by name, role, team or manager, then open their profile to learn more.</p>
         </div>
-        <aside class="policy-hero-aside"><b>Make a connection.</b><p>Say hello, learn what each teammate is working on and help them feel at home from day one.</p></aside>
+        <aside class="policy-hero-aside"><b>Better together.</b><p>Find the right colleague, discover their team and connect directly when you need to collaborate.</p></aside>
       </section>
       <section class="policy-layout">
-        <nav class="policy-nav" aria-label="Recently joined page sections">
+        <nav class="policy-nav" aria-label="Our Team page sections">
           <p>On this page</p>
-          <a href="#recently-joined">Recently joined</a>
-          <a href="/new-hires.html">New Si-Warians guidance</a>
+          <a href="#recently-joined">Team directory</a>
+          <a href="/new-hires.html">New colleague guidance</a>
         </nav>
         <div class="policy-content">
           <article class="policy-card" id="recently-joined">
-            <h2>Recently Joined</h2>
-            <p>Meet the colleagues who recently joined our company.</p>
-            <div class="member-filter-bar" role="group" aria-label="Filter recently joined colleagues">
-              <label class="member-search-label">Search colleagues<input id="member-search" type="search" placeholder="Name, role, department or manager" autocomplete="off" /></label>
+            <h2>Team directory</h2>
+            <p>Explore colleagues across the company. Select a card to see the full profile.</p>
+            <div class="member-filter-bar" role="group" aria-label="Find colleagues">
+              <label class="member-search-label">Search colleagues<input id="member-search" type="search" placeholder="Search by name, role, team or manager" autocomplete="off" /></label>
               <label>Employment type<select id="member-type-filter"></select></label>
               <label>Department<select id="member-department-filter"></select></label>
               <label>Division<select id="member-division-filter"></select></label>
+              <label>Organization unit<select id="member-ou-filter"></select></label>
+              <label>Sort by<select id="member-sort"><option value="name">Name A–Z</option><option value="newest">Recently joined</option></select></label>
               <span id="member-result-count" class="member-result-count" role="status"></span>
             </div>
             <div id="all-new-members" class="all-new-members" aria-live="polite"></div>
+            <nav id="member-pagination" class="member-pagination" aria-label="Team directory pages" hidden>
+              <output data-member-page-status></output>
+              <span><button type="button" data-member-previous>Previous</button><span data-member-page-number></span><button type="button" data-member-next>Next</button></span>
+            </nav>
           </article>
         </div>
       </section>
-      <footer class="policy-footer"><span>Si-Ware Systems · Recently Joined</span><a href="/new-hires.html">New Si-Warians guidance</a></footer>
     </main>
-    <script type="module" src="/recently-joined.js?v=20261017-member-search"></script>
+    <script type="module" src="/recently-joined.js?v=20261023-our-team"></script>
     <script type="module" src="/destination-nav.js"></script>
   </body>
 </html>

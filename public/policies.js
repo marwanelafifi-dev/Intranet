@@ -14,14 +14,59 @@ function youtubeVideoId(value) {
 function renderNewSiTrainingVideos(content = {}) {
   document.querySelectorAll('[data-newsi-video]').forEach(frame => {
     const id = youtubeVideoId(content[frame.dataset.newsiVideo]);
-    if (id) frame.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+    if (id) frame.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
   });
   document.querySelectorAll('[data-newsi-video-open]').forEach(link => {
     const id = youtubeVideoId(content[link.dataset.newsiVideoOpen]);
     if (id) link.href = `https://www.youtube.com/watch?v=${id}`;
   });
+  enableTrainingPlaybackTracking();
 }
 let policySearchMatches = [], policySearchIndex = -1, policyViewerPage = 1, policyViewerPageCount = 1, policyViewerUrl = '', policyPageObserver, policyAcknowledgement;
+const securityVideoSelector = '[data-newsi-video="securityEnglishUrl"],[data-newsi-video="securityArabicUrl"]';
+const companyPortalVideoSelector = '[data-newsi-video="adminPortalTrainingUrl"]';
+const trackedTrainingVideoSelector = `${securityVideoSelector},${companyPortalVideoSelector}`;
+const markSecurityAwarenessWatched = async () => {
+  try {
+    const response = await fetch('/api/security-awareness-acknowledgement', { method:'POST', credentials:'same-origin' });
+    const status = response.ok ? await response.json() : null;
+    if (status?.recorded) document.dispatchEvent(new CustomEvent('security-awareness:watched', { detail:{ recorded:true } }));
+  } catch {}
+};
+const markCompanyPortalTrainingStarted = async () => {
+  try {
+    const response = await fetch('/api/company-portal-training-acknowledgement', { method:'POST', credentials:'same-origin', keepalive:true });
+    const status = response.ok ? await response.json() : null;
+    if (status?.recorded) document.dispatchEvent(new CustomEvent('admin-portal-training:watched', { detail:{ recorded:true } }));
+  } catch {}
+};
+function enableTrainingPlaybackTracking() {
+  document.querySelectorAll(trackedTrainingVideoSelector).forEach((frame, index) => {
+    if (!frame.id) frame.id = `onboarding-training-video-${index + 1}`;
+    const setup = () => {
+      let origin = '';
+      try { origin = new URL(frame.src).origin; } catch {}
+      if (!origin || !frame.contentWindow) return;
+      frame.contentWindow.postMessage(JSON.stringify({ event:'listening', id:frame.id, channel:'widget' }), origin);
+      frame.contentWindow.postMessage(JSON.stringify({ event:'command', func:'addEventListener', args:['onStateChange'] }), origin);
+    };
+    frame.addEventListener('load', setup, { once:true });
+    setup();
+  });
+}
+window.addEventListener('message', event => {
+  if (!/^https:\/\/(?:www\.)?youtube(?:-nocookie)?\.com$/i.test(event.origin)) return;
+  let message;
+  try { message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch { return; }
+  if (message?.event !== 'onStateChange') return;
+  const frame = [...document.querySelectorAll(trackedTrainingVideoSelector)].find(item => item.contentWindow === event.source);
+  if (!frame) return;
+  if (frame.matches(securityVideoSelector) && Number(message.info) === 0) markSecurityAwarenessWatched();
+  if (frame.matches(companyPortalVideoSelector) && Number(message.info) === 1) markCompanyPortalTrainingStarted();
+});
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-newsi-video-open="adminPortalTrainingUrl"]')) markCompanyPortalTrainingStarted();
+});
 function companyPortalIcon(name) {
   const paths = {
     building: '<path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M2 21h20M8 7h2M12 7h2M8 11h2M12 11h2M8 15h2M12 15h2M17 9h3v12M17 13h3"/>',
@@ -30,15 +75,18 @@ function companyPortalIcon(name) {
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.building}</svg>`;
 }
-function renderCompanyPortals(portals = []) {
+function renderCompanyPortals(portals = [], apps = []) {
   const container = document.querySelector('#company-portals');
   if (!container) return;
+  const appByName = new Map(apps.map(app => [String(app.name || '').trim().toLocaleLowerCase(), app]));
   container.innerHTML = portals.length ? portals.map(portal => {
-    const rawUrl = String(portal.url || '').trim();
+    const mainApp = appByName.get(String(portal.name || '').trim().toLocaleLowerCase());
+    const source = mainApp ? { ...portal, description:mainApp.caption || portal.description, url:mainApp.url || portal.url, icon:mainApp.icon || portal.icon, iconUrl:mainApp.iconUrl || portal.iconUrl } : portal;
+    const rawUrl = String(source.url || '').trim();
     const url = /^(https?:\/\/|\/|#)/i.test(rawUrl) ? rawUrl : '';
     const external = /^https?:\/\//i.test(url);
-    const portalIcon = portal.iconUrl ? `<img src="${escapeHtml(portal.iconUrl)}" alt="" />` : companyPortalIcon(portal.icon);
-    const content = `<span class="company-portal-icon">${portalIcon}</span><span class="company-portal-copy"><b>${escapeHtml(portal.name)}</b><small>${escapeHtml(portal.description)}</small>${url ? '<span class="company-portal-action">Open portal <span aria-hidden="true">→</span></span>' : '<span class="company-portal-pending">Link coming soon</span>'}</span>`;
+    const portalIcon = source.iconUrl ? `<img src="${escapeHtml(source.iconUrl)}" alt="" />` : companyPortalIcon(source.icon);
+    const content = `<span class="company-portal-icon">${portalIcon}</span><span class="company-portal-copy"><b>${escapeHtml(source.name)}</b><small>${escapeHtml(source.description)}</small>${url ? '<span class="company-portal-action">Open portal <span aria-hidden="true">→</span></span>' : '<span class="company-portal-pending">Link coming soon</span>'}</span>`;
     return url ? `<a class="company-portal-card" href="${escapeHtml(url)}" ${external ? 'target="_blank" rel="noreferrer"' : ''}>${content}</a>` : `<article class="company-portal-card company-portal-card-pending">${content}</article>`;
   }).join('') : '<p class="company-portals-empty">Company portal links will appear here once configured.</p>';
 }
@@ -218,13 +266,13 @@ function renderAcknowledgement(status) {
   if (status.acceptance) {
     const recordedFor = status.employee.demo ? 'Recorded in local demo mode' : `Recorded for ${escapeHtml(status.employee.email)}`;
     panel.innerHTML = `<div class="policy-acknowledgement-notice"><b>${escapeHtml(status.content.beforeHeading)}</b><p>${escapeHtml(status.content.beforeText)}</p></div><div class="policy-acknowledgement-head policy-acknowledgement-head--accepted"><div><h3>${escapeHtml(status.content.acceptedTitle)}</h3><p class="policy-acknowledged">${escapeHtml(status.content.afterText)}</p><p class="policy-acknowledgement-meta"><span>Confirmed on <time datetime="${escapeHtml(status.acceptance.acceptedAt)}">${escapeHtml(displayTimestamp(status.acceptance.acceptedAt))}</time></span><span>${recordedFor}</span></p><p class="policy-acknowledgement-detail">A policy version change will require a new acknowledgement.</p><button class="policy-acknowledgement-welcome-button" type="button" data-show-policy-welcome>View welcome message</button></div></div>`;
-    document.dispatchEvent(new Event('policy-acknowledgement:rendered'));
+    document.dispatchEvent(new CustomEvent('policy-acknowledgement:rendered', { detail:{ accepted:true } }));
     return;
   }
   const blocked = status.unpublished.length > 0, ready = !blocked && status.policies.length > 0 && status.policies.every(policy => policy.viewedAt);
   const list = status.policies.map(policy => `<li class="${policy.viewedAt ? 'is-viewed' : ''}">${escapeHtml(policy.title)} · ${escapeHtml(policy.version)}${policy.documentReady ? policy.viewedAt ? ' — reviewed' : ' — open the PDF below' : ' — document not published'}</li>`).join('');
   panel.innerHTML = `<div class="policy-acknowledgement-head"><div><h3>${escapeHtml(status.content.actionTitle)}</h3><p>${escapeHtml(status.content.instructionText)}</p>${status.employee.demo ? '<small>Local test mode: this will be linked to your Google Workspace account after SSO is enabled.</small>' : ''}</div></div><div class="policy-acknowledgement-notice"><b>${escapeHtml(status.content.beforeHeading)}</b><p>${escapeHtml(status.content.beforeText)}</p></div><ul class="policy-acknowledgement-list">${list}</ul>${blocked ? `<p class="policy-acknowledgement-error">The following mandatory documents must be published before acknowledgement: ${escapeHtml(status.unpublished.join(', '))}.</p>` : ''}<div class="policy-acknowledgement-actions"><button type="button" data-confirm-policy ${ready ? '' : 'disabled'}>${escapeHtml(status.content.confirmationLabel)}</button><small>${ready ? escapeHtml(status.content.confirmationHelp) : 'Review every published mandatory policy to enable confirmation.'}</small></div>`;
-  document.dispatchEvent(new Event('policy-acknowledgement:rendered'));
+  document.dispatchEvent(new CustomEvent('policy-acknowledgement:rendered', { detail:{ accepted:false } }));
 }
 async function refreshAcknowledgement() { try { const response = await fetch('/api/policy-acknowledgement'); if (response.ok) renderAcknowledgement(await response.json()); } catch {} }
 async function recordPolicyViewed(policyId) { if (!policyId || policyAcknowledgement?.acceptance) return; try { const response = await fetch('/api/policy-acknowledgement/viewed', { method:'POST', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ policyId }) }); if (response.ok) renderAcknowledgement(await response.json()); } catch {} }
@@ -238,7 +286,7 @@ async function showPolicyRegister() {
   try {
     const response = await fetch('/api/dashboard');
     if (!response.ok) throw new Error('Policy register is unavailable');
-    const { policies = [], newMembers = [], supportPortals = [], newSiPageContent = {} } = await response.json();
+    const { policies = [], newMembers = [], supportPortals = [], apps = [], newSiPageContent = {} } = await response.json();
     document.querySelectorAll('[data-newsi-copy]').forEach(element => {
       const value = newSiPageContent?.[element.dataset.newsiCopy];
       if (typeof value === 'string' && value.trim()) element.textContent = value;
@@ -246,7 +294,7 @@ async function showPolicyRegister() {
     renderNewSiTrainingVideos(newSiPageContent);
     const announcements = document.querySelector('#all-new-members');
     if (announcements) announcements.innerHTML = newMembers.length ? newMembers.map(member => `<article class="new-member-announcement">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div><div class="new-member-announcement-head"><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)} · ${escapeHtml(member.team)}</span></div><time>Recently joined · ${escapeHtml(member.joined)}</time></div><p>${escapeHtml(member.message)}</p><span class="new-member-manager">Direct Manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span></div></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
-    renderCompanyPortals(supportPortals);
+    renderCompanyPortals(supportPortals, apps);
     if (!policies.length) return;
     const grid = document.querySelector('#policies .policy-grid');
     grid.innerHTML = policies.map(policy => `<article class="policy-link-card policy-detail-card" data-policy-id="${escapeHtml(policy.id)}" data-policy-title="${escapeHtml(policy.title)}" data-policy-url="${escapeHtml(policy.canonicalUrl)}"><b>${escapeHtml(policy.title)}</b><small>${escapeHtml(policy.summary)}</small><dl class="policy-card-meta"><div><dt>Owner</dt><dd>${escapeHtml(policy.owner)}</dd></div><div><dt>Audience</dt><dd>${escapeHtml(policy.audience)}</dd></div><div><dt>Version</dt><dd>${escapeHtml(policy.version)}</dd></div><div><dt>Updated</dt><dd>${policy.modifiedAt ? escapeHtml(displayTimestamp(policy.modifiedAt)) : 'Linked policy'}</dd></div></dl>${isPdf(policy.canonicalUrl) ? '<div class="policy-card-actions"><button type="button" data-policy-view>View PDF</button><button type="button" data-policy-download>Download PDF</button></div>' : isPolicyLink(policy.canonicalUrl) ? `<div class="policy-card-actions"><a href="${escapeHtml(policy.canonicalUrl)}" target="_blank" rel="noopener noreferrer" data-policy-open>Open policy</a></div>` : '<p class="policy-card-pending">Document link coming soon</p>'}</article>`).join('');

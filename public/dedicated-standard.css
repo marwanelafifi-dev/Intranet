@@ -2,6 +2,11 @@
 :root{--ink:#102b4e;--muted:#526a87;--line:#d8e3ef;--paper:#f5f8fc;--card:#fff;--blue:#1458b6;--blue-dark:#103d7a;--focus:#155dbf;--shadow:0 10px 28px rgb(20 54 96 / 7%);--radius:12px}
 body.destination-page,body.news-page-body,body.policy-page{background:var(--paper);color:var(--ink);font-family:Manrope,Arial,sans-serif;letter-spacing:-.008em}
 .destination-page .destination-shell,.news-page-shell,.policy-shell{max-width:1080px;margin-inline:auto}
+/* Shared employee-page frame: keep the footer at the viewport edge on short
+   pages, while allowing it to follow naturally after longer content. */
+body.destination-page,body.news-page-body,body.policy-page{display:flex;flex-direction:column;min-height:100dvh}
+.destination-page .destination-shell,.news-page-shell,.policy-shell{display:flex;flex:1 0 auto;flex-direction:column;width:100%}
+.destination-page .destination-shell>.intranet-footer,.news-page-shell>.intranet-footer,.policy-shell>.intranet-footer{margin-top:auto}
 .destination-page-header,.news-page-topbar,.policy-topbar{min-height:82px;border-bottom-color:var(--line)}
 .destination-page-header img,.news-page-topbar img,.policy-topbar .brand-logo{width:144px}
 .destination-nav-inline a{color:#48617e;font-size:11px;font-weight:700}.destination-nav-inline a:hover{background:#edf4ff;color:#124e9e}.destination-nav-inline a[aria-current="page"]{background:#1458b6;color:#fff}
@@ -35,7 +40,7 @@ body.news-page-body .company-news-page{padding-top:28px}
 .social-page-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .social-link{position:relative;display:grid;justify-items:center;align-content:center;gap:10px;min-height:148px;padding:18px 14px;text-align:center;transition:transform 180ms ease,border-color 180ms ease,background-color 180ms ease,box-shadow 180ms ease}
 .social-link-icon{display:grid;width:46px;height:46px;place-items:center;border-radius:14px;background:#edf4ff;color:#1458b6}
-.social-link-icon svg{width:24px;height:24px;fill:currentColor}.social-link--facebook .social-link-icon{background:#edf3ff;color:#1877f2}.social-link--youtube .social-link-icon{background:#fff0f1;color:#e52d36}.social-link--website .social-link-icon{background:#e9f8f6;color:#087f70}.social-link b{font-size:14px;letter-spacing:-.02em}.social-link strong{margin:0;color:#48617e;font-size:11px;font-weight:700}.social-link:hover{border-color:#8cafdb;background:#fff;box-shadow:0 10px 22px rgb(24 68 125 / 10%);transform:translateY(-2px)}.social-link:hover strong{color:#1458b6}.social-link:focus-visible{z-index:1;outline:3px solid rgb(20 88 182 / 34%);outline-offset:3px}
+.social-link-icon svg{width:24px;height:24px;fill:currentColor}.social-link-icon img{width:28px;height:28px;object-fit:contain}.social-link--facebook .social-link-icon{background:#edf3ff;color:#1877f2}.social-link--youtube .social-link-icon{background:#fff0f1;color:#e52d36}.social-link--website .social-link-icon{background:#e9f8f6;color:#087f70}.social-link b{font-size:14px;letter-spacing:-.02em}.social-link strong{margin:0;color:#48617e;font-size:11px;font-weight:700}.social-link:hover{border-color:#8cafdb;background:#fff;box-shadow:0 10px 22px rgb(24 68 125 / 10%);transform:translateY(-2px)}.social-link:hover strong{color:#1458b6}.social-link:focus-visible{z-index:1;outline:3px solid rgb(20 88 182 / 34%);outline-offset:3px}
 html.dark .social-link-icon{background:#173757;color:#9ac4ff}html.dark .social-link--facebook .social-link-icon{background:#183b68;color:#92bdff}html.dark .social-link--youtube .social-link-icon{background:#4a2630;color:#ffb7bd}html.dark .social-link--website .social-link-icon{background:#17453f;color:#90e5d4}html.dark .social-link strong{color:#c6d6e9}html.dark .social-link:hover{background:#173757;border-color:#41698f}
 @media(max-width:650px){.social-page-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.social-link{min-height:132px;padding:16px 10px}.social-link-icon{width:42px;height:42px;border-radius:12px}.social-link b{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.social-link{transition:none}.social-link:hover{transform:none}}

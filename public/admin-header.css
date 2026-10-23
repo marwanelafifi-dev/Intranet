@@ -13,10 +13,10 @@
 .admin-current-area svg{width:14px;height:14px;fill:#ffd465}
 .admin-account{position:relative}
 .admin-account-toggle{display:flex;align-items:center;gap:8px;max-width:240px;min-height:40px;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
-.admin-account-avatar{display:grid;place-items:center;flex:none;width:38px;height:38px;border:3px solid #fff;border-radius:50%;background:#2469c2;box-shadow:0 0 0 2px #a8c5e8;color:#fff;font-size:11px;font-weight:800}
+.admin-account-avatar{display:grid;place-items:center;flex:none;width:38px;height:38px;border:3px solid #fff;border-radius:50%;background:#2469c2;color:#fff;font-size:11px;font-weight:800}
 .admin-account-copy{display:grid;gap:2px;min-width:0;line-height:1.15}
 .admin-account-copy b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.admin-account-copy small{color:#4d6684;font-size:10px}
+.admin-account-copy small{color:#4d6684;font-size:11px}
 .admin-account-toggle svg{flex:none;width:17px;height:17px;margin-left:6px;fill:none;stroke:#6e8daf;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .admin-account-menu,.admin-header-search-panel{position:absolute;z-index:30;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 14px 35px rgb(10 37 72 / 18%);color:#132d50}
 .admin-account-menu{top:calc(100% + 14px);right:0;width:200px;padding:8px}
@@ -41,7 +41,7 @@ html.dark .admin-global-brand img{filter:brightness(0) invert(1)}
 html.dark .admin-global-brand span{border-color:#36516f}
 html.dark .admin-header-search,html.dark .admin-global-header .admin-theme-toggle{color:#d5e5fa;background:transparent;border-color:transparent}
 html.dark .admin-header-search:hover,html.dark .admin-header-search[aria-expanded="true"],html.dark .admin-global-header .admin-theme-toggle:hover{background:#173757;border-color:#36516f}
-html.dark .admin-account-avatar{border-color:#0b1728;box-shadow:0 0 0 2px #b7d4f5}
+html.dark .admin-account-avatar{border-color:#0b1728}
 html.dark .admin-account-copy small{color:#b8cbe2}
 html.dark .admin-account-toggle svg{stroke:#b8cbe2}
 html.dark .admin-account-menu,html.dark .admin-header-search-panel{background:#142943;border-color:#36516f;color:#edf4ff;box-shadow:0 14px 35px rgb(0 0 0 / 35%)}
@@ -49,5 +49,5 @@ html.dark .admin-account-menu a:hover,html.dark .admin-account-menu button:hover
 html.dark .admin-header-search-panel label,html.dark .admin-header-search-panel .admin-search-empty{color:#b8cbe2}
 html.dark .admin-header-search-panel input{background:#0e223a;color:#edf4ff;border-color:#55718f}
 @media(max-width:900px){.admin-global-header{height:64px}.admin-shell{min-height:calc(100vh - 64px)}.admin-sidebar{height:auto;padding:10px 16px}.admin-sidebar-heading{display:none}.admin-account-copy{display:none}.admin-topbar{min-height:64px}}
-@media(max-width:580px){.admin-global-header{height:60px;gap:8px;padding-inline:16px}.admin-shell{min-height:calc(100vh - 60px)}.admin-global-brand img{width:112px}.admin-global-brand span{display:none}.admin-global-actions{gap:3px}.admin-header-search,.admin-global-header .admin-theme-toggle{width:36px;height:36px}.admin-current-area{min-height:36px;padding-inline:9px;border-radius:8px;font-size:11px}.admin-account-avatar{width:34px;height:34px;border-width:2px;font-size:10px}.admin-account-toggle svg{display:none}.admin-topbar{min-height:64px;align-items:center}.admin-topbar h1{font-size:23px}.admin-header-search-panel{right:16px}.admin-topbar .mobile-sign-out{display:none}}
+@media(max-width:580px){.admin-global-header{height:60px;gap:8px;padding-inline:16px}.admin-shell{min-height:calc(100vh - 60px)}.admin-global-brand img{width:112px}.admin-global-brand span{display:none}.admin-global-actions{gap:3px}.admin-header-search,.admin-global-header .admin-theme-toggle{width:36px;height:36px}.admin-current-area{min-height:36px;padding-inline:9px;border-radius:8px;font-size:11px}.admin-account-avatar{width:34px;height:34px;border-width:2px;font-size:11px}.admin-account-toggle svg{display:none}.admin-topbar{min-height:64px;align-items:center}.admin-topbar h1{font-size:23px}.admin-header-search-panel{right:16px}.admin-topbar .mobile-sign-out{display:none}}
 @media(max-width:390px){.admin-current-area{width:36px;padding:0;justify-content:center;font-size:0}.admin-current-area svg{flex:none}.admin-global-brand img{width:105px}}

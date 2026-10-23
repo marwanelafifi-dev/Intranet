@@ -42,7 +42,7 @@
 - The approved resource calendars are `c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com` (3rd Floor Meeting Room, resource ID `61221782182`) and `c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com` (Recreational Area Space, resource ID `2913182464`). A resource calendar ID is its `resourceEmail`, not its display name or internal resource ID.
 - Sync is opt-in and disabled by default. Saving sources only persists the allowlist; enabling it schedules an immediate check and then a 15-minute server-side poll. **Sync now** is an administrator action that runs the same safe job. Never make Google calls from the employee browser.
 - Directory imports include active, non-guest users who are direct members of the selected OUs and were created within `GOOGLE_RECENTLY_JOINED_LOOKBACK_DAYS` (default 30). Use Google user IDs/email for idempotent upserts. Preserve fields that an administrator manually corrected; do not use `creationTime` as a hire date. Remove no existing people card merely because its OU was later deselected.
-- Calendar imports expand recurring events in a rolling window from seven days ago through 90 days ahead. Import only non-private event title/start-time metadata; never import descriptions, attendees, or confidential/private entries. Preserve manual events. When a resource is deselected, remove only events previously imported from that resource and record the count in the audit event.
+- Calendar imports expand recurring events in a rolling window from seven days ago through 90 days ahead. Public pages receive only non-private title, date/time, and resource-room metadata. For invited users only, the server may return the event description, approved HTTPS meeting links, and attachments through `/api/events/details`; attendee email addresses are never stored or sent to browsers, only SHA-256 hashes used for the server-side invitation check. Never import confidential/private entries. Preserve manual events. When a resource is deselected, remove only events previously imported from that resource and record the count in the audit event.
 - Google sync writes an authoritative audit event for settings changes and completed content syncs. Guard file writes with a source snapshot check so the sync job never overwrites concurrent administrator edits. Failed resource reads preserve the prior imported events for that resource and appear as status errors.
 - Google Directory propagation/search can be delayed. A new account may not appear immediately even with a successful sync; use the Settings status and audit trail to distinguish a permissions/setup error from Google propagation delay.
 
@@ -67,8 +67,18 @@
 ## Theme and interaction behavior
 
 - Dark theme rules live in `public/theme-toggle.css`, with final ordering overrides in `public/dark-mode-fixes.css` for social feed surfaces.
+- `public/dark-mode-system.css` is the shared employee-facing dark surface layer; `public/admin-dark.css` owns the Administration-specific layer. Keep new controls, tables, dialogs, cards, and form states readable in both themes rather than relying on light-mode hard-coded colors.
 - Company portal cards have explicit dark-theme colors.
 - The Explore prompt fades out over 650 ms when the Knowledge Hub enters view, and stays dismissed for the browser session.
+
+## Current approved baselines and employee experience
+
+- `data/admin-defaults.json` is the approved **Reset to default** source for every managed collection. It currently mirrors the published `data/intranet.json` values for Apps, announcements and schedules/templates, social media, Moments, Knowledge Hub, events, Whistleblower, Our Team, New Si-Warians, policies and first-week tasks, support portals, global-page content, Settings, and Administration settings. When approving a new published baseline, update both intentionally; do not let a reset restore obsolete mock content.
+- Global Pages Content owns the shared brand/logo/favicon, header, footer, login copy, and global visual content. Home remains a separate Administration entry and is not duplicated in the global editor.
+- The dashboard `Recently Joined` widget remains concise and shows the latest two colleagues. `/recently-joined.html` is the full **Our Team** directory, with filters, contact links, employee ID, and complete profile details on selection.
+- User management supports Google identities and local intranet identities without exposing a password field in the administration UI. The protected local administrator is defined by runtime configuration; do not create or display local credentials in content data.
+- The first-week checklist supports independent completion gates: policy acknowledgement, Security Awareness video completion, Company Portal training engagement, and opening a configured resource link. A locked task explains its prerequisite; viewing or editing an Administration preview must never complete an employee task.
+- The dashboard header includes an in-app announcement bell. It derives its items from published announcements, keeps read state per signed-in employee in browser storage, allows individual or bulk read acknowledgement, opens the corresponding announcement, and refreshes the dashboard announcement feed every 60 seconds while the page is visible. It is an in-app inbox, not an external email or push-notification service.
 
 ---
 

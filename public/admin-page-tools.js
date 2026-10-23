@@ -1,14 +1,16 @@
 export const pageDataKeys = Object.freeze({
+  global:['globalPageContent'],
   apps:['apps'],
   announcements:['announcements','announcementSchedules','announcementTemplates'],
   social:['socialLinks'],
   moments:['moments','momentsPageContent'],
   knowledge:['sessions','knowledgePageContent'],
-  events:['events'],
+  events:['events','eventsPageContent'],
   whistleblower:['whistleblowerConfig'],
   people:['newMembers','recentlyJoinedPageContent'],
   newsi:['policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent'],
-  appearance:['settings']
+  appearance:['settings'],
+  settings:['adminSettings']
 });
 
 export const editablePageViews = Object.keys(pageDataKeys);

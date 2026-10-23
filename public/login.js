@@ -39,9 +39,9 @@
       localToggle.hidden = !options.local;
       localForm.hidden = true;
       localToggle.setAttribute('aria-expanded', 'false');
-      localToggle.textContent = 'Use a local administrator account';
+      localToggle.textContent = 'Sign in with a local account';
       privacy.textContent = options.local && !options.google
-        ? 'Google Workspace sign-in will be available when it is configured. Use your approved Si-Ware administrator account meanwhile.'
+        ? 'Use the local account provided by your intranet administrator.'
         : 'Access is limited to approved Si-Ware accounts.';
       const error = oauthErrors[params.get('error')];
       if (error) setStatus(error, 'error');
@@ -59,7 +59,7 @@
     localForm.hidden = !localForm.hidden;
     const open = !localForm.hidden;
     localToggle.setAttribute('aria-expanded', String(open));
-    localToggle.textContent = open ? 'Hide local sign-in' : 'Use a local administrator account';
+    localToggle.textContent = open ? 'Hide local sign-in' : 'Sign in with a local account';
     if (open) localForm.elements.email.focus();
   });
   googleButton.addEventListener('click', event => {

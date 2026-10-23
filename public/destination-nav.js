@@ -1,4 +1,5 @@
 import { signOut } from './account-actions.js';
+import { loadGlobalPageContent } from './global-page-content.js';
 import { canOpenAdmin } from './admin-permissions.js';
 import { intranetPages, firstAvailableIntranetPage } from './intranet-permissions.js';
 
@@ -275,12 +276,6 @@ if (currentPath !== '/') Promise.all([standardStylesReady, searchStylesReady]).t
 
 const footerSocial = `<nav class="intranet-footer-social" aria-label="Si-Ware social channels"><a href="https://www.linkedin.com/company/si-ware-systems/?locale=en_US" target="_blank" rel="noreferrer" aria-label="Si-Ware on LinkedIn" title="LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 3.5A2.2 2.2 0 1 1 5.2 8a2.2 2.2 0 0 1 0-4.5ZM3.3 9.8h3.8V21H3.3V9.8Zm6.2 0h3.6v1.5h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6.1V21h-3.8v-5c0-1.2 0-2.9-1.8-2.9s-2.1 1.4-2.1 2.8V21H9.5V9.8Z"/></svg></a><a href="https://www.facebook.com/SiWareSystems/" target="_blank" rel="noreferrer" aria-label="Si-Ware on Facebook" title="Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.8 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V3.9c-.4-.1-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1V10H8v3h2.6v8h3.2Z"/></svg></a><a href="https://www.youtube.com/@Si-Ware_Systems" target="_blank" rel="noreferrer" aria-label="Si-Ware on YouTube" title="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.1a3 3 0 0 0-2.1-2.1C17.7 4.5 12 4.5 12 4.5S6.3 4.5 4.5 5a3 3 0 0 0-2.1 2.1C2 8.9 2 12 2 12s0 3.1.4 4.9a3 3 0 0 0 2.1 2.1c1.8.5 7.5.5 7.5.5s5.7 0 7.5-.5a3 3 0 0 0 2.1-2.1c.4-1.8.4-4.9.4-4.9s0-3.1-.4-4.9ZM10.2 15.1V8.9l5.4 3.1-5.4 3.1Z"/></svg></a><a href="https://www.si-ware.com" target="_blank" rel="noreferrer" aria-label="Si-Ware website" title="Si-Ware website"><img class="intranet-footer-mark" src="/Icon.png" alt="" /></a></nav>`;
 const footerSupport = `<span class="intranet-footer-support">For technical support, contact <a href="mailto:ithelpdesk@si-ware.com">ithelpdesk@si-ware.com</a></span>`;
-const existingFooter = document.querySelector('.policy-footer');
-if (existingFooter) {
-  const existingDetails = existingFooter.innerHTML;
-  existingFooter.classList.add('intranet-footer');
-  existingFooter.innerHTML = `<span class="intranet-footer-details">${existingDetails}</span>${footerSupport}${footerSocial}`;
-} else {
-  const footerHost = document.querySelector('.destination-shell, .news-page-shell, .shell');
-  if (footerHost && !footerHost.querySelector('.intranet-footer')) footerHost.insertAdjacentHTML('beforeend', `<footer class="intranet-footer"><span class="intranet-footer-brand"><img src="/Icon.png" alt="" /><small>© 2026 Si-Ware Systems · Internal use only</small></span>${footerSupport}${footerSocial}</footer>`);
-}
+const footerHost = document.querySelector('.destination-shell, .news-page-shell, .policy-shell, .shell');
+if (footerHost && !footerHost.querySelector('.intranet-footer')) footerHost.insertAdjacentHTML('beforeend', `<footer class="intranet-footer"><span class="intranet-footer-brand"><img src="/Icon.png" alt="" /><small>© 2026 Si-Ware Systems · Internal use only</small></span>${footerSupport}${footerSocial}</footer>`);
+loadGlobalPageContent();

@@ -34,9 +34,8 @@ html.dark .whistleblower-widget p{color:#c6d6e9}
 .policy-hero-actions .voice-open{background:#1458b6;color:#fff}
 .voice-modal{width:min(720px,calc(100vw - 32px));height:min(720px,calc(100dvh - 32px));max-height:none;padding:0;border:0;border-radius:12px;background:#f8fbff;color:#102b4e;box-shadow:0 24px 64px rgb(10 37 72 / 28%)}
 .voice-modal::backdrop{background:rgb(8 28 58 / 58%)}
-.voice-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 20px;background:#078dc9;color:#fff}
-.voice-modal-head h2{margin:0;font:800 18px/1.25 Manrope;letter-spacing:-.02em}.voice-modal-head p{margin:4px 0 0;color:#e6f6ff;font-size:12px}
-.voice-modal-close{min-height:34px;padding:7px 10px;border:1px solid rgb(255 255 255 / 68%);border-radius:7px;background:transparent;color:#fff;font:800 11px Manrope;cursor:pointer}.voice-modal-close:hover{background:rgb(255 255 255 / 14%)}.voice-modal-close:focus-visible{outline:3px solid #fff;outline-offset:3px}
-.voice-frame{display:block;width:100%;height:calc(100% - 82px);border:0;background:#fff}
+.voice-modal-head{display:flex;justify-content:flex-end;padding:8px 10px;border-bottom:1px solid #d7e2ef;background:#f8fbff}
+.voice-modal-close{min-height:34px;padding:7px 10px;border:1px solid #bcd3ed;border-radius:7px;background:#fff;color:#1458b6;font:800 11px Manrope;cursor:pointer}.voice-modal-close:hover{border-color:#1458b6;background:#e7f1ff}.voice-modal-close:focus-visible{outline:3px solid #155dbf;outline-offset:3px}
+.voice-frame{display:block;width:100%;height:calc(100% - 51px);border:0;background:#fff}
 .whistleblower-page .policy-footer{margin-top:0;font-size:11px}
-@media(max-width:650px){.whistleblower-widget{display:grid;gap:10px;padding:18px}.reporting-paths li{grid-template-columns:1fr;gap:4px;padding:14px 0}.employee-voice-action{align-items:flex-start;flex-direction:column;gap:14px}.voice-modal{width:100vw;height:100dvh;border-radius:0}.voice-modal-head{padding:16px}.voice-modal-head h2{font-size:16px}.voice-frame{height:calc(100% - 89px)}}
+@media(max-width:650px){.whistleblower-widget{display:grid;gap:10px;padding:18px}.reporting-paths li{grid-template-columns:1fr;gap:4px;padding:14px 0}.employee-voice-action{align-items:flex-start;flex-direction:column;gap:14px}.voice-modal{width:100vw;height:100dvh;border-radius:0}.voice-modal-head{padding:8px 10px}.voice-frame{height:calc(100% - 51px)}}

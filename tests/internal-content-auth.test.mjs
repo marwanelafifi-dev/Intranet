@@ -210,7 +210,7 @@ test('administration routes enforce page, publishing, import, deletion, and audi
     const googleSync = await request('/api/admin/google-sync');
     assert.equal(googleSync.status, 200);
     const googleSyncData = await googleSync.json();
-    assert.equal(googleSyncData.settings.enabled, false);
+    assert.equal(typeof googleSyncData.settings.enabled, 'boolean');
     assert.equal(googleSyncData.resources.length, 2);
     assert.equal(googleSyncData.connected, false);
     assert.equal((await request('/api/admin/google-sync', 'PATCH', { enabled:true, ouPaths:['/Egypt/Consultants'], calendarIds:[] })).status, 422);

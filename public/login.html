@@ -6,10 +6,12 @@
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f3f7fc" />
     <title>Sign in | Si-Ware Intranet</title>
+    <link rel="icon" href="/Icon.png" />
     <link rel="stylesheet" href="/shared-footer.css" />
     <link rel="stylesheet" href="/login.css" />
     <script src="/theme.js" defer></script>
     <script src="/login.js" defer></script>
+    <script type="module" src="/login-global-content.js"></script>
   </head>
   <body>
     <div class="page-frame">
@@ -22,7 +24,7 @@
       <main class="login-shell">
         <section class="login-panel" aria-labelledby="sign-in-heading">
           <div class="login-content" id="login-content" aria-busy="true">
-            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span> Employee access</p>
+            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span> <span data-global-login-eyebrow>Employee access</span></p>
             <h1 id="sign-in-heading">Welcome back<span class="heading-period">.</span></h1>
             <p class="login-lead">Sign in for company updates, new-hire guidance, and required policy acknowledgements.</p>
             <a id="google-sign-in" class="sign-in-button sign-in-button--google" href="/auth/google">
@@ -30,7 +32,7 @@
               <span>Continue with Google</span>
             </a>
             <div id="sign-in-divider" class="sign-in-divider" hidden><span>or</span></div>
-            <button id="local-toggle" class="local-toggle" type="button" aria-controls="local-sign-in" aria-expanded="false" hidden>Use a local administrator account</button>
+            <button id="local-toggle" class="local-toggle" type="button" aria-controls="local-sign-in" aria-expanded="false" hidden>Sign in with a local account</button>
             <form id="local-sign-in" class="local-sign-in" hidden novalidate>
               <label for="login-email">Email address</label>
               <input id="login-email" name="email" type="email" autocomplete="username" inputmode="email" required />
@@ -51,7 +53,7 @@
             <svg class="hero-star hero-star--large" viewBox="0 0 32 32"><path d="m16 0 3.7 12.3L32 16l-12.3 3.7L16 32l-3.7-12.3L0 16l12.3-3.7L16 0Z" /></svg>
             <svg class="hero-star hero-star--small" viewBox="0 0 20 20"><path d="m10 0 2.3 7.7L20 10l-7.7 2.3L10 20l-2.3-7.7L0 10l7.7-2.3L10 0Z" /></svg>
           </span>
-          <div class="intro-topline"><span class="topline-dot" aria-hidden="true"></span> One place for everyone at Si-Ware Systems</div>
+          <div class="intro-topline"><span class="topline-dot" aria-hidden="true"></span> <span data-global-login-topline>One place for everyone at Si-Ware Systems</span></div>
           <div class="intro-copy">
             <h2>Stay connected.<br /><span>Move forward.</span></h2>
             <p>Company updates, colleagues, everyday tools, and a clear path through first-week essentials and required policies.</p>

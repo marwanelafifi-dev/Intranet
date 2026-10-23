@@ -1,0 +1,69 @@
+#view-access{max-width:1580px}
+#view-access .access-page-heading{align-items:center;margin-bottom:22px}
+#view-access .access-page-heading h1{font-size:25px;letter-spacing:-.03em}
+#view-access .access-page-heading p{font-size:13px;line-height:1.5}
+#view-access .access-actions{gap:8px}
+#view-access .access-actions .action-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:39px;padding:8px 13px;border-color:var(--line);background:var(--surface);color:var(--ink);font-size:12px;line-height:1.2;white-space:nowrap}
+#view-access .access-actions .action-button:hover{border-color:#90b1da;background:var(--soft)}
+#view-access .access-actions .action-button.primary{border-color:var(--blue);background:var(--blue);color:#fff}
+#view-access .access-actions .action-button.primary:hover{background:#06478c}
+#view-access .access-actions svg,#view-access .users-filters svg,#view-access .user-row-action svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+#view-access .access-actions svg{flex:none}
+#view-access .user-metrics{gap:13px;margin-bottom:21px}
+#view-access .user-metrics article{min-height:82px;padding:14px 17px;border-radius:10px;background:var(--surface)}
+#view-access .user-metrics span{font-size:12px;line-height:1.25}
+#view-access .user-metrics b{margin-top:6px;font-size:23px;line-height:1.1;font-variant-numeric:tabular-nums}
+#view-access .user-metric-online{border-color:#a7e8c9!important;background:#f3fcf8!important}
+#view-access .user-metric-online b{color:#078d60}
+#view-access .users-workspace{padding:20px 21px;border-radius:12px}
+#view-access .users-workspace-head{display:grid;gap:12px;justify-content:stretch;margin-bottom:18px}
+#view-access .users-workspace h2{font-size:15px}
+#view-access .users-filters{flex-wrap:wrap;gap:8px}
+#view-access .users-filters label{position:relative;display:block;min-width:0}
+#view-access .users-filters .user-search{width:min(310px,100%)}
+#view-access .users-filters .user-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#627a96;pointer-events:none}
+#view-access .users-filters input,#view-access .users-filters select{box-sizing:border-box;width:190px;min-width:0;min-height:38px;margin:0;padding:8px 11px;border-color:#cfdbeb;border-radius:7px;background:var(--surface);color:var(--ink);font:600 12px Manrope,Arial,sans-serif}
+#view-access .users-filters .user-search input{width:100%;padding-left:38px}
+#view-access .users-filters input::placeholder{color:#647c99;opacity:1}
+#view-access .users-table-wrap{overflow:auto}
+#view-access .users-table{min-width:820px}
+#view-access .users-table th{padding:13px 12px;background:#f6f9fc;color:#5a7190;font-size:11px;font-weight:800;text-transform:none}
+#view-access .users-table td{padding:13px 12px;font-size:12px}
+#view-access .users-table tr:last-child td{border-bottom:0}
+#view-access .user-avatar{flex:none;width:36px;height:36px;background:#e4efff;font-size:11px}
+#view-access .user-identity{min-width:200px}
+#view-access .user-identity b{font-size:12px;line-height:1.35}
+#view-access .user-identity small{font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+#view-access .role-chip,#view-access .auth-chip{display:inline-flex;align-items:center;min-height:24px;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap}
+#view-access .auth-chip{background:#fff4cd;color:#865f00}
+#view-access .auth-local{background:#e8efff;color:#20569a}
+#view-access .user-state{display:inline-flex;align-items:center;gap:6px;color:#596c82;font-size:11px;font-weight:700;white-space:nowrap}
+#view-access .user-state i{width:7px;height:7px;border-radius:50%;background:#a9b5c4}
+#view-access .user-state.is-active{color:#07845d}
+#view-access .user-state.is-active i{background:#16b77a}
+#view-access .user-joined{color:#506987;font-variant-numeric:tabular-nums;white-space:nowrap}
+#view-access .user-row-action{display:grid;width:32px;height:32px;place-items:center;border-radius:7px;color:var(--ink)}
+#view-access .user-row-action svg{fill:currentColor;stroke:none}
+#view-access .user-row-action:hover{background:var(--soft);text-decoration:none}
+#view-access .user-readonly{color:#60758e;font-size:11px;font-weight:700;white-space:nowrap}
+#view-access .users-managed-note{margin:0;padding:14px 12px 2px;border-top:1px solid var(--line);color:#536a84;font-size:11px;line-height:1.5}
+#view-access .access-user-dialog{width:min(560px,calc(100vw - 30px));max-height:min(90dvh,760px);padding:0;border:0;border-radius:14px;background:var(--surface);box-shadow:0 22px 54px rgb(14 34 62 / 22%)}
+#view-access .access-user-dialog::backdrop{background:rgb(19 40 67 / 42%)}
+#view-access .access-user-dialog form{padding:26px;overflow:auto}
+#view-access .dialog-heading h2{font-size:19px}
+#view-access .dialog-heading p{max-width:42ch;font-size:12px;line-height:1.5}
+#view-access .form-grid-full{grid-column:1/-1}
+#view-access .form-grid label{font-size:11px;color:#45617e}
+#view-access .form-grid input,#view-access .form-grid select{min-height:40px;margin-top:2px;border-color:#bfd1e5;background:var(--surface);font-size:12px}
+#view-access .local-password-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#view-access .local-password-fields[hidden]{display:none}
+#view-access .local-password-fields small{grid-column:1/-1;color:#526987;font-size:11px;line-height:1.4}
+#view-access .user-active-field{display:flex;align-items:center;gap:9px;font-size:12px}
+#view-access .user-active-field input{width:16px;min-height:16px;margin:0}
+#view-access .access-user-dialog .notice{margin:18px 0 0;background:#eaf6f9;color:#155870}
+#view-access .user-form-error{min-height:1.3em;margin:9px 0 0;color:#ab2941;font-size:12px;font-weight:700}
+#view-access .form-actions{margin-top:15px}
+#view-access .form-actions .action-button{min-height:38px}
+#view-access .form-actions .action-button:disabled{opacity:.55;cursor:wait}
+@media(max-width:900px){#view-access .user-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){#view-access .access-page-heading{align-items:start}#view-access .access-actions{width:100%}#view-access .access-actions .action-button{flex:1}#view-access .user-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#view-access .user-metrics article:last-child{grid-column:1/-1}#view-access .users-workspace{padding:15px}#view-access .users-filters .user-search{width:100%}#view-access .users-filters label:not(.user-search){flex:1}#view-access .users-filters select{width:100%}#view-access .local-password-fields{grid-template-columns:1fr}#view-access .local-password-fields small{grid-column:1}}

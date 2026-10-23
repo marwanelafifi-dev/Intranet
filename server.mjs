@@ -4,12 +4,14 @@ import { createReadStream, createWriteStream } from 'node:fs';
 import { extname, join, normalize, relative } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { hashLocalPassword, passwordPolicyError, publicAccessUser, verifyLocalPassword } from './local-accounts.mjs';
 import { activeSessionActor, hasEmployeeRole } from './auth-session.mjs';
 import { describeContentChanges } from './audit-details.mjs';
 import { archiveExpiredEvents, auditRetentionDays, hasArchiveRunToday } from './audit-archive.mjs';
 import { workspaceSyncConfig, createWorkspaceClient, syncWorkspaceContent, eligibleEmployeeOu } from './google-workspace-sync.mjs';
 import { adminViewPermissions, adminActionPermissions, adminContentKeyPages, adminContentKeys, canOpenAdmin, removedContent, rolePermissionError } from './public/admin-permissions.js';
+import { defaultGlobalPageContent, normaliseGlobalPageContent } from './public/global-page-content.js';
 import { intranetPagePermissions, intranetRoutePermissions, intranetContentPermissions, firstAvailableIntranetPage } from './public/intranet-permissions.js';
 
 const port = Number(process.env.PORT || 8080);
@@ -31,12 +33,47 @@ const approvedResourceCalendars = Object.freeze([
   { id:'c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com', label:'3rd Floor Meeting Room', resourceId:'61221782182' },
   { id:'c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com', label:'Recreational Area Space', resourceId:'2913182464' }
 ]);
-const defaultGoogleSyncSettings = () => ({ enabled:false, ouPaths:[], calendarIds:approvedResourceCalendars.map(calendar => calendar.id) });
+const calendarEmail = value => String(value || '').trim().toLowerCase();
+const calendarSource = value => {
+  const id = calendarEmail(value?.id || value);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || id.length > 320) return null;
+  const known = approvedResourceCalendars.find(calendar => calendar.id === id);
+  return known || { id, label:String(value?.label || id).replace(/[<>\u0000-\u001f]/g, ' ').trim().slice(0, 100) || id, custom:true };
+};
+const configuredCalendars = settings => {
+  const saved = Array.isArray(settings?.calendarSources) ? settings.calendarSources.map(calendarSource).filter(Boolean) : [];
+  const sources = saved.length ? saved : approvedResourceCalendars;
+  return [...new Map(sources.map(source => [source.id, source])).values()].slice(0, 20);
+};
+const defaultSyncSchedule = () => ({ enabled:false, frequency:'daily', time:'08:00', day:1 });
+const defaultGoogleSyncSettings = () => ({ enabled:false, ouPaths:[], calendarIds:approvedResourceCalendars.map(calendar => calendar.id), calendarSources:approvedResourceCalendars, memberSchedule:defaultSyncSchedule(), calendarSchedule:defaultSyncSchedule() });
 const googleSyncStatus = { lastAttemptAt:null, lastSuccessAt:null, lastError:'', membersCreated:0, membersUpdated:0, calendarEvents:0 };
 let runGoogleSync = async () => googleSyncStatus;
+const scheduledSyncSlots = new Set();
+const normalizedSchedule = value => {
+  const schedule = value && typeof value === 'object' ? value : {};
+  const frequency = ['hourly','daily','weekly'].includes(schedule.frequency) ? schedule.frequency : 'daily';
+  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(schedule.time || '')) ? String(schedule.time) : '08:00';
+  const day = Number.isInteger(Number(schedule.day)) && Number(schedule.day) >= 0 && Number(schedule.day) <= 6 ? Number(schedule.day) : 1;
+  return { enabled:schedule.enabled === true, frequency, time, day };
+};
+const syncDue = (schedule, kind, now = new Date()) => {
+  if (!schedule.enabled) return false;
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone:'Africa/Cairo', weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(now);
+  const value = type => parts.find(part => part.type === type)?.value || '';
+  const [hour, minute] = schedule.time.split(':');
+  const weekday = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(value('weekday'));
+  if (schedule.frequency === 'hourly' ? value('minute') !== minute : value('hour') !== hour || value('minute') !== minute) return false;
+  if (schedule.frequency === 'weekly' && weekday !== schedule.day) return false;
+  const slot = `${kind}:${now.toLocaleDateString('en-CA', { timeZone:'Africa/Cairo' })}:${value('hour')}:${minute}`;
+  if (scheduledSyncSlots.has(slot)) return false;
+  scheduledSyncSlots.add(slot); if (scheduledSyncSlots.size > 20) scheduledSyncSlots.delete(scheduledSyncSlots.values().next().value);
+  return true;
+};
 const localAdminName = String(process.env.LOCAL_ADMIN_NAME || 'Local Administrator').trim();
 const localAdminEmail = String(process.env.LOCAL_ADMIN_EMAIL || '').trim().toLowerCase();
 const localAdminPassword = String(process.env.LOCAL_ADMIN_PASSWORD || '');
+let localAccountsConfigured = false;
 const sessions = new Map(), oauthStates = new Map();
 const localLoginAttempts = new Map();
 const sessionLifetimeMs = 8 * 60 * 60 * 1000;
@@ -57,7 +94,7 @@ const sessionFor = req => {
 };
 const isGoogleConfigured = () => Boolean(googleClientId && googleClientSecret);
 const isLocalAdminConfigured = () => Boolean(localAdminEmail && localAdminPassword);
-const isAuthenticationConfigured = () => isGoogleConfigured() || isLocalAdminConfigured();
+const isAuthenticationConfigured = () => isGoogleConfigured() || isLocalAdminConfigured() || localAccountsConfigured;
 const isValidLocalAdminPassword = value => { const expected = Buffer.from(localAdminPassword), supplied = Buffer.from(String(value || '')); return expected.length === supplied.length && timingSafeEqual(expected, supplied); };
 const safeReturnTo = value => {
   const path = String(value || '/');
@@ -68,11 +105,11 @@ const adminPagePermissions = Object.values(adminViewPermissions);
 const rolePermissions = {
   EMPLOYEE: [...intranetPagePermissions],
   CONTENT_EDITOR: [...intranetPagePermissions, 'admin.access', 'content.edit', 'content.publish', 'media.manage', ...adminActionPermissions, 'page.content','page.apps','page.announcements','page.social','page.moments','page.knowledge','page.events','page.whistleblower','page.people','page.newsi','page.media'],
-  AUDIT_VIEWER: [...intranetPagePermissions, 'admin.access', 'audit.view', 'page.activity'],
-  ADMIN: [...intranetPagePermissions, 'admin.access', 'content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage', ...adminActionPermissions, ...adminPagePermissions]
+  AUDIT_VIEWER: [...intranetPagePermissions, 'admin.access', 'audit.view', 'page.activity', 'page.compliance'],
+  ADMIN: [...intranetPagePermissions, 'events.details.all', 'admin.access', 'content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage', ...adminActionPermissions, ...adminPagePermissions]
 };
 const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 280);
-const adminDefaultKeys = ['apps','announcements','announcementSchedules','announcementTemplates','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','whistleblowerConfig','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','settings'];
+const adminDefaultKeys = ['apps','announcements','announcementSchedules','announcementTemplates','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','eventsPageContent','whistleblowerConfig','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','globalPageContent','settings','adminSettings'];
 const contentChangeLabels = {
   user: 'Intranet profile',
   apps: 'Main Apps · app links',
@@ -85,14 +122,16 @@ const contentChangeLabels = {
   sessions: 'Knowledge Hub · sessions',
   knowledgePageContent: 'Knowledge Hub · page text',
   events: 'Events & key dates',
+  eventsPageContent: 'Events & key dates · page text',
   whistleblowerConfig: 'Whistleblower · guidance',
-  newMembers: 'Recently Joined · colleagues',
-  recentlyJoinedPageContent: 'Recently Joined · page text',
+  newMembers: 'Our Team · colleagues',
+  recentlyJoinedPageContent: 'Our Team · page text',
   policies: 'New Si-Warians · policies',
   firstWeekChecklist: 'New Si-Warians · first-week checklist',
   supportPortals: 'New Si-Warians · support portals',
   policyAcknowledgementContent: 'New Si-Warians · acknowledgement',
   newSiPageContent: 'New Si-Warians · page text',
+  globalPageContent: 'Global pages content',
   settings: 'Appearance'
 };
 const changedContentLabels = keys => [...new Set(keys.map(key => contentChangeLabels[key] || key))];
@@ -139,9 +178,40 @@ const configuredRoles = data => {
   for (const permissions of Object.values(roles)) permissions.sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
   return roles;
 };
+const storedUserFor = (data, email) => data.accessUsers.find(user => String(user.email || '').toLowerCase() === email);
+const activeSessionForEmail = email => [...sessions.values()].some(session => session.expiresAt > Date.now() && String(session.actor?.email || '').toLowerCase() === email);
+function directoryAccessUsers(data) {
+  const users = new Map();
+  for (const member of data.newMembers || []) {
+    const email = String(member.companyEmail || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+    users.set(email, { id:member.id, email, name:member.name || email, role:'EMPLOYEE', authType:'google', active:true });
+  }
+  for (const user of data.accessUsers) {
+    const email = String(user.email || '').toLowerCase();
+    users.set(email, { ...users.get(email), ...user, email });
+  }
+  if (isLocalAdminConfigured()) {
+    users.set(localAdminEmail, {
+      id:'local-admin', email:localAdminEmail, name:localAdminName || 'Local Administrator',
+      role:'ADMIN', authType:'local', source:'environment', active:true
+    });
+  }
+  return [...users.values()].map(user => publicAccessUser(user, activeSessionForEmail(user.email))).sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email)));
+}
 const actorFor = (req, data) => {
   const session = sessionFor(req);
-  if (session) return configuredRoles(data)[session.role] ? session : null;
+  if (session) {
+    if (session.id === 'local-admin') return configuredRoles(data).ADMIN ? session : null;
+    const account = storedUserFor(data, String(session.email || '').toLowerCase());
+    if (account?.active === false || (account && (account.authType === 'local') !== Boolean(session.local))) return null;
+    if (session.local) {
+      if (!account || account.active === false || account.authType !== 'local' || !account.passwordHash) return null;
+      return configuredRoles(data)[account.role] ? { ...session, name:account.name, role:account.role } : null;
+    }
+    const role = account?.role || session.role;
+    return configuredRoles(data)[role] ? { ...session, role, name:account?.name || session.name } : null;
+  }
   // The demo identity is available only when no sign-in method was explicitly configured.
   if (!isAuthenticationConfigured()) return { id:'local-demo-user', name:data.user?.name || 'Local employee', email:data.user?.email || 'local.employee@si-ware.com', role:configuredRoles(data)[data.user?.role] ? data.user.role : 'EMPLOYEE', demo:true };
   return null;
@@ -174,8 +244,45 @@ const employeeDashboardKeys = new Set([
   'socialLinks','whistleblowerConfig','policyAcknowledgementContent','newSiPageContent',
   'settings','supportPortals','firstWeekChecklist','newMembers','policies','people',
   'forms','faqs','serviceRequests','apps','announcements','sessions','feeds','moments',
-  'events','homePageContent','knowledgePageContent','momentsPageContent','recentlyJoinedPageContent','_version'
+  'events','eventsPageContent','homePageContent','knowledgePageContent','momentsPageContent','recentlyJoinedPageContent','globalPageContent','_version'
 ]);
+const eventAudienceHash = email => createHash('sha256').update(String(email || '').trim().toLowerCase()).digest('hex');
+const publicEvents = events => (Array.isArray(events) ? events : []).filter(event => event.hidden !== true).map(({ privateAudienceHashes, privateDetails, hidden, ...event }) => event);
+const calendarMeetingLinks = value => {
+  const links = [], seen = new Set();
+  for (const item of Array.isArray(value) ? value : []) {
+    const url = String(item?.url || '');
+    if (!/^https:\/\//i.test(url) || (/^https:\/\/www\.google\.com\/url\?/i.test(url) && /integration-gws\.zoom\.us/i.test(url))) continue;
+    let host = '';
+    try { host = new URL(url).hostname.toLowerCase(); } catch { continue; }
+    const platform = /(^|\.)zoom\.us$/.test(host) ? 'Zoom' : host === 'meet.google.com' ? 'Google Meet' : (/(^|\.)teams\.microsoft\.com$/.test(host) || host === 'teams.live.com') ? 'Microsoft Teams' : /(^|\.)webex\.com$/.test(host) ? 'Webex' : '';
+    const key = platform || url;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    links.push({ label:platform === 'Google Meet' ? 'Join Google Meet' : platform ? `Join ${platform} Meeting` : safeText(item?.label).slice(0, 120) || 'Open meeting link', url });
+    if (links.length === 5) break;
+  }
+  return links;
+};
+function eventPrivateDetails(data, actor, eventId) {
+  const event = (data.events || []).find(item => String(item.id) === String(eventId));
+  if (!event) return null;
+  const roleAccess = can(data, actor, 'events.details.all');
+  const authorised = roleAccess || Boolean(actor?.email && Array.isArray(event.privateAudienceHashes) && event.privateAudienceHashes.includes(eventAudienceHash(actor.email)));
+  if (!authorised) return { authorised:false };
+  const details = event.privateDetails && typeof event.privateDetails === 'object' ? event.privateDetails : {};
+  const person = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value?.email || '')) ? { name:safeText(value.name).slice(0, 160) || safeText(value.email).slice(0, 200), email:safeText(value.email).slice(0, 200) } : null;
+  const organizer = person(details.organizer), seenInvitees = new Set(organizer ? [organizer.email.toLowerCase()] : []);
+  const invitees = (Array.isArray(details.invitees) ? details.invitees : []).map(person).filter(item => item && !seenInvitees.has(item.email.toLowerCase()) && (seenInvitees.add(item.email.toLowerCase()) || true)).slice(0, 50);
+  return {
+    authorised:true,
+    access:roleAccess ? 'role' : 'invitee',
+    description:safeText(details.description).slice(0, 4000),
+    meetingLinks:calendarMeetingLinks(details.meetingLinks),
+    attachments:(Array.isArray(details.attachments) ? details.attachments : []).filter(file => /^https:\/\//i.test(String(file?.url || ''))).slice(0, 20).map(file => ({ title:safeText(file.title).slice(0, 240) || 'Open attachment', url:String(file.url), mimeType:safeText(file.mimeType).slice(0, 120) })),
+    organizer, invitees
+  };
+}
 function dashboardResponse(data, actor, admin = false) {
   const keys = admin ? new Set([...employeeDashboardKeys, ...adminContentKeys.filter(key =>
     adminContentKeyPages[key]?.some(permission => can(data, actor, permission)))]) : employeeDashboardKeys;
@@ -183,6 +290,7 @@ function dashboardResponse(data, actor, admin = false) {
     const required = intranetContentPermissions[key];
     return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
   }));
+  if (Object.hasOwn(visible, 'events')) visible.events = publicEvents(visible.events);
   return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
@@ -330,7 +438,7 @@ const uploadMimeExtensions = {
   'application/vnd.ms-excel':'xls',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'xlsx',
   'text/plain':'txt',
-  'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif',
+  'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
   'video/mp4':'mp4', 'video/webm':'webm', 'video/quicktime':'mov'
 };
 const maxMomentMediaUploadBytes = 500 * 1024 * 1024;
@@ -501,6 +609,8 @@ async function dashboard() {
     if (JSON.stringify(acknowledgementContent) !== JSON.stringify(hydratedAcknowledgementContent)) { data.policyAcknowledgementContent = hydratedAcknowledgementContent; changed = true; }
     const newSiPageContent = { ...(seed.newSiPageContent || {}), ...(adminDefaults.newSiPageContent || {}), ...(data.newSiPageContent || {}) };
     if (JSON.stringify(data.newSiPageContent || {}) !== JSON.stringify(newSiPageContent)) { data.newSiPageContent = newSiPageContent; changed = true; }
+    const globalPageContent = normaliseGlobalPageContent(data.globalPageContent || seed.globalPageContent || adminDefaults.globalPageContent || defaultGlobalPageContent);
+    if (JSON.stringify(data.globalPageContent || {}) !== JSON.stringify(globalPageContent)) { data.globalPageContent = globalPageContent; changed = true; }
     const seededMembers = new Map(seed.newMembers.map(member => [member.id, member]));
     const seededPolicies = new Map((seed.policies || []).map(policy => [policy.id, policy]));
     if (data.newMembers.some(member => !member.directManager || !member.employmentType || !member.department || !member.division)) {
@@ -525,15 +635,21 @@ async function dashboard() {
     if (!Array.isArray(data.auditEvents)) { data.auditEvents = []; changed = true; }
     if (!Array.isArray(data.activityEvents)) { data.activityEvents = []; changed = true; }
     if (!Array.isArray(data.accessUsers)) { data.accessUsers = []; changed = true; }
+    localAccountsConfigured = data.accessUsers.some(user => user.authType === 'local' && user.passwordHash);
     if (!data.accessRoles || typeof data.accessRoles !== 'object' || Array.isArray(data.accessRoles)) { data.accessRoles = {}; changed = true; }
     if (!Array.isArray(data.disabledDefaultRoles)) { data.disabledDefaultRoles = []; changed = true; }
-    if (data.permissionsSchemaVersion !== 2) {
+    if (!Number.isInteger(data.permissionsSchemaVersion) || data.permissionsSchemaVersion < 2) {
       data.accessRoles = Object.fromEntries(Object.entries(data.accessRoles).map(([id, permissions]) => {
         const existing = Array.isArray(permissions) ? permissions : [];
         const hadAdminView = existing.some(permission => permission.startsWith('page.'));
         return [id, [...new Set([...existing, ...intranetPagePermissions, ...(hadAdminView ? ['admin.access'] : [])])]];
       }));
       data.permissionsSchemaVersion = 2;
+      changed = true;
+    }
+    if (data.permissionsSchemaVersion < 3) {
+      if (Array.isArray(data.accessRoles.ADMIN) && !data.accessRoles.ADMIN.includes('events.details.all')) data.accessRoles.ADMIN.push('events.details.all');
+      data.permissionsSchemaVersion = 3;
       changed = true;
     }
     data.adminSettings ||= { layoutHistory:[] };
@@ -623,12 +739,14 @@ function acknowledgementStatus(data, employee) {
   const acceptance = (data.policyAcknowledgements || []).find(record => record.employee.email.toLowerCase() === key && record.contentVersion === data.policyAcknowledgementContent.version && JSON.stringify(record.policies.map(item => item.key)) === JSON.stringify(snapshot.map(item => item.key)));
   return { employee:{ name:employee.name, email:employee.email, demo:Boolean(employee.demo) }, content:{ ...acknowledgementContentDefault, ...(data.policyAcknowledgementContent || {}) }, policies:snapshot, unpublished:unpublished.map(policy => policy.title), acceptance:acceptance || null };
 }
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.pdf': 'application/pdf', '.ppt':'application/vnd.ms-powerpoint', '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.pdf': 'application/pdf', '.ppt':'application/vnd.ms-powerpoint', '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.ico':'image/x-icon', '.mp4':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime' };
 
+// Establish the sign-in boundary before serving the first request.
+await dashboard();
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower)\.html$/i.test(url.pathname);
+    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower|employee-voice)\.html$/i.test(url.pathname);
     if (isAuthenticationConfigured() && !sessionFor(req) && ['GET','HEAD'].includes(req.method) && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
     const documentRoute = url.pathname.toLowerCase(), requiredPage = intranetRoutePermissions[documentRoute];
     if (['GET','HEAD'].includes(req.method) && (requiredPage || documentRoute === '/admin.html')) {
@@ -643,21 +761,39 @@ const server = createServer(async (req, res) => {
         return res.end(req.method === 'HEAD' ? '' : denied.replaceAll('@@RETURN_PATH@@', next));
       }
     }
-    if (req.method === 'GET' && url.pathname === '/api/auth/options') return json(res, 200, { google:isGoogleConfigured(), local:isLocalAdminConfigured() });
+    if (req.method === 'GET' && url.pathname === '/api/auth/options') return json(res, 200, { google:isGoogleConfigured(), local:isLocalAdminConfigured() || localAccountsConfigured });
+    if (req.method === 'GET' && url.pathname === '/api/global-page-content') {
+      res.setHeader('cache-control', 'no-store, max-age=0');
+      const data = await dashboard();
+      return json(res, 200, normaliseGlobalPageContent(data.globalPageContent));
+    }
     if (req.method === 'POST' && url.pathname === '/auth/local') {
-      if (!isLocalAdminConfigured()) return json(res, 503, { error:'Local sign-in is not configured for this environment.' });
+      if (!isLocalAdminConfigured() && !localAccountsConfigured) return json(res, 503, { error:'Local sign-in is not configured for this environment.' });
       const attemptKey = req.socket.remoteAddress || 'unknown', now = Date.now();
       const prior = localLoginAttempts.get(attemptKey);
       const attempts = prior && now - prior.startedAt < loginWindowMs ? prior : { startedAt:now, count:0 };
       if (attempts.count >= maxLocalAttempts) return json(res, 429, { error:'Too many sign-in attempts. Try again in 15 minutes.' });
       const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), returnTo = safeReturnTo(body.returnTo);
-      const passwordMatches = isValidLocalAdminPassword(body.password);
-      if (email !== localAdminEmail || !passwordMatches) {
+      if (typeof body.password !== 'string' || Buffer.byteLength(body.password, 'utf8') > 512) return json(res, 401, { error:'The email or password is incorrect.' });
+      const current = await dashboard();
+      const localUser = storedUserFor(current, email);
+      const environmentAdmin = isLocalAdminConfigured() && email === localAdminEmail;
+      const valid = environmentAdmin ? isValidLocalAdminPassword(body.password) : localUser?.authType === 'local' && localUser.active !== false && await verifyLocalPassword(body.password, localUser.passwordHash);
+      if (!valid) {
         attempts.count += 1; localLoginAttempts.set(attemptKey, attempts);
         return json(res, 401, { error:'The email or password is incorrect.' });
       }
       localLoginAttempts.delete(attemptKey);
-      const current = await dashboard(), sessionId = randomUUID(), actor = { id:'local-admin', name:localAdminName || 'Local Administrator', email:localAdminEmail, role:'ADMIN', local:true }, landing = allowedLanding(current, actor, returnTo);
+      const sessionId = randomUUID(), actor = environmentAdmin
+        ? { id:'local-admin', name:localAdminName || 'Local Administrator', email:localAdminEmail, role:'ADMIN', local:true }
+        : { id:localUser.id, name:localUser.name || email, email, role:localUser.role, local:true };
+      if (!configuredRoles(current)[actor.role]) return json(res, 403, { error:'This account has no active intranet role.' });
+      if (localUser && !environmentAdmin) {
+        const signedInAt = new Date(now).toISOString();
+        localUser.firstSignedInAt ||= signedInAt;
+        localUser.lastLoginAt = signedInAt;
+      }
+      const landing = allowedLanding(current, actor, returnTo);
       sessions.set(sessionId, { actor, expiresAt:now + sessionLifetimeMs }); setCookie(res, sessionId); auditEvent(current, actor, { action:'authentication.login', resource:'local-session', route:landing, outcome:'success' }); await save(current);
       res.setHeader('cache-control', 'no-store');
       return json(res, 200, { ok:true, returnTo:landing });
@@ -689,8 +825,18 @@ const server = createServer(async (req, res) => {
       const email = String(profile.email || '').toLowerCase();
       if (!profile.email_verified || !email.endsWith(`@${googleWorkspaceDomain}`)) return fail('account');
       const current = await dashboard();
-      const assigned = current.accessUsers.find(user => String(user.email || '').toLowerCase() === email)?.role;
-      const sessionId = randomUUID(), actor = { id:String(profile.sub), email, name:profile.name || email, role:configuredRoles(current)[assigned] ? assigned : (googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE') };
+      let assignedUser = storedUserFor(current, email);
+      if (assignedUser?.active === false || assignedUser?.authType === 'local') return fail('account');
+      const role = configuredRoles(current)[assignedUser?.role] ? assignedUser.role : (googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE');
+      const signedInAt = new Date().toISOString();
+      if (!assignedUser) {
+        assignedUser = { id:randomUUID(), email, name:profile.name || email, role, authType:'google', active:true, createdAt:signedInAt, firstSignedInAt:signedInAt, lastLoginAt:signedInAt };
+        current.accessUsers.push(assignedUser);
+      } else {
+        assignedUser.firstSignedInAt ||= signedInAt;
+        assignedUser.lastLoginAt = signedInAt;
+      }
+      const sessionId = randomUUID(), actor = { id:String(profile.sub), email, name:profile.name || email, role };
       const landing = allowedLanding(current, actor, stateRecord.returnTo);
       sessions.set(sessionId, { actor, expiresAt:Date.now() + sessionLifetimeMs }); setCookie(res, sessionId); auditEvent(current, actor, { action:'authentication.login', resource:'session', route:landing, outcome:'success' }); await save(current); res.writeHead(302, { location:landing }); return res.end();
     }
@@ -763,7 +909,8 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/admin/access') {
       const data = await dashboard(), actor = requirePermission(req, res, data, 'access.manage'); if (!actor) return;
       if (!can(data, actor, 'page.users') && !can(data, actor, 'page.roles')) return json(res, 403, { error:'Users or Roles page access is required.' });
-      return json(res, 200, { users:can(data, actor, 'page.users') ? data.accessUsers : data.accessUsers.map(user => ({ role:user.role })), roles:Object.entries(configuredRoles(data)).map(([id, permissions]) => ({ id, permissions })) });
+      res.setHeader('cache-control', 'no-store');
+      return json(res, 200, { users:can(data, actor, 'page.users') ? directoryAccessUsers(data) : data.accessUsers.map(user => ({ role:user.role })), roles:Object.entries(configuredRoles(data)).map(([id, permissions]) => ({ id, permissions })) });
     }
     if ((req.method === 'POST' || req.method === 'PATCH') && url.pathname === '/api/admin/roles') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['access.manage','page.roles']); if (!actor) return;
@@ -791,19 +938,44 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), role = String(body.role || '');
       if (body.operation === 'import' && !can(data, actor, 'action.import')) return json(res, 403, { error:'Import permission is required to import users.' });
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !configuredRoles(data)[role]) return json(res, 422, { error:'Provide a valid email address and supported role.' });
-      const current = data.accessUsers.find(user => user.email === email);
-      const accessAdmins = new Set(data.accessUsers.filter(user => user.role === 'ADMIN').map(user => user.email));
+      const current = storedUserFor(data, email), authType = current?.authType === 'local' ? 'local' : current ? 'google' : body.authType === 'local' ? 'local' : 'google';
+      if (current && body.authType && body.authType !== authType) return json(res, 422, { error:'Authentication type cannot be changed after the account is created.' });
+      if (isLocalAdminConfigured() && email === localAdminEmail) return json(res, 409, { error:'The local administrator is managed through server environment settings and cannot be edited here.' });
+      const password = typeof body.password === 'string' ? body.password : '';
+      if (authType === 'local' && (!current || password)) {
+        const passwordError = passwordPolicyError(password, email);
+        if (passwordError) return json(res, 422, { error:passwordError });
+        if (body.passwordConfirm !== password) return json(res, 422, { error:'The passwords do not match.' });
+      }
+      if (authType === 'google' && password) return json(res, 422, { error:'Google accounts do not use an intranet password.' });
+      const active = body.active !== false && body.active !== 'false';
+      if (!isAuthenticationConfigured() && (!active || authType !== 'local' || role !== 'ADMIN')) return json(res, 422, { error:'The first local account must be an active administrator so access is not lost.' });
+      const accessAdmins = new Set(data.accessUsers.filter(user => user.role === 'ADMIN' && user.active !== false).map(user => user.email));
       googleAdminEmails.forEach(adminEmail => accessAdmins.add(adminEmail));
+      if (isLocalAdminConfigured()) accessAdmins.add(localAdminEmail);
       const adminCount = accessAdmins.size;
-      if (current?.role === 'ADMIN' && role !== 'ADMIN' && adminCount <= 1) return json(res, 422, { error:'The last administrator cannot be removed or demoted.' });
-      if (current) current.role = role; else data.accessUsers.push({ id:randomUUID(), email, name:safeText(body.name) || email, role });
-      data._version += 1; auditEvent(data, actor, { action:'access.role.updated', resource:email, route:'/admin.html', outcome:'success', changes:{ role } }); await save(data);
-      return json(res, 200, { users:data.accessUsers });
+      if (current?.role === 'ADMIN' && (role !== 'ADMIN' || !active) && adminCount <= 1) return json(res, 422, { error:'The last administrator cannot be removed, demoted, or deactivated.' });
+      const now = new Date().toISOString(), name = safeText(body.name).slice(0, 80) || current?.name || email;
+      const record = current || { id:randomUUID(), email, createdAt:now };
+      Object.assign(record, { name, role, authType, active, updatedAt:now });
+      if (authType === 'local' && password) record.passwordHash = await hashLocalPassword(password);
+      if (!current) data.accessUsers.push(record);
+      if (authType === 'local') localAccountsConfigured = true;
+      if (!active || password) for (const [id, session] of sessions) if (String(session.actor?.email || '').toLowerCase() === email) sessions.delete(id);
+      data._version += 1;
+      auditEvent(data, actor, { action:current ? 'access.user.updated' : 'access.user.created', resource:email, route:'/admin.html', outcome:'success', changes:{ role, authType, active, passwordChanged:Boolean(password) } });
+      await save(data);
+      res.setHeader('cache-control', 'no-store');
+      return json(res, 200, { users:directoryAccessUsers(data) });
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/defaults') {
       const data = await dashboard(), actor = requirePermission(req, res, data, 'content.edit'); if (!actor) return;
       const defaults = JSON.parse(await readFile(adminDefaultsFile, 'utf8'));
-      return json(res, 200, { defaults:Object.fromEntries(adminDefaultKeys.filter(key => adminContentKeyPages[key]?.some(permission => can(data, actor, permission))).map(key => [key, defaults[key] ?? null])) });
+      if (Array.isArray(defaults.apps) && Array.isArray(defaults.appsOrder)) {
+        const appsById = new Map(defaults.apps.map(app => [app.id, app]));
+        defaults.apps = [...defaults.appsOrder.map(id => appsById.get(id)).filter(Boolean), ...defaults.apps.filter(app => !defaults.appsOrder.includes(app.id))];
+      }
+      return json(res, 200, { defaults:Object.fromEntries(adminDefaultKeys.filter(key => adminContentKeyPages[key]?.some(permission => can(data, actor, permission))).map(key => [key, defaults[key] ?? (key === 'globalPageContent' ? defaultGlobalPageContent : null)])) });
     }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/dashboard') {
       const data = await dashboard(), actor = requirePermission(req, res, data, 'content.edit'); if (!actor) return;
@@ -815,7 +987,7 @@ const server = createServer(async (req, res) => {
       if (Object.hasOwn(next, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(next.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
       const changedKeys = permissionCheck.changedKeys;
       const contentDetails = describeContentChanges(data, next, changedKeys);
-      changedKeys.forEach(key => { data[key] = next[key]; });
+      changedKeys.forEach(key => { data[key] = key === 'globalPageContent' ? normaliseGlobalPageContent(next[key]) : next[key]; });
       if (changedKeys.includes('settings')) { data.adminSettings.layoutHistory ||= []; data.adminSettings.layoutHistory.unshift({ at:new Date().toISOString(), by:actor.email, settings:data.settings }); data.adminSettings.layoutHistory = data.adminSettings.layoutHistory.slice(0, 12); }
       const changedContent = changedContentLabels(changedKeys);
       withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent, details:contentDetails.details, truncated:contentDetails.truncated } }); await save(data);
@@ -824,29 +996,34 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/admin/google-sync') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
       const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim(), subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim();
-      if (!keyFile || !subject) return json(res, 200, { settings:data.adminSettings.googleSync, resources:approvedResourceCalendars, availableOus:[], connected:false, message:'Set the delegated Google service-account key and GOOGLE_SYNC_SUBJECT on the server to load organizational units.', status:googleSyncStatus });
+      const resources = configuredCalendars(data.adminSettings.googleSync);
+      if (!keyFile || !subject) return json(res, 200, { settings:data.adminSettings.googleSync, resources, availableOus:[], connected:false, message:'Set the delegated Google service-account key and GOOGLE_SYNC_SUBJECT on the server to load organizational units.', status:googleSyncStatus });
       try {
         const client = await createWorkspaceClient({ keyFile, subject });
-        return json(res, 200, { settings:data.adminSettings.googleSync, resources:approvedResourceCalendars, availableOus:await client.orgUnits(), connected:true, message:'', status:googleSyncStatus });
-      } catch (error) { return json(res, 200, { settings:data.adminSettings.googleSync, resources:approvedResourceCalendars, availableOus:[], connected:false, message:`Could not load Google organizational units: ${error.message}`, status:googleSyncStatus }); }
+        return json(res, 200, { settings:data.adminSettings.googleSync, resources, availableOus:await client.orgUnits(), connected:true, message:'', status:googleSyncStatus });
+      } catch (error) { return json(res, 200, { settings:data.adminSettings.googleSync, resources, availableOus:[], connected:false, message:`Could not load Google organizational units: ${error.message}`, status:googleSyncStatus }); }
     }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/google-sync') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
       const body = await readBody(req), ouPaths = Array.isArray(body.ouPaths) ? [...new Set(body.ouPaths.map(value => String(value).trim()))] : null;
       const calendarIds = Array.isArray(body.calendarIds) ? [...new Set(body.calendarIds.map(value => String(value).trim()))] : null;
-      if (!ouPaths || !calendarIds || ouPaths.length > 20 || calendarIds.length > approvedResourceCalendars.length || ouPaths.some(path => !eligibleEmployeeOu(path)) || calendarIds.some(id => !approvedResourceCalendars.some(calendar => calendar.id === id))) return json(res, 422, { error:'Choose eligible employee/intern OUs and only the approved resource calendars.' });
-      const enabled = body.enabled === true;
-      if (enabled && !ouPaths.length && !calendarIds.length) return json(res, 422, { error:'Select at least one OU or resource calendar before enabling sync.' });
-      if (ouPaths.length || enabled) {
+      const calendarSources = Array.isArray(body.calendarSources) ? [...new Map(body.calendarSources.map(calendarSource).filter(Boolean).map(calendar => [calendar.id, calendar])).values()] : null;
+      if (!ouPaths || !calendarIds || !calendarSources || ouPaths.length > 100 || calendarSources.length > 20 || calendarIds.length > calendarSources.length || ouPaths.some(path => !eligibleEmployeeOu(path)) || calendarIds.some(id => !calendarSources.some(calendar => calendar.id === id))) return json(res, 422, { error:'Choose valid organizational units and calendar email addresses.' });
+      const memberSchedule = normalizedSchedule(body.memberSchedule), calendarSchedule = normalizedSchedule(body.calendarSchedule);
+      const enabled = memberSchedule.enabled || calendarSchedule.enabled;
+      if ((memberSchedule.enabled && !ouPaths.length) || (calendarSchedule.enabled && !calendarIds.length)) return json(res, 422, { error:'Select at least one source for each enabled schedule.' });
+      if (ouPaths.length || calendarSources.length) {
         const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim(), subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim();
         if (!keyFile || !subject) return json(res, 422, { error:'Configure the Google service-account key and delegated administrator email on the server first.' });
         try {
           const client = await createWorkspaceClient({ keyFile, subject });
           const available = new Set((await client.orgUnits()).map(unit => unit.path));
-          if (ouPaths.some(path => !available.has(path))) return json(res, 422, { error:'An OU is no longer available or is not an employee/intern OU. Refresh the list and try again.' });
-        } catch (error) { return json(res, 502, { error:`Could not verify the selected OUs with Google: ${error.message}` }); }
+          if (ouPaths.some(path => !available.has(path))) return json(res, 422, { error:'An OU is no longer available. Refresh the list and try again.' });
+          const verificationStart = new Date(), verificationEnd = new Date(verificationStart.getTime() + 60000);
+          for (const calendar of calendarSources) await client.events(calendar.id, verificationStart, verificationEnd);
+        } catch (error) { return json(res, 502, { error:`Could not verify the selected Google sources: ${error.message}` }); }
       }
-      const next = { enabled, ouPaths, calendarIds };
+      const next = { enabled, ouPaths, calendarIds, calendarSources, memberSchedule, calendarSchedule };
       if (JSON.stringify(data.adminSettings.googleSync) !== JSON.stringify(next)) {
         const priorEvents = Array.isArray(data.events) ? data.events.length : 0;
         if (Array.isArray(data.events)) data.events = data.events.filter(event => event.source !== 'google-calendar' || calendarIds.includes(event.sourceCalendarId));
@@ -856,7 +1033,7 @@ const server = createServer(async (req, res) => {
         auditEvent(data, actor, { action:'workspace.sync.settings.updated', resource:'Google Workspace content sync', route:'/admin.html', changes:{ enabled, ouPaths, calendarIds, removedEvents }, outcome:'success' });
         await save(data);
       }
-      if (enabled) { const refresh = setTimeout(() => runGoogleSync(), 1000); refresh.unref(); }
+      if (enabled) { const refresh = setTimeout(() => runGoogleSync({ members:memberSchedule.enabled, calendars:calendarSchedule.enabled }), 1000); refresh.unref(); }
       return json(res, 200, { settings:data.adminSettings.googleSync, status:googleSyncStatus });
     }
     if (req.method === 'POST' && url.pathname === '/api/admin/google-sync/run') {
@@ -897,10 +1074,88 @@ const server = createServer(async (req, res) => {
       const records = matching.slice((page - 1) * limit, page * limit);
       return json(res, 200, { records, total, page, pages, limit });
     }
+    if (req.method === 'POST' && url.pathname === '/api/security-awareness-acknowledgement') {
+      const data = await dashboard(), employee = policyIdentity(req, data);
+      if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
+      if (!can(data, employee, 'intranet.newsi')) return json(res, 403, { error:'New Si-Warians page access is required.' });
+      data.securityAwarenessAcknowledgements ||= [];
+      const email = employee.email.toLowerCase();
+      let completion = data.securityAwarenessAcknowledgements.find(record => record.employee?.email?.toLowerCase() === email);
+      if (!completion) {
+        completion = { id:`security-awareness-${Date.now()}`, employee:{ id:employee.id, name:employee.name, email:employee.email }, completedAt:new Date().toISOString(), method:'Completed embedded Security Awareness Training video' };
+        data.securityAwarenessAcknowledgements.unshift(completion);
+        await save(data);
+      }
+      return json(res, 200, { recorded:true, completedAt:completion.completedAt });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/security-awareness-acknowledgement') {
+      const data = await dashboard(), employee = policyIdentity(req, data);
+      if (!employee) return json(res, 401, { error:'Sign in to view your training status.' });
+      if (!can(data, employee, 'intranet.newsi')) return json(res, 403, { error:'New Si-Warians page access is required.' });
+      const email = employee.email.toLowerCase();
+      const completion = (data.securityAwarenessAcknowledgements || []).find(record => record.employee?.email?.toLowerCase() === email);
+      return json(res, 200, { recorded:Boolean(completion), completedAt:completion?.completedAt || null });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/company-portal-training-acknowledgement') {
+      const data = await dashboard(), employee = policyIdentity(req, data);
+      if (!employee) return json(res, 401, { error:'Sign in with Google Workspace to continue.' });
+      if (!can(data, employee, 'intranet.newsi')) return json(res, 403, { error:'New Si-Warians page access is required.' });
+      data.companyPortalTrainingAcknowledgements ||= [];
+      const email = employee.email.toLowerCase();
+      let completion = data.companyPortalTrainingAcknowledgements.find(record => record.employee?.email?.toLowerCase() === email);
+      if (!completion) {
+        completion = { id:`company-portal-training-${Date.now()}`, employee:{ id:employee.id, name:employee.name, email:employee.email }, completedAt:new Date().toISOString(), method:'Started embedded Company Portal Training video or opened its official video link' };
+        data.companyPortalTrainingAcknowledgements.unshift(completion);
+        await save(data);
+      }
+      return json(res, 200, { recorded:true, completedAt:completion.completedAt });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/company-portal-training-acknowledgement') {
+      const data = await dashboard(), employee = policyIdentity(req, data);
+      if (!employee) return json(res, 401, { error:'Sign in to view your training status.' });
+      if (!can(data, employee, 'intranet.newsi')) return json(res, 403, { error:'New Si-Warians page access is required.' });
+      const email = employee.email.toLowerCase();
+      const completion = (data.companyPortalTrainingAcknowledgements || []).find(record => record.employee?.email?.toLowerCase() === email);
+      return json(res, 200, { recorded:Boolean(completion), completedAt:completion?.completedAt || null });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/compliance-acknowledgements') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['admin.access','audit.view','page.compliance']);
+      if (!actor) return;
+      const policy = [...(data.policyAcknowledgements || [])].sort((a, b) => Date.parse(b.acceptedAt) - Date.parse(a.acceptedAt));
+      const security = [...(data.securityAwarenessAcknowledgements || [])].sort((a, b) => Date.parse(b.completedAt) - Date.parse(a.completedAt));
+      return json(res, 200, { policy, security });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/events/details') {
+      res.setHeader('cache-control', 'no-store');
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!actor) return json(res, 401, { error:'Sign in is required.' });
+      const details = eventPrivateDetails(data, actor, url.searchParams.get('id'));
+      if (!details) return json(res, 404, { error:'Event not found.' });
+      auditEvent(data, actor, { action:'event.private_details.requested', resource:'Events & key dates', route:'/api/events/details', outcome:details.authorised ? 'success' : 'denial' });
+      save(data).catch(() => {});
+      return json(res, 200, details);
+    }
     if (req.method === 'GET' && url.pathname === '/api/dashboard') {
+      res.setHeader('cache-control', 'no-store, max-age=0');
       const data = await dashboard(), actor = actorFor(req, data);
       if (isAuthenticationConfigured() && !actor) return json(res, 401, { error:'Sign in is required.' });
       return json(res, 200, dashboardResponse(data, actor));
+    }
+    if (req.method === 'GET' && /^\/api\/directory-photo\/[a-zA-Z0-9_-]{16,80}$/.test(url.pathname)) {
+      const employee = await requireAuthenticatedEmployee(req, res, 'intranet.people'); if (!employee) return;
+      const data = await dashboard(), memberId = url.pathname.split('/').pop();
+      const member = data.newMembers?.find(item => String(item.id) === memberId && item.googleUserId);
+      if (!member) return json(res, 404, { error:'Profile photo is unavailable.' });
+      const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim(), subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim();
+      if (!keyFile || !subject) return json(res, 503, { error:'Google Directory photo access is not configured.' });
+      try {
+        const photo = await (await createWorkspaceClient({ keyFile, subject })).photo(member.googleUserId);
+        const mimeType = ['image/jpeg', 'image/png', 'image/webp'].includes(photo.mimeType) ? photo.mimeType : 'image/jpeg';
+        const image = Buffer.from(String(photo.photoData || ''), 'base64');
+        if (!image.length || image.length > 5 * 1024 * 1024) return json(res, 404, { error:'Profile photo is unavailable.' });
+        res.writeHead(200, { 'content-type':mimeType, 'cache-control':'private, no-store', 'x-content-type-options':'nosniff' }); res.end(image);
+      } catch { return json(res, 404, { error:'Profile photo is unavailable.' }); }
+      return;
     }
     if (req.method === 'GET' && url.pathname === '/api/youtube/latest') { if (!await requireAuthenticatedEmployee(req, res, 'intranet.social')) return; return json(res, 200, await latestYouTubeVideos()); }
     if (req.method === 'GET' && url.pathname === '/api/company-news') { if (!await requireAuthenticatedEmployee(req, res, 'intranet.news')) return; return json(res, 200, await latestCompanyNews()); }
@@ -915,7 +1170,7 @@ const server = createServer(async (req, res) => {
         ['intranet.home', 'Form', 'forms', item => `${item.title} ${item.detail}`, item => item.url],
         ['intranet.home', 'FAQ', 'faqs', item => `${item.title} ${item.detail}`, item => item.url],
         ['intranet.home', 'Service request', 'serviceRequests', item => `${item.title} ${item.detail}`, item => item.url],
-        ['intranet.people', 'New member', 'newMembers', item => `${item.name} ${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'],
+        ['intranet.people', 'Colleague', 'newMembers', item => `${item.name} ${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'],
         ['intranet.knowledge', 'Knowledge', 'sessions', item => `${item.title} ${item.presenter.name} ${item.category}`, () => '/knowledge-hub.html'],
         ['intranet.apps', 'App', 'apps', item => `${item.name} ${item.caption}`, item => item.url]
       ];
@@ -971,7 +1226,7 @@ const server = createServer(async (req, res) => {
       await access(uploadFile); res.writeHead(200, headers);
       if (req.method === 'HEAD') return res.end(); createReadStream(uploadFile).pipe(res); return;
     }
-    const requested = url.pathname === '/' ? '/index.html' : url.pathname;
+    const requested = url.pathname === '/' ? '/index.html' : url.pathname === '/employee-voice.html' ? '/Si-Voice - Anonymous Employee Suggestion and Complaints Bot-.html' : url.pathname;
     const filename = normalize(join(publicDir, requested));
     if (!filename.startsWith(publicDir)) return json(res, 403, { error: 'Forbidden' });
     await access(filename); const contentType = types[extname(filename)] || 'application/octet-stream';
@@ -996,22 +1251,23 @@ const announcementScheduleTimer = setInterval(() => { dashboard().catch(error =>
 announcementScheduleTimer.unref();
 
 let googleSyncRunning = false;
-runGoogleSync = async () => {
+runGoogleSync = async ({ members = true, calendars = true } = {}) => {
   if (googleSyncRunning) return googleSyncStatus;
   googleSyncRunning = true;
   try {
     await dashboard();
     const sourceSnapshot = await readFile(dataFile, 'utf8');
-    const data = JSON.parse(sourceSnapshot), settings = data.adminSettings?.googleSync || defaultGoogleSyncSettings();
-    if (!settings.enabled) return googleSyncStatus;
+    const data = JSON.parse(sourceSnapshot), savedSettings = data.adminSettings?.googleSync || defaultGoogleSyncSettings();
+    const settings = { ...savedSettings, memberSchedule:normalizedSchedule(savedSettings.memberSchedule || { enabled:savedSettings.enabled }), calendarSchedule:normalizedSchedule(savedSettings.calendarSchedule || { enabled:savedSettings.enabled }) };
+    if (!settings.enabled || (!members && !calendars)) return googleSyncStatus;
     const syncBaseline = {
       newMembers: JSON.stringify(data.newMembers || []),
       events: JSON.stringify(data.events || []),
       settings: JSON.stringify(settings)
     };
     googleSyncStatus.lastAttemptAt = new Date().toISOString();
-    const selectedCalendars = approvedResourceCalendars.filter(calendar => settings.calendarIds.includes(calendar.id));
-    const config = workspaceSyncConfig({ ...process.env, GOOGLE_RECENTLY_JOINED_OU:'', GOOGLE_RECENTLY_JOINED_OUS:settings.ouPaths.join(','), GOOGLE_CALENDAR_RESOURCES:selectedCalendars.map(calendar => `${calendar.label}|${calendar.id}`).join(',') });
+    const selectedCalendars = configuredCalendars(settings).filter(calendar => settings.calendarIds.includes(calendar.id));
+    const config = workspaceSyncConfig({ ...process.env, GOOGLE_RECENTLY_JOINED_OU:'', GOOGLE_RECENTLY_JOINED_OUS:members ? settings.ouPaths.join(',') : '', GOOGLE_CALENDAR_RESOURCES:calendars ? selectedCalendars.map(calendar => `${calendar.label}|${calendar.id}`).join(',') : '' });
     const client = await createWorkspaceClient(config);
     const result = await syncWorkspaceContent(data, config, client);
     if (result.changed) {
@@ -1048,7 +1304,12 @@ runGoogleSync = async () => {
   } finally { googleSyncRunning = false; }
   return googleSyncStatus;
 };
-const initialGoogleSync = setTimeout(runGoogleSync, 10_000);
+const initialGoogleSync = setTimeout(() => runGoogleSync(), 10_000);
 initialGoogleSync.unref();
-const googleSyncTimer = setInterval(runGoogleSync, 15 * 60_000);
+const googleSyncTimer = setInterval(async () => {
+  const data = await dashboard(), settings = data.adminSettings?.googleSync || defaultGoogleSyncSettings();
+  const memberSchedule = normalizedSchedule(settings.memberSchedule || { enabled:settings.enabled }), calendarSchedule = normalizedSchedule(settings.calendarSchedule || { enabled:settings.enabled });
+  const members = syncDue(memberSchedule, 'members'), calendars = syncDue(calendarSchedule, 'calendars');
+  if (members || calendars) await runGoogleSync({ members, calendars });
+}, 60_000);
 googleSyncTimer.unref();

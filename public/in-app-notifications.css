@@ -1,0 +1,38 @@
+.notification{position:relative;display:grid;place-items:center;flex:none;width:38px;height:38px;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}
+.notification svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
+.notification:hover,.notification[aria-expanded='true']{border-color:var(--line);background:var(--card)}
+.notification-badge{position:absolute;top:-3px;right:-4px;display:grid;min-width:17px;height:17px;place-items:center;padding:0 4px;border:2px solid var(--paper);border-radius:999px;background:#d84e5f;color:#fff;font-size:9px;font-weight:800;line-height:1}
+.notification-panel{position:absolute;z-index:30;top:calc(100% + 9px);right:0;width:min(388px,calc(100vw - 28px));overflow:hidden;border:1px solid #c9d9eb;border-radius:14px;background:var(--card);box-shadow:0 18px 46px rgb(12 40 75 / 19%);color:var(--ink)}
+.notification-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px 17px 13px;border-bottom:1px solid var(--line)}
+.notification-panel-head h2{margin:0;color:var(--ink);font-size:15px;letter-spacing:-.02em}
+.notification-panel-head p{margin:3px 0 0;color:var(--muted);font-size:11px;font-weight:650}
+.notification-panel-head button{min-height:28px;border:0;border-radius:6px;padding:5px 7px;background:transparent;color:var(--blue);font:800 11px Manrope,Arial,sans-serif;cursor:pointer;white-space:nowrap}
+.notification-panel-head button:hover{background:var(--paper)}
+.notification-list{max-height:min(448px,calc(100dvh - 170px));overflow:auto;padding:6px}
+.notification-item{position:relative;display:grid;width:100%;grid-template-columns:8px minmax(0,1fr) 18px;gap:9px;align-items:start;border:0;border-radius:9px;padding:12px 10px;background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.notification-item:hover,.notification-item:focus-visible{background:#edf5ff}
+.notification-item:focus-visible{outline:3px solid rgb(30 105 197 / 28%);outline-offset:1px}
+.notification-item-dot{width:7px;height:7px;margin-top:6px;border-radius:50%;background:transparent}
+.notification-item.is-unread{background:#f5faff}
+.notification-item.is-unread .notification-item-dot{background:#0a7cd4}
+.notification-item-copy{display:grid;gap:3px;min-width:0}
+.notification-item-meta{color:#637a96;font-size:10px;font-weight:800;letter-spacing:.01em}
+.notification-item strong{color:#173a68;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.notification-item small{display:-webkit-box;overflow:hidden;color:#607895;font-size:11px;line-height:1.45;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.notification-item svg{width:17px;height:17px;margin-top:8px;fill:none;stroke:#52708f;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
+.notification-empty{margin:0;padding:27px 16px;color:var(--muted);font-size:12px;text-align:center}
+.notification-panel-foot{padding:9px 17px;border-top:1px solid var(--line)}
+.notification-panel-foot a{display:inline-flex;gap:5px;color:var(--blue);font-size:11px;font-weight:800;text-decoration:none}
+.notification-panel-foot a:hover{text-decoration:underline;text-underline-offset:3px}
+html.dark .notification:hover,html.dark .notification[aria-expanded='true']{border-color:#3d5d7d;background:#173757}
+html.dark .notification-badge{border-color:#0a1728;background:#e76c7c}
+html.dark .notification-panel{border-color:#36516f;background:#132943;box-shadow:0 22px 54px rgb(0 0 0 / 38%)}
+html.dark .notification-item:hover,html.dark .notification-item:focus-visible{background:#1a3b5d}
+html.dark .notification-item.is-unread{background:#173757}
+html.dark .notification-item.is-unread .notification-item-dot{background:#78c8ff}
+html.dark .notification-item-meta{color:#a8c1da}
+html.dark .notification-item strong{color:#edf4ff}
+html.dark .notification-item small{color:#c0d1e4}
+html.dark .notification-item svg{stroke:#b7d7f6}
+html.dark .notification-panel-head button:hover{background:#1a3b5d}
+@media(max-width:650px){.notification-panel{right:8px;width:min(388px,calc(100vw - 20px))}.notification-list{max-height:min(60dvh,470px)}.notification-panel-head{padding:15px}.notification-panel-foot{padding-inline:15px}}

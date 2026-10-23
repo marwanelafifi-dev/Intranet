@@ -8,9 +8,61 @@ const placeholder = 'To be confirmed';
 const base64url = value => Buffer.from(value).toString('base64url');
 const text = (value, limit = 200) => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, limit);
 const stableId = (kind, parts) => `${kind}-${createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 24)}`;
+const emailHash = value => createHash('sha256').update(String(value || '').trim().toLowerCase()).digest('hex');
+const privateDescription = value => text(String(value || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ' '), 4000);
+const safeUrl = value => { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; } };
+const meetingPlatform = url => {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (/(^|\.)zoom\.us$/.test(host)) return 'Zoom';
+    if (host === 'meet.google.com') return 'Google Meet';
+    if (/(^|\.)teams\.microsoft\.com$/.test(host) || host === 'teams.live.com') return 'Microsoft Teams';
+    if (/(^|\.)webex\.com$/.test(host)) return 'Webex';
+  } catch { /* Invalid values are filtered before this point. */ }
+  return '';
+};
+const isCalendarIntegrationRedirect = url => {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'www.google.com' && parsed.pathname === '/url' && /(^|\.)zoom\.us$/.test(new URL(parsed.searchParams.get('q') || 'https://invalid.local').hostname);
+  } catch { return false; }
+};
+const meetingLinks = event => {
+  const candidates = [event.hangoutLink, ...(event.conferenceData?.entryPoints || []).map(point => point.uri), ...(String(event.description || '').match(/https:\/\/[^\s<>"']+/gi) || [])]
+    .map(safeUrl).filter(Boolean).filter(url => !isCalendarIntegrationRedirect(url));
+  const links = [], providers = new Set(), urls = new Set();
+  for (const url of candidates) {
+    const platform = meetingPlatform(url);
+    if (urls.has(url) || (platform && providers.has(platform))) continue;
+    urls.add(url); if (platform) providers.add(platform);
+    links.push({ label:platform === 'Google Meet' ? 'Join Google Meet' : platform ? `Join ${platform} Meeting` : 'Open meeting link', url });
+    if (links.length === 5) break;
+  }
+  return links;
+};
+const attachments = event => (event.attachments || []).map(file => ({ title:text(file.title, 240) || 'Open attachment', url:safeUrl(file.fileUrl), mimeType:text(file.mimeType, 120) })).filter(file => file.url).slice(0, 20);
+const invitedAudienceHashes = event => [...new Set([...(event.attendees || []).map(attendee => attendee.email), event.organizer?.email, event.creator?.email].filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ''))).map(emailHash))];
+const meetingParticipants = event => {
+  const person = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value?.email || '')) ? { name:text(value.displayName, 160) || text(value.email, 200), email:text(value.email, 200) } : null;
+  const organizer = person(event.organizer) || person(event.creator);
+  const seen = new Set(organizer ? [organizer.email.toLowerCase()] : []);
+  const invitees = [];
+  for (const attendee of event.attendees || []) {
+    const item = person(attendee), key = item?.email.toLowerCase();
+    if (!item || seen.has(key)) continue;
+    seen.add(key); invitees.push(item);
+    if (invitees.length === 50) break;
+  }
+  return { organizer, invitees };
+};
+const employeeId = user => {
+  const ids = Array.isArray(user.externalIds) ? user.externalIds : [];
+  const preferred = ids.find(item => /employee\s*id|employee/i.test(`${item?.type || ''} ${item?.customType || ''}`)) || ids.find(item => String(item?.type || '').toLowerCase() === 'organization') || (ids.length === 1 ? ids[0] : null);
+  return text(preferred?.value, 80);
+};
 export const eligibleEmployeeOu = path => {
   const segments = String(path || '').split('/').filter(Boolean);
-  return segments.length > 0 && !segments.some(segment => /\b(?:Guests?|Consultants?)\b/i.test(segment)) && /\b(?:Employees?|Interns?)\b/i.test(segments.at(-1));
+  return segments.length > 0 && !String(path || '').includes('\\');
 };
 
 export function workspaceSyncConfig(env = process.env) {
@@ -20,7 +72,7 @@ export function workspaceSyncConfig(env = process.env) {
     const value = entry.trim(), separator = value.indexOf('|');
     return separator < 0 ? { id:value, label:'Calendar event' } : { id:value.slice(separator + 1).trim(), label:text(value.slice(0, separator), 80) || 'Calendar event' };
   }).filter(calendar => calendar.id);
-  if (ous.some(ou => !ou.startsWith('/') || !ou || ou.includes('\\')) || ous.length > 20 || new Set(ous).size !== ous.length) throw new Error('GOOGLE_RECENTLY_JOINED_OUS needs up to 20 distinct non-root OU paths, such as /Egypt/Full-Time Employees.');
+  if (ous.some(ou => !ou.startsWith('/') || !ou || ou.includes('\\')) || ous.length > 100 || new Set(ous).size !== ous.length) throw new Error('GOOGLE_RECENTLY_JOINED_OUS needs up to 100 distinct non-root OU paths, such as /Egypt/Full-Time Employees.');
   if (calendars.length > 20 || new Set(calendars.map(calendar => calendar.id)).size !== calendars.length) throw new Error('Configure no more than 20 distinct Google resource calendars.');
   const keyFile = String(env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim();
   const subject = String(env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase();
@@ -37,16 +89,19 @@ function customField(user, path) {
 
 function joinedLabel(value) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return placeholder;
+  if (!match) return '';
   const date = new Date(`${match[0]}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== match[0] ? placeholder : new Intl.DateTimeFormat('en', { month:'long', year:'numeric', timeZone:'UTC' }).format(date);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== match[0] ? '' : new Intl.DateTimeFormat('en', { month:'long', year:'numeric', timeZone:'UTC' }).format(date);
+}
+function accountCreationLabel(value) {
+  const date = new Date(String(value || ''));
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en', { month:'long', day:'numeric', year:'numeric', timeZone:'UTC' }).format(date);
 }
 
 export function mergeDirectoryMembers(data, users, config, now = new Date()) {
   const current = Array.isArray(data.newMembers) ? data.newMembers : [];
   const byGoogleId = new Map(current.filter(item => item.googleUserId).map(item => [String(item.googleUserId), item]));
   const byEmail = new Map(current.filter(item => item.companyEmail).map(item => [String(item.companyEmail).toLowerCase(), item]));
-  const threshold = now.getTime() - config.lookbackDays * 86400000;
   let created = 0, updated = 0;
   for (const user of users) {
     const email = String(user.primaryEmail || '').toLowerCase();
@@ -54,19 +109,21 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
     const emailMatch = byEmail.get(email);
     const existing = byGoogleId.get(String(user.id)) || (emailMatch && (!emailMatch.googleUserId || emailMatch.googleUserId === String(user.id)) ? emailMatch : null);
     const createdAt = Date.parse(user.creationTime);
-    if (!existing && (!Number.isFinite(createdAt) || createdAt < threshold || createdAt > now.getTime() + 86400000)) continue;
     const organization = user.organizations?.find(item => item.primary) || user.organizations?.[0] || {};
     const manager = user.relations?.find(item => item.type === 'manager')?.value || '';
-    const phone = user.phones?.find(item => item.primary || item.type === 'work')?.value || '';
+    const phone = user.phones?.find(item => item.primary || item.type === 'work' || item.type === 'mobile' || item.type === 'home')?.value || '';
     const fullName = text(user.name?.fullName || [user.name?.givenName, user.name?.familyName].filter(Boolean).join(' ')) || email;
-    const employmentType = /\/Full-Time Employees$/i.test(user.orgUnitPath) ? 'Full Time' : /\/Part-time Employees$/i.test(user.orgUnitPath) ? 'Part Time' : /\/Graduate Interns$/i.test(user.orgUnitPath) ? 'Graduate Intern' : /\/Summer Interns$/i.test(user.orgUnitPath) ? 'Summer Intern' : placeholder;
+    const memberId = existing?.id || stableId('google-member', [String(user.id)]);
+    const photoUrl = user.thumbnailPhotoUrl ? `/api/directory-photo/${encodeURIComponent(memberId)}` : '';
+    const employmentType = text(organization.description, 80) || (/\/Full-Time Employees$/i.test(user.orgUnitPath) ? 'Full Time' : /\/Part-time Employees$/i.test(user.orgUnitPath) ? 'Part Time' : /\/Graduate Interns$/i.test(user.orgUnitPath) ? 'Graduate Intern' : /\/Summer Interns$/i.test(user.orgUnitPath) ? 'Summer Intern' : placeholder);
     const imported = {
       name:fullName, role:text(organization.title) || placeholder,
       department:text(organization.department) || placeholder,
       division:customField(user, config.divisionField) || placeholder,
       directManager:text(manager) || placeholder,
-      joined:joinedLabel(customField(user, config.hireDateField)),
-      companyEmail:email, phone:text(phone, 40), employmentType
+      joined:joinedLabel(customField(user, config.hireDateField)) || accountCreationLabel(user.creationTime) || placeholder,
+      companyEmail:email, phone:text(phone, 40), photoUrl, employeeId:employeeId(user), organizationUnit:text(user.orgUnitPath, 240), employmentType,
+      googleCreatedAt:Number.isFinite(createdAt) ? new Date(createdAt).toISOString() : ''
     };
     if (existing) {
       const previous = existing.googleImportedFields || {};
@@ -82,7 +139,7 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
       continue;
     }
     const member = {
-      id:stableId('google-member', [String(user.id)]), googleUserId:String(user.id), source:'google-directory',
+      id:memberId, googleUserId:String(user.id), source:'google-directory',
       ...imported, googleImportedFields:imported, team:imported.department,
       initials:fullName.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
       color:'#dceeff', message:''
@@ -98,7 +155,9 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
 
 export function mergeCalendarEvents(data, calendar, events) {
   const current = Array.isArray(data.events) ? data.events : [];
-  const imported = events.filter(event => event?.id && event.status !== 'cancelled' && event.visibility !== 'private' && event.visibility !== 'confidential' && event.eventType !== 'outOfOffice' && event.summary && (event.start?.date || event.start?.dateTime)).map(event => {
+  const suppressed = current.filter(item => item.source === 'google-calendar' && item.sourceCalendarId === calendar.id && item.hidden === true);
+  const suppressedIds = new Set(suppressed.map(item => item.sourceEventId));
+  const imported = events.filter(event => event?.id && !suppressedIds.has(event.id) && event.status !== 'cancelled' && event.visibility !== 'private' && event.visibility !== 'confidential' && event.eventType !== 'outOfOffice' && event.summary && (event.start?.date || event.start?.dateTime)).map(event => {
     const allDay = Boolean(event.start.date), date = allDay ? new Date(`${event.start.date}T12:00:00Z`) : new Date(event.start.dateTime);
     if (Number.isNaN(date.getTime())) return null;
     const zone = allDay ? 'UTC' : 'Africa/Cairo';
@@ -107,13 +166,15 @@ export function mergeCalendarEvents(data, calendar, events) {
       sourceEventId:event.id, day:new Intl.DateTimeFormat('en', { day:'2-digit', timeZone:zone }).format(date),
       month:new Intl.DateTimeFormat('en', { month:'short', timeZone:zone }).format(date).toUpperCase(),
       title:text(event.summary), time:allDay ? 'All day' : new Intl.DateTimeFormat('en', { hour:'numeric', minute:'2-digit', timeZone:zone }).format(date),
-      type:calendar.label, startsAt:allDay ? event.start.date : date.toISOString()
+      type:calendar.label, startsAt:allDay ? event.start.date : date.toISOString(),
+      privateAudienceHashes:invitedAudienceHashes(event),
+      privateDetails:{ description:privateDescription(event.description), meetingLinks:meetingLinks(event), attachments:attachments(event), ...meetingParticipants(event) }
     };
   }).filter(Boolean).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  const previous = current.filter(item => item.source === 'google-calendar' && item.sourceCalendarId === calendar.id);
+  const previous = current.filter(item => item.source === 'google-calendar' && item.sourceCalendarId === calendar.id && item.hidden !== true);
   const manual = current.filter(item => !(item.source === 'google-calendar' && item.sourceCalendarId === calendar.id));
   if (JSON.stringify(previous) === JSON.stringify(imported)) return { changed:false, count:imported.length };
-  data.events = [...imported, ...manual.filter(item => item.source === 'google-calendar')].sort((a, b) => String(a.startsAt || '').localeCompare(String(b.startsAt || ''))).concat(manual.filter(item => item.source !== 'google-calendar'));
+  data.events = [...imported, ...suppressed, ...manual.filter(item => item.source === 'google-calendar')].sort((a, b) => String(a.startsAt || '').localeCompare(String(b.startsAt || ''))).concat(manual.filter(item => item.source !== 'google-calendar'));
   return { changed:true, count:imported.length };
 }
 
@@ -170,12 +231,16 @@ export async function createWorkspaceClient(config, { fetchImpl = fetch, now = (
     },
     async users(ou) {
       const url = new URL('https://admin.googleapis.com/admin/directory/v1/users');
-      url.search = new URLSearchParams({ customer:'my_customer', projection:'full', viewType:'admin_view', maxResults:'500', query:`orgUnitPath='${ou.replaceAll("'", "\\'")}'`, fields:'nextPageToken,users(id,primaryEmail,name,orgUnitPath,organizations,relations,phones,creationTime,suspended,archived,isGuestUser,customSchemas)' }).toString();
+      url.search = new URLSearchParams({ customer:'my_customer', projection:'full', viewType:'admin_view', maxResults:'500', query:`orgUnitPath='${ou.replaceAll("'", "\\'")}'`, fields:'nextPageToken,users(id,primaryEmail,name,orgUnitPath,organizations,relations,phones,thumbnailPhotoUrl,externalIds,creationTime,suspended,archived,isGuestUser,customSchemas)' }).toString();
       return pages(url, directoryScope, 'users');
+    },
+    async photo(userKey) {
+      const url = new URL(`https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(userKey)}/photos/thumbnail`);
+      return get(url, directoryScope);
     },
     async events(calendarId, from, until) {
       const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`);
-      url.search = new URLSearchParams({ singleEvents:'true', orderBy:'startTime', showDeleted:'false', eventTypes:'default', timeMin:from.toISOString(), timeMax:until.toISOString(), maxResults:'250', fields:'nextPageToken,items(id,status,summary,visibility,eventType,start)' }).toString();
+      url.search = new URLSearchParams({ singleEvents:'true', orderBy:'startTime', showDeleted:'false', eventTypes:'default', timeMin:from.toISOString(), timeMax:until.toISOString(), maxResults:'250', fields:'nextPageToken,items(id,status,summary,visibility,eventType,start,description,hangoutLink,conferenceData(entryPoints(entryPointType,label,uri)),attachments(fileUrl,title,mimeType),attendees(email,displayName),organizer(email,displayName),creator(email,displayName))' }).toString();
       return pages(url, calendarScope, 'items');
     }
   };

@@ -4,11 +4,17 @@
 .member-row-open:focus-visible{outline:2px solid #1458b6;outline-offset:2px}
 .new-member:has(.member-row-open:hover) .member-name-line b,.new-member-announcement:has(.member-row-open:hover) .new-member-announcement-head b{text-decoration:underline;text-underline-offset:3px}
 .new-member .member-contact-links,.new-member-announcement .member-contact-links{position:relative;z-index:2}
+.new-members-widget .new-member-summary{min-width:0;align-content:center;gap:3px}
+.new-members-widget .member-name-line>b{overflow-wrap:anywhere}
+.new-members-widget .member-title{color:var(--ink,#102b4e);font-weight:700}
+.new-members-widget .member-department,.new-members-widget .direct-manager,.new-members-widget .member-tenure{display:block;margin:0;color:var(--muted,#526a87);font-weight:500;line-height:1.35;overflow-wrap:anywhere}
+.new-members-widget .member-tenure{font-variant-numeric:tabular-nums}
 .member-profile-popover{position:fixed;inset:auto;width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:0;padding:0;overflow-y:auto;border:1px solid #cbd9e9;border-radius:16px;background:var(--card,#fff);color:var(--ink,#102b4e);box-shadow:0 20px 48px rgb(12 39 78 / 22%);font-family:Manrope,Arial,sans-serif}
 .member-profile-card{padding:24px}
 .member-profile-heading{display:grid;grid-template-columns:68px minmax(0,1fr) 32px;align-items:start;gap:15px}
 .member-profile-avatar{display:grid;width:68px;height:68px;place-items:center;border-radius:14px;background:var(--member-color,#dceeff);color:#174b91;font-size:20px;font-weight:800;letter-spacing:-.02em}
 .member-profile-photo{display:block;object-fit:cover}
+.member-profile-photo-button{width:68px;height:68px;padding:0;border:0;border-radius:14px;background:transparent;cursor:zoom-in}.member-profile-photo-button:focus-visible{outline:2px solid #1458b6;outline-offset:3px}.member-profile-photo-button:hover .member-profile-photo{filter:brightness(.9)}
 .member-profile-heading h2{margin:4px 0 3px;color:var(--ink,#102b4e);font-size:21px;font-weight:800;letter-spacing:-.03em;line-height:1.2}
 .member-profile-heading p{margin:0;color:var(--muted,#526a87);font-size:13px;line-height:1.5}
 .member-profile-close{display:grid;width:32px;height:32px;place-items:center;border:0;border-radius:8px;background:var(--paper,#f3f7fc);color:var(--ink,#102b4e);cursor:pointer}
@@ -27,8 +33,10 @@
 .member-profile-contacts a:hover b{text-decoration:underline;text-underline-offset:3px}
 .member-profile-contacts span{color:var(--muted,#526a87)}
 .member-profile-contacts b{overflow-wrap:anywhere;text-align:right}
+.member-photo-viewer{width:min(420px,calc(100vw - 32px));margin:auto;padding:0;border:1px solid #cbd9e9;border-radius:16px;background:var(--card,#fff);color:var(--ink,#102b4e);box-shadow:0 20px 48px rgb(12 39 78 / 28%)}.member-photo-viewer::backdrop{background:rgb(8 28 57 / 58%)}.member-photo-viewer-content{padding:18px}.member-photo-viewer-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}.member-photo-viewer-heading h2{margin:0;color:var(--ink,#102b4e);font:800 16px/1.3 Manrope,Arial,sans-serif}.member-photo-viewer-heading button{display:grid;width:32px;height:32px;place-items:center;border:0;border-radius:8px;background:var(--paper,#f3f7fc);color:var(--ink,#102b4e);cursor:pointer}.member-photo-viewer-heading button:hover{background:#e3efff;color:#1458b6}.member-photo-viewer-heading button:focus-visible{outline:2px solid #1458b6;outline-offset:2px}.member-photo-viewer-heading svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}.member-photo-viewer img{display:block;width:100%;max-height:min(65dvh,420px);object-fit:contain;border-radius:10px;background:#f3f7fc}
 html.dark .member-row-open:hover{background:rgb(154 196 255 / 8%)}
 html.dark .member-profile-popover{border-color:#34577d;box-shadow:0 20px 48px rgb(0 0 0 / 42%)}
 html.dark .member-profile-close:hover{background:#24486d;color:#d8ebff}
 html.dark .member-profile-contacts a{color:#9ac4ff}
+html.dark .member-photo-viewer{border-color:#34577d;box-shadow:0 20px 48px rgb(0 0 0 / 42%)}html.dark .member-photo-viewer-heading button:hover{background:#24486d;color:#d8ebff}html.dark .member-photo-viewer img{background:#10213a}
 @media(max-width:550px){.member-profile-card{padding:19px}.member-profile-heading{grid-template-columns:54px minmax(0,1fr) 30px;gap:11px}.member-profile-avatar{width:54px;height:54px;font-size:17px}.member-profile-heading h2{font-size:18px}.member-profile-facts{gap:15px}.member-profile-contacts a{display:grid;gap:2px}.member-profile-contacts b{text-align:left}}

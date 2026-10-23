@@ -26,12 +26,33 @@
 .google-sync-empty { color: var(--muted); line-height: 1.45; font-size: 12px; }
 .google-sync-resource-list { display: grid; gap: 5px; }
 .google-sync-resource-list .google-sync-option { border: 1px solid var(--line); }
-.google-sync-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-top: 17px; margin-top: 18px; border-top: 1px solid var(--line); }
-.google-sync-enable { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
-.google-sync-enable input { width: 17px; height: 17px; margin: 2px 0 0; padding: 0; accent-color: var(--blue); }
-.google-sync-enable b { display: block; font-size: 12px; }
-.google-sync-enable small { display: block; margin-top: 3px; color: var(--muted); line-height: 1.4; }
-.google-sync-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.google-sync-calendar-option { align-items: center; }
+.google-sync-remove-calendar { flex: none; margin-left: auto; border: 0; padding: 4px 6px; color: #9e3333; background: transparent; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.google-sync-remove-calendar:hover { color: #6d1717; }
+.google-sync-add-calendar { margin-top: 12px; padding: 11px; border-radius: 8px; background: var(--soft); }
+.google-sync-add-calendar > label { display: block; margin-bottom: 6px; color: var(--ink); font-size: 11px; font-weight: 800; }
+.google-sync-add-calendar > div { display: flex; gap: 7px; }
+.google-sync-add-calendar input { flex: 1; min-width: 0; height: 34px; margin: 0; }
+.google-sync-add-calendar button { flex: none; min-height: 34px; padding: 0 11px; font-size: 11px; }
+.google-sync-add-calendar small { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.google-sync-footer { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 18px; padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--line); }
+.google-sync-schedules { flex: 1 1 700px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.google-sync-timezone { grid-column: 1 / -1; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.google-sync-schedule { min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdff; transition: opacity .16s ease, background .16s ease; }
+.google-sync-schedule.is-disabled { opacity: .62; background: #f7f9fc; }
+.google-sync-schedule-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.google-sync-schedule legend { padding: 0; font-size: 13px; font-weight: 800; color: var(--ink); }
+.google-sync-schedule-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.google-sync-switch { display: inline-flex; align-items: center; flex: none; gap: 7px; color: var(--ink); font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.google-sync-switch input { width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--blue); }
+.google-sync-schedule-controls { display: grid; grid-template-columns: minmax(105px, 1fr) minmax(105px, 1fr); gap: 10px; margin-top: 14px; }
+.google-sync-schedule-controls label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .01em; }
+.google-sync-schedule-controls select, .google-sync-schedule-controls input { min-width: 0; width: 100%; height: 34px; margin: 0; padding: 6px 9px; border: 1px solid #b9cce5; border-radius: 7px; background: #fff; color: var(--ink); font: inherit; font-size: 12px; font-weight: 500; }
+.google-sync-schedule-controls select:focus, .google-sync-schedule-controls input:focus { outline: 2px solid rgba(25, 104, 194, .2); outline-offset: 1px; border-color: var(--blue); }
+.google-sync-schedule-controls [hidden] { display: none; }
+.google-sync-schedule-summary { min-height: 16px; margin: 11px 0 0; color: var(--blue); font-size: 11px; line-height: 1.4; }
+.google-sync-schedule.is-disabled .google-sync-schedule-summary { color: var(--muted); }
+.google-sync-actions { display: flex; flex: none; gap: 8px; flex-wrap: wrap; }
 .google-sync-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .google-sync-feedback { margin: 12px 0 0; font-size: 12px; font-weight: 700; color: #176b4f; }
 .google-sync-feedback:empty { display: none; }
@@ -39,5 +60,6 @@
 .google-sync-last { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
 .google-sync-loading { margin: 8px 0 0 !important; }
 .google-sync-option[hidden], .google-sync-ou-group[hidden] { display: none; }
-@media (max-width: 760px) { .google-sync-columns { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .google-sync-heading { display: block; } .google-sync-connection { display: inline-block; margin-top: 10px; } .google-sync-actions, .google-sync-actions button { width: 100%; } }
+@media (max-width: 900px) { .google-sync-footer { align-items: stretch; } .google-sync-actions { justify-content: flex-end; } }
+@media (max-width: 760px) { .google-sync-columns, .google-sync-schedules { grid-template-columns: 1fr; } .google-sync-timezone { grid-column: auto; } }
+@media (max-width: 560px) { .google-sync-heading { display: block; } .google-sync-connection { display: inline-block; margin-top: 10px; } .google-sync-schedule-head { display: block; } .google-sync-switch { margin-top: 10px; } .google-sync-schedule-controls { grid-template-columns: 1fr; } .google-sync-add-calendar > div { display: grid; grid-template-columns: 1fr; } .google-sync-add-calendar button, .google-sync-actions, .google-sync-actions button { width: 100%; } }

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Access restricted | Si-Ware Intranet</title>
     <link rel="icon" type="image/png" href="/Icon.png" />
+    <script src="/theme.js" defer></script>
+    <script type="module" src="/login-global-content.js"></script>
     <style>
       :root{font-family:Manrope,Inter,Arial,sans-serif;color:#13233b;background:#f3f7fa}
       *{box-sizing:border-box}
@@ -21,10 +23,19 @@
       .actions a:hover{background:#edf5fb}
       .actions a:first-child:hover{background:#063d72}
       .actions a:focus-visible{outline:3px solid #77b8de;outline-offset:3px}
+      html.dark{color-scheme:dark;background:#0a1728;color:#edf4ff}
+      html.dark header{border-color:#2e4a68;background:#10243e}
+      html.dark header img{filter:brightness(0) invert(1)}
+      html.dark header span{border-color:#3c5b7b;color:#c6d8ec}
+      html.dark p{color:#bfd0e3}
+      html.dark .actions a{border-color:#6ea8df;background:#173757;color:#cbe5ff}
+      html.dark .actions a:first-child{border-color:#2875c0;background:#1762aa;color:#fff}
+      html.dark .actions a:hover{background:#214b73}
+      html.dark .actions a:first-child:hover{background:#2478c4}
     </style>
   </head>
   <body>
-    <header><img src="/siware-logo.png" alt="Si-Ware Systems" /><span>INTRANET</span></header>
+    <header class="global-access-header"><img src="/siware-logo.png" alt="Si-Ware Systems" /><span>INTRANET</span></header>
     <main>
       <h1>Access to this page is restricted</h1>
       <p>Your current role does not include this page. If you need it for your work, ask an intranet administrator to review your role.</p>

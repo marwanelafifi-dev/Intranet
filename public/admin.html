@@ -6,6 +6,7 @@
     <title>Si-Ware | Global Intranet</title>
     <link rel="icon" type="image/png" href="/Icon.png" />
     <link rel="stylesheet" href="/admin.css" />
+    <link rel="stylesheet" href="/admin-global-pages.css" />
     <link rel="stylesheet" href="/admin-editor.css?v=20261018-preview-first-newsi" />
     <link rel="stylesheet" href="/admin-home-editor.css?v=20261019-home-preview-editor" />
     <link rel="stylesheet" href="/admin-sidebar.css?v=20261018-footer-continuity" />
@@ -13,6 +14,7 @@
     <link rel="stylesheet" href="/admin-dark.css?v=20261018-knowledge-remove-confirmation" />
     <link rel="stylesheet" href="/admin-header.css?v=20261018-back-to-intranet" />
     <link rel="stylesheet" href="/access-admin.css?v=20261020-users-roles" />
+    <link rel="stylesheet" href="/admin-users.css?v=20261023-local-admin" />
     <link rel="stylesheet" href="/role-editor.css?v=20261020-editable-roles" />
     <link rel="stylesheet" href="/role-cards.css?v=20261020-role-cards" />
     <link rel="stylesheet" href="/role-permission-groups.css?v=20261020-grouped-permissions" />
@@ -21,7 +23,7 @@
     <link rel="stylesheet" href="/audit-trail.css?v=20261021-detailed-activity" />
     <link rel="stylesheet" href="/google-sync-settings.css?v=20261022-ou-picker" />
     <script src="/theme.js?v=20261017-admin-theme-sync" defer></script>
-    <script type="module" src="/admin.js?v=20261022-google-sync-settings"></script>
+    <script type="module" src="/admin.js?v=20261023-checklist-editor-click"></script>
   </head>
   <body>
     <a class="skip" href="#admin-main">Skip to content</a>
@@ -50,6 +52,7 @@
           <p>Workspace</p>
           <button class="active" data-view="overview">Overview</button>
           <button data-view="home">Home</button>
+          <button data-view="global">Global pages content</button>
           <p>Manage</p>
           <button data-view="content">Content</button>
           <div class="admin-subnav" aria-label="Content pages">
@@ -60,12 +63,12 @@
             <button data-view="knowledge">Knowledge Hub</button>
             <button data-view="events">Events &amp; key dates</button>
             <button data-view="whistleblower">Whistleblower</button>
-            <button data-view="people">Recently Joined</button>
+            <button data-view="people">Our Team</button>
             <button data-view="newsi">New Si-Warians</button>
           </div>
           <button data-view="appearance">Appearance</button><button data-view="media">Media</button>
           <p>Governance</p>
-          <button data-view="access">Users</button><button data-view="roles">Roles</button><button data-view="activity">Activity &amp; audit</button><button data-view="settings">Settings</button>
+          <button data-view="access">Users</button><button data-view="roles">Roles</button><button data-view="activity">Activity &amp; audit</button><button data-view="compliance">Compliance acknowledgements</button><button data-view="settings">Settings</button>
         </nav>
         <div class="sidebar-footer"><a href="/" target="_blank" rel="noopener">View intranet <span aria-hidden="true">↗</span></a><button id="sign-out">Sign out</button></div>
       </aside>
@@ -75,6 +78,7 @@
         <div id="flash" class="flash" role="status" aria-live="polite"></div>
         <section class="admin-view active" id="view-overview"></section>
         <section class="admin-view" id="view-home"></section>
+        <section class="admin-view" id="view-global"></section>
         <section class="admin-view" id="view-content"></section>
         <section class="admin-view" id="view-announcements"></section>
         <section class="admin-view" id="view-social"></section>
@@ -90,6 +94,7 @@
         <section class="admin-view" id="view-access"></section>
         <section class="admin-view" id="view-roles"></section>
         <section class="admin-view" id="view-activity"></section>
+        <section class="admin-view" id="view-compliance"></section>
         <section class="admin-view" id="view-settings"></section>
       </main>
     </div>

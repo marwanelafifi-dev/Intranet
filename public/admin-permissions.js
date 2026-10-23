@@ -1,34 +1,35 @@
 export const adminViewPermissions = Object.freeze({
-  overview:'page.overview', home:'page.home', content:'page.content', apps:'page.apps',
+  overview:'page.overview', home:'page.home', global:'page.home', content:'page.content', apps:'page.apps',
   announcements:'page.announcements', social:'page.social', moments:'page.moments',
   knowledge:'page.knowledge', events:'page.events', whistleblower:'page.whistleblower',
   people:'page.people', newsi:'page.newsi', appearance:'page.appearance', media:'page.media',
-  access:'page.users', roles:'page.roles', activity:'page.activity', settings:'page.settings'
+  access:'page.users', roles:'page.roles', activity:'page.activity', compliance:'page.compliance', settings:'page.settings'
 });
 
 export const adminViewCapabilities = Object.freeze({
-  content:'content.edit', home:'content.edit', appearance:'content.edit', apps:'content.edit',
+  content:'content.edit', home:'content.edit', global:'content.edit', appearance:'content.edit', apps:'content.edit',
   announcements:'content.edit', social:'content.edit', moments:'content.edit',
   knowledge:'content.edit', events:'content.edit', whistleblower:'content.edit',
   people:'content.edit', newsi:'content.edit', appearance:'content.edit',
   media:'media.manage', access:'access.manage', roles:'access.manage',
-  activity:'audit.view', settings:'settings.manage'
+  activity:'audit.view', compliance:'audit.view', settings:'settings.manage'
 });
 
 export const adminActionPermissions = Object.freeze([
-  'action.undo', 'action.redo', 'action.reset', 'action.import', 'action.export', 'action.delete'
+  'action.undo', 'action.redo', 'action.reset', 'action.import', 'action.export', 'action.export_csv', 'action.delete'
 ]);
 
 export const adminContentKeyPages = Object.freeze({
   apps:['page.apps'], announcements:['page.announcements'],
   announcementSchedules:['page.announcements'], announcementTemplates:['page.announcements'],
   socialLinks:['page.social'], moments:['page.moments'], momentsPageContent:['page.moments'],
-  sessions:['page.knowledge'], knowledgePageContent:['page.knowledge'], events:['page.events'],
+  sessions:['page.knowledge'], knowledgePageContent:['page.knowledge'], events:['page.events'], eventsPageContent:['page.events'],
   whistleblowerConfig:['page.whistleblower'], newMembers:['page.people'],
   recentlyJoinedPageContent:['page.people'], policies:['page.newsi'],
   firstWeekChecklist:['page.newsi'], supportPortals:['page.newsi'],
   policyAcknowledgementContent:['page.newsi'], newSiPageContent:['page.newsi'],
-  homePageContent:['page.home'], settings:['page.home','page.appearance']
+  homePageContent:['page.home'], globalPageContent:['page.home'], settings:['page.home','page.appearance']
+  ,adminSettings:['page.settings']
 });
 
 export const adminContentKeys = Object.freeze(Object.keys(adminContentKeyPages));
@@ -60,7 +61,7 @@ export function rolePermissionError(permissions) {
   if (granted.has('audit.export') && (!granted.has('audit.view') || !granted.has('page.activity'))) {
     return 'Export audit trail requires View audit trail and the Activity & audit page.';
   }
-  if (['action.undo','action.redo','action.reset','action.export'].some(permission => granted.has(permission)) && !granted.has('content.edit')) {
+  if (['action.undo','action.redo','action.reset','action.export','action.export_csv'].some(permission => granted.has(permission)) && !granted.has('content.edit')) {
     return 'Content history, reset, and export actions require Edit content.';
   }
   if (['action.import','action.delete'].some(permission => granted.has(permission)) && !granted.has('content.edit') && !granted.has('access.manage')) {

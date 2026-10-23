@@ -3,6 +3,8 @@ import { adminViewPermissions, adminViewCapabilities, adminActionPermissions, ca
 import { intranetPages, intranetPagePermissions, firstAvailableIntranetPage } from './intranet-permissions.js';
 import { renderAuditTrail } from './audit-trail.js';
 import { renderGoogleSyncSettings } from './google-sync-settings.js';
+import { mountUsersPage } from './admin-users.js';
+import { defaultGlobalPageContent, normaliseGlobalPageContent, applyGlobalPageContent, loadGlobalPageContent } from './global-page-content.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -15,6 +17,7 @@ const actionControlPermissions = [
   ['[data-page-redo], [data-home-redo]', 'action.redo'],
   ['[data-page-reset], [data-home-reset]', 'action.reset'],
   ['[data-page-export]', 'action.export'],
+  ['[data-page-export-csv]', 'action.export_csv'],
   ['[data-import-new-members], [data-import-knowledge-sessions], label[for="users-csv-input"]', 'action.import'],
   ['[data-remove-record], [data-remove-announcement-template], [data-remove-announcement-schedule], [data-remove-social-card], [data-home-remove-section], [data-card-delete-role], [data-delete-role], [data-page-remove-all-sessions], [data-page-delete-all-people], [data-preview-editor-remove], [data-remove-existing-attachment], [data-remove-policy-document]', 'action.delete']
 ];
@@ -38,6 +41,14 @@ const knowledgeMaterialTypes = [...announcementAttachmentTypes, ...appIconImageT
 const momentMediaTypes = [...appIconImageTypes, 'video/mp4', 'video/webm', 'video/quicktime', 'application/pdf', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
 function readImageFile(file) { if (!file?.name) return Promise.resolve(''); if (!appIconImageTypes.includes(file.type)) return Promise.reject(new Error('Choose a PNG, JPEG, WebP, or GIF image.')); if (file.size > 2 * 1024 * 1024) return Promise.reject(new Error('App icon images must be 2 MB or smaller.')); return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The app icon image could not be read.')); reader.readAsDataURL(file); }); }
 async function uploadAppIcon(file) { const dataUrl = await readImageFile(file); if (!dataUrl) return ''; return (await api('/api/uploads', { method:'POST', body:JSON.stringify({ dataUrl, filename:file.name }) })).url; }
+async function uploadGlobalImage(file) {
+  if (!file) return '';
+  const mime = file.type || (/\.ico$/i.test(file.name) ? 'image/x-icon' : '');
+  if (!['image/png','image/jpeg','image/webp','image/gif','image/x-icon','image/vnd.microsoft.icon'].includes(mime)) throw new Error('Choose a PNG, JPEG, WebP, GIF, or ICO image.');
+  if (file.size > 4 * 1024 * 1024) throw new Error('Brand images must be 4 MB or smaller.');
+  const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The image could not be read.')); reader.readAsDataURL(file); });
+  return (await api('/api/uploads', { method:'POST', body:JSON.stringify({ dataUrl:dataUrl.replace(/^data:[^;]*;base64,/, `data:${mime};base64,`), filename:file.name }) })).url;
+}
 function readAnnouncementFile(file, accepted, label) { if (!file?.name) return Promise.resolve(''); if (!accepted.includes(file.type)) return Promise.reject(new Error(`Choose a supported ${label} file.`)); if (file.size > 45 * 1024 * 1024) return Promise.reject(new Error(`${label} files must be 45 MB or smaller.`)); return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error(`The ${label.toLowerCase()} file could not be read.`)); reader.readAsDataURL(file); }); }
 async function uploadAnnouncementFile(file, accepted, label) { const dataUrl = await readAnnouncementFile(file, accepted, label); if (!dataUrl) return ''; return (await api('/api/uploads', { method:'POST', body:JSON.stringify({ dataUrl, filename:file.name }) })).url; }
 function normalisePolicyUrl(value) {
@@ -73,23 +84,25 @@ function renderOverview() {
   const counts = summary.counts;
   const governanceView = ['access','roles','activity','settings'].find(canAccessAdminView);
   $('#view-overview').innerHTML = `<p class="view-intro">A controlled workspace for the content, people, applications, presentation, and access rules employees rely on. Changes are saved centrally and reviewed through the audit trail.</p><div class="metrics"><article class="metric"><b>${counts.announcements}</b><span>Published announcements</span></article><article class="metric"><b>${counts.people}</b><span>Recently joined colleagues</span></article><article class="metric"><b>${counts.apps}</b><span>Quick-launch applications</span></article><article class="metric"><b>${counts.media}</b><span>Reusable media files</span></article></div><div class="section-grid"><article class="panel"><h2>Recent administrative changes</h2>${canAccessAdminView('activity') ? list(summary.audit, event => `<div class="list-row"><span><b>${escapeHtml(event.action || 'Administrative change')}</b><small>${escapeHtml(event.actor?.name || 'System')} · ${cairo(event.occurredAt)}</small></span><span class="record-tag">${escapeHtml(event.outcome || 'success')}</span></div>`) : '<p class="empty">Audit access is not assigned to this role.</p>'}</article><article class="panel"><h2>Work from the right place</h2><p>Use the focused editors to protect employee-facing records from accidental structural changes.</p><div class="list"><div class="list-row"><span><b>Editorial content</b><small>Announcements, knowledge, moments, policies</small></span>${editorLink()}</div><div class="list-row"><span><b>Presentation &amp; navigation</b><small>Section order and shared layout visibility</small></span>${editorLink()}</div><div class="list-row"><span><b>Governance</b><small>Permissions, audit history and retention</small></span>${governanceView ? `<button class="action-button" data-goto="${governanceView}">Review governance</button>` : '<span class="record-tag">Unavailable for this role</span>'}</div></div></article></div>`;
+  $('#view-overview .metrics .metric:nth-child(2) span').textContent = 'Colleagues in Our Team';
 }
 function renderManage(id, title, description, rows) { $(id).innerHTML = `<p class="view-intro">${description}</p><article class="panel">${rows.map(row => `<div class="manage-row"><div><h2>${escapeHtml(row.title)}</h2><p>${escapeHtml(row.description)}</p></div>${editorLink(row.label || 'Manage')}</div>`).join('')}</article>`; }
 const editableCollections = {
   announcements: { title:'Announcements', description:'Create, edit, archive, and publish employee updates.', fields:[['title','Title'],['tag','Category'],['department','Department'],['audience','Audience']] },
   sessions: { title:'Knowledge Hub sessions', description:'Keep session details, presenters, and learning resources current.', fields:[['title','Title'],['category','Category'],['date','Date'],['outline','Outline','textarea']] },
   moments: { title:'Moments', description:'Manage the moments displayed across the intranet.', fields:[['title','Title'],['kind','Label'],['color','Accent colour','color']] },
-  events: { title:'Events & key dates', description:'Maintain the employee events calendar and important company dates.', fields:[['day','Day'],['month','Month'],['title','Title'],['time','Time'],['type','Type']] },
+  events: { title:'Events & key dates', description:'Maintain the employee events calendar and important company dates.', fields:[['date','Date','date'],['title','Title'],['time','Time'],['type','Location']] },
   policies: { title:'Policies', description:'Manage employee-facing policy metadata and ownership.', fields:[['title','Title'],['summary','Summary','textarea'],['owner','Owner'],['department','Department'],['audience','Audience'],['version','Version']] },
-  newMembers: { title:'Recently Joined', description:'This is display content only and never grants authentication access.', fields:[['name','Name'],['role','Role'],['employmentType','Employment type'],['department','Department'],['division','Division'],['directManager','Direct manager'],['joined','Joined']] },
-  firstWeekChecklist: { title:'New Si-Warians first-week checklist', description:'Manage the onboarding tasks shown on the New Si-Warians page.', fields:[['text','Task','textarea'],['resourceLabel','Resource label'],['resourceUrl','Resource link'],['attachmentLabel','Attachment label']] },
+  newMembers: { title:'Our Team', description:'Employee directory display content only; this never grants authentication access.', fields:[['name','Name'],['role','Role'],['employmentType','Employment type'],['department','Department'],['division','Division'],['directManager','Direct manager'],['employeeId','Employee ID','text',true],['joined','Joined']] },
+  firstWeekChecklist: { title:'New Si-Warians first-week checklist', description:'Manage the onboarding tasks shown on the New Si-Warians page.', fields:[['text','Task','textarea'],['resourceLabel','Resource label','text',true],['resourceUrl','Resource link','text',true],['attachmentLabel','Attachment label','text',true]] },
   apps: { title:'Quick Launch apps', description:'Manage employee application destinations and their descriptions.', fields:[['name','Name'],['caption','Description'],['url','URL'],['color','Accent colour','color']] },
   supportPortals: { title:'Support portals', description:'Manage approved employee support destinations.', fields:[['name','Name'],['description','Description','textarea'],['url','URL']] }
 };
 let editingRecord = {};
 function recordLabel(key, record) { return record.title || record.name || record.text || record.id; }
 function recordFields(key, record = {}) {
-  const fields = editableCollections[key].fields.map(([name, label, type = 'text']) => `<label>${label}${type === 'textarea' ? `<textarea name="${name}" rows="3" maxlength="5000">${escapeHtml(record[name] || '')}</textarea>` : `<input name="${name}" ${type === 'color' ? 'type="color"' : ''} required value="${escapeHtml(record[name] || (type === 'color' ? '#0758a9' : ''))}" />`}</label>`).join('');
+  const fields = editableCollections[key].fields.map(([name, label, type = 'text', optional = false]) => `<label>${label}${type === 'textarea' ? `<textarea name="${name}" rows="3" maxlength="5000" ${key === 'firstWeekChecklist' && name === 'text' ? 'required' : ''}>${escapeHtml(record[name] || '')}</textarea>` : `<input name="${name}" ${type === 'color' ? 'type="color"' : ''} ${optional ? '' : 'required'} value="${escapeHtml(record[name] || (type === 'color' ? '#0758a9' : ''))}" />`}</label>`).join('');
+  if (key === 'firstWeekChecklist') return `${fields}<input type="hidden" name="requiresResourceLinkClick" value="false" /><label><input name="requiresResourceLinkClick" type="checkbox" value="true" ${record.requiresResourceLinkClick === true || record.requiresResourceLinkClick === 'true' ? 'checked' : ''} /> Require opening the resource link before this task can be completed</label><input type="hidden" name="requiresPolicyAcknowledgement" value="false" /><label><input name="requiresPolicyAcknowledgement" type="checkbox" value="true" ${record.requiresPolicyAcknowledgement === true || record.requiresPolicyAcknowledgement === 'true' ? 'checked' : ''} /> Require policy confirmation before this task can be completed</label><input type="hidden" name="requiresSecurityAwarenessVideo" value="false" /><label><input name="requiresSecurityAwarenessVideo" type="checkbox" value="true" ${record.requiresSecurityAwarenessVideo === true || record.requiresSecurityAwarenessVideo === 'true' ? 'checked' : ''} /> Require one Security Awareness Training video before this task can be completed</label><input type="hidden" name="requiresAdminPortalTraining" value="false" /><label><input name="requiresAdminPortalTraining" type="checkbox" value="true" ${record.requiresAdminPortalTraining === true || record.requiresAdminPortalTraining === 'true' ? 'checked' : ''} /> Require Company Portal Training before this task can be completed</label><fieldset><legend>Attachment (optional)</legend><label>Attachment link<input name="attachmentUrl" type="url" value="${escapeHtml(record.attachmentUrl || '')}" placeholder="https://… or /uploaded-file" /></label><label>Upload attachment<input name="checklistAttachment" type="file" accept="application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,image/png,image/jpeg,image/webp,image/gif" /><small>${record.attachmentUrl ? 'Choose a replacement file, replace the link, or leave both blank to remove the attachment.' : 'Add a link or upload a file. Maximum 45 MB.'}</small></label></fieldset>`;
   if (key === 'apps' || key === 'supportPortals') { const label = key === 'apps' ? 'App icon image' : 'Portal icon image'; return `${fields}<label>${label}<input name="iconImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><small>${record.iconUrl ? `Current image: <b>${escapeHtml(savedFilename(record))}</b> · <a href="${escapeHtml(record.iconUrl)}" target="_blank" rel="noopener">Open image</a>. Choose a new image to replace it.` : 'Optional PNG, JPEG, WebP, or GIF. Maximum 2 MB.'}</small></label>`; }
   if (key === 'policies') { const documentUrl = String(record.canonicalUrl || ''); const uploadedPdf = /^\/uploads\/.*\.pdf(?:$|\?)/i.test(documentUrl); return `${fields}<label>Policy document URL<input name="canonicalUrl" type="text" inputmode="url" value="${escapeHtml(documentUrl)}" placeholder="https://… or /uploads/policy.pdf" /><small>Paste the approved policy link, or upload a PDF below. An uploaded PDF takes priority over this URL.</small></label><label>Upload policy PDF<input name="policyDocument" type="file" accept=".pdf,application/pdf" /><small data-policy-document-status>${uploadedPdf ? `Current PDF: <b>${escapeHtml(savedFilename({ iconUrl:documentUrl }))}</b> · <a href="${escapeHtml(documentUrl)}" target="_blank" rel="noopener">Open</a> · <button class="tool-button danger-link" type="button" data-remove-policy-document>Remove current PDF</button>. Choose a new file to replace it.` : documentUrl ? `Current linked policy: <a href="${escapeHtml(documentUrl)}" target="_blank" rel="noopener">Open link</a>. Upload a PDF to replace it.` : 'Optional PDF upload. Maximum 45 MB.'}</small></label>`; }
   if (key !== 'announcements') return fields;
@@ -120,10 +133,13 @@ function announcementScheduleDescription(schedule) {
   return `Every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][Number(schedule.dayOfWeek) || 0]} at ${at} Cairo time`;
 }
 function announcementScheduleRows() {
-  return (dashboard.announcementSchedules || []).map(schedule => `<div class="list-row"><span><b>${escapeHtml(schedule.title)}</b><small>Scheduled · ${escapeHtml(announcementScheduleDescription(schedule))}${schedule.enabled ? '' : ' · Paused'}</small></span><div class="row-actions"><button type="button" class="tool-button" data-toggle-announcement-schedule="${escapeHtml(schedule.id)}">${schedule.enabled ? 'Pause' : 'Resume'}</button><button type="button" class="tool-button danger-link" data-remove-announcement-schedule="${escapeHtml(schedule.id)}">Remove</button></div></div>`).join('');
+  const schedules = (dashboard.announcementSchedules || []).map(schedule => `<div class="list-row"><span><b>${escapeHtml(schedule.title)}</b><small>Scheduled · ${escapeHtml(announcementScheduleDescription(schedule))}${schedule.enabled ? '' : ' · Paused'}</small></span><div class="row-actions"><button type="button" class="tool-button" data-toggle-announcement-schedule="${escapeHtml(schedule.id)}">${schedule.enabled ? 'Pause' : 'Resume'}</button><button type="button" class="tool-button danger-link" data-remove-announcement-schedule="${escapeHtml(schedule.id)}">Remove</button></div></div>`);
+  const scheduledTemplates = (dashboard.announcementTemplates || []).filter(template => template.templatePublication?.deliveryMode === 'scheduled').map(template => `<div class="list-row"><span><b>${escapeHtml(template.title)}</b><small>Scheduled · ${escapeHtml(announcementScheduleDescription(template.templatePublication))}</small></span><div class="row-actions"><button type="button" class="tool-button" data-use-announcement-template="${escapeHtml(template.id)}">Use</button><button type="button" class="tool-button" data-edit-announcement-template="${escapeHtml(template.id)}">Edit</button><button type="button" class="tool-button danger-link" data-remove-announcement-template="${escapeHtml(template.id)}">Remove</button></div></div>`);
+  return schedules.length || scheduledTemplates.length ? `<p class="announcement-list-label">Scheduled announcements</p>${[...schedules, ...scheduledTemplates].join('')}` : '';
 }
 function announcementTemplateRows() {
-  return (dashboard.announcementTemplates || []).map(template => `<div class="list-row"><span><b>${escapeHtml(template.title)}</b><small>Saved template · ${escapeHtml(template.tag || 'Company update')}</small></span><div class="row-actions"><button type="button" class="tool-button" data-use-announcement-template="${escapeHtml(template.id)}">Use</button><button type="button" class="tool-button" data-edit-announcement-template="${escapeHtml(template.id)}">Edit</button><button type="button" class="tool-button danger-link" data-remove-announcement-template="${escapeHtml(template.id)}">Remove</button></div></div>`).join('');
+  const templates = (dashboard.announcementTemplates || []).filter(template => template.templatePublication?.deliveryMode !== 'scheduled');
+  return templates.length ? `<p class="announcement-list-label">Saved templates</p>${templates.map(template => `<div class="list-row"><span><b>${escapeHtml(template.title)}</b><small>Saved template · ${escapeHtml(template.tag || 'Company update')}</small></span><div class="row-actions"><button type="button" class="tool-button" data-use-announcement-template="${escapeHtml(template.id)}">Use</button><button type="button" class="tool-button" data-edit-announcement-template="${escapeHtml(template.id)}">Edit</button><button type="button" class="tool-button danger-link" data-remove-announcement-template="${escapeHtml(template.id)}">Remove</button></div></div>`).join('')}` : '';
 }
 function announcementSchedulePanel() {
   const schedules = dashboard.announcementSchedules || [];
@@ -166,6 +182,7 @@ function csvMemberRecord(row, columns, existing, index) {
     department,
     division:csvValue(row, columns, ['division']) || existing?.division || 'To be confirmed',
     directManager:csvValue(row, columns, ['direct manager', 'manager']) || existing?.directManager || 'To be confirmed',
+    employeeId:csvValue(row, columns, ['employee id', 'employee number', 'employee code']) || existing?.employeeId || '',
     joined:csvValue(row, columns, ['joined', 'join date', 'start date']) || existing?.joined || 'To be confirmed',
     companyEmail:csvValue(row, columns, ['company email', 'work email', 'email']) || existing?.companyEmail || '',
     phone:csvValue(row, columns, ['phone', 'phone number', 'mobile']) || existing?.phone || '',
@@ -304,7 +321,7 @@ const contentPages = [
   { view:'knowledge', key:'sessions', title:'Knowledge Hub', description:'Maintain the sessions, learning resources, and practical know-how employees can explore.' },
   { view:'events', key:'events', title:'Events & key dates', description:'Publish company events, deadlines, and important dates.' },
   { view:'whistleblower', key:'whistleblowerConfig', title:'Whistleblower', description:'Maintain employee reporting guidance and the protected Employee Voice destination.' },
-  { view:'people', key:'newMembers', title:'Recently Joined', description:'Manage the employee display cards for colleagues who recently joined.' },
+  { view:'people', key:'newMembers', title:'Our Team', description:'Manage the employee directory and profile cards for all colleagues.' },
   { view:'newsi', key:'policies', title:'New Si-Warians', description:'Manage the onboarding, policies, and acknowledgement content for new colleagues.' }
 ];
 function renderContent() {
@@ -313,7 +330,7 @@ function renderContent() {
 function employeePagePreview(title, href, sections = [], saveFormId = '', directKeys = []) {
   const previewSections = sections.length ? `<div class="employee-preview-sections" aria-label="Preview section">${sections.map(([id, label]) => `<button type="button" data-preview-anchor="${id}">${label}</button>`).join('')}</div>` : '';
   const actions = '';
-  const note = href === '/' ? 'Click the hero text or a highlighted card to edit it. Choose a section position on the left to move it anywhere on Home.' : href === '/social-media.html' ? 'Select a channel to edit its URL here, then save content to publish your changes.' : href === '/moments.html' ? 'Click the page heading or description to change the text, then select Save content. Select a card to edit a moment.' : href === '/knowledge-hub.html' ? 'Click the page or library heading and description to edit text, then select Save content. Select a session row to edit its details.' : href === '/recently-joined.html' ? 'Click highlighted page text to edit it, then select Save content. Select a colleague card to edit their details.' : href === '/new-hires.html' ? 'Edit highlighted text and use the Edit buttons inside the preview for messages and video links. Select Save content to publish.' : directKeys.length ? 'Select any item to edit or remove it here. Use Add to create a new item in this employee-page preview.' : saveFormId ? 'Click a highlighted text area to edit it here, then save content to publish your changes.' : 'This is the published employee view. Save your changes, then refresh the preview.';
+  const note = href === '/' ? 'Click the hero text or a highlighted card to edit it. Choose a section position on the left to move it anywhere on Home.' : href === '/apps.html' ? 'Drag an app card to a new position, or use its move controls. Select the card itself to edit its details.' : href === '/social-media.html' ? 'Select a channel to update its link or upload an icon. Saving from that editor publishes the change immediately.' : href === '/moments.html' ? 'Click the page heading or description to change the text, then select Save content. Select a card to edit a moment.' : href === '/knowledge-hub.html' ? 'Click the page or library heading and description to edit text, then select Save content. Select a session row to edit their details.' : href === '/events.html' ? 'Select Add event to publish a date. Choose a calendar day and select an event to edit it. Click the page heading or description to edit them, then select Save content.' : href === '/recently-joined.html' ? 'Click highlighted page text to edit it, then select Save content. Select a colleague card to edit their details.' : href === '/new-hires.html' ? 'Edit highlighted text and use the Edit buttons inside the preview for messages and video links. Select Save content to publish.' : directKeys.length ? 'Select any item to edit or remove it here. Use Add to create a new item in this employee-page preview.' : saveFormId ? 'Click a highlighted text area to edit it here, then save content to publish your changes.' : 'This is the published employee view. Save your changes, then refresh the preview.';
   return `<aside class="employee-page-preview"><div class="employee-page-preview-head"><div><h2>Employee page preview</h2><p>${title}</p></div>${actions ? `<div class="employee-page-preview-actions">${actions}</div>` : ''}</div>${previewSections}<div class="employee-page-preview-frame"><iframe src="${href}" data-preview-base="${href}" data-preview-auto-height title="${title} employee page preview"></iframe></div><p class="employee-page-preview-note">${note}</p></aside>`;
 }
 function fitEmployeePagePreview(frame) {
@@ -331,7 +348,7 @@ function focusEmployeePagePreview(frame) {
     const theme = doc.createElement('link'); theme.rel = 'stylesheet'; theme.href = '/admin-preview-theme.css?v=20261018-preview-app-icon-upload'; doc.head.append(theme);
   } catch (_) {}
 }
-const whistlePreviewTargets = { heroTitle:'[data-whistle="heroTitle"]', heroText:'[data-whistle="heroText"]', safetyTitle:'[data-whistle="safetyTitle"]', safetyText:'[data-whistle="safetyText"]', navTitle:'.policy-nav>p', navHow:'.policy-nav a[href="#how-it-works"]', navPrepare:'.policy-nav a[href="#prepare"]', navPrivacy:'.policy-nav a[href="#privacy"]', navSupport:'.policy-nav a[href="#support"]', howTitle:'#how-it-works h2', howText:'#how-it-works>p', howOpenTitle:'#how-it-works .reporting-paths li:nth-child(1) b', howOpenText:'#how-it-works .reporting-paths li:nth-child(1) span', howDescribeTitle:'#how-it-works .reporting-paths li:nth-child(2) b', howDescribeText:'#how-it-works .reporting-paths li:nth-child(2) span', howFollowTitle:'#how-it-works .reporting-paths li:nth-child(3) b', howFollowText:'#how-it-works .reporting-paths li:nth-child(3) span', howReadyTitle:'#how-it-works .employee-voice-action b', howReadyText:'#how-it-works .employee-voice-action p', voiceButton:'#how-it-works [data-open-voice]', prepareTitle:'#prepare h2', prepareText:'#prepare>p', prepareItem1:'#prepare li:nth-child(1)', prepareItem2:'#prepare li:nth-child(2)', prepareItem3:'#prepare li:nth-child(3)', prepareItem4:'#prepare li:nth-child(4)', privacyTitle:'#privacy h2', privacyText1:'#privacy>p:nth-of-type(1)', privacyText2:'#privacy>p:nth-of-type(2)', supportTitle:'#support h2', supportText:'#support>p', footerLeft:'.policy-footer span:nth-child(1)', footerRight:'.policy-footer span:nth-child(2)' };
+const whistlePreviewTargets = { heroTitle:'[data-whistle="heroTitle"]', heroText:'[data-whistle="heroText"]', safetyTitle:'[data-whistle="safetyTitle"]', safetyText:'[data-whistle="safetyText"]', navTitle:'.policy-nav>p', navHow:'.policy-nav a[href="#how-it-works"]', navPrepare:'.policy-nav a[href="#prepare"]', navPrivacy:'.policy-nav a[href="#privacy"]', navSupport:'.policy-nav a[href="#support"]', howTitle:'#how-it-works h2', howText:'#how-it-works>p', howOpenTitle:'#how-it-works .reporting-paths li:nth-child(1) b', howOpenText:'#how-it-works .reporting-paths li:nth-child(1) span', howDescribeTitle:'#how-it-works .reporting-paths li:nth-child(2) b', howDescribeText:'#how-it-works .reporting-paths li:nth-child(2) span', howFollowTitle:'#how-it-works .reporting-paths li:nth-child(3) b', howFollowText:'#how-it-works .reporting-paths li:nth-child(3) span', howReadyTitle:'#how-it-works .employee-voice-action b', howReadyText:'#how-it-works .employee-voice-action p', voiceButton:'#how-it-works [data-open-voice]', prepareTitle:'#prepare h2', prepareText:'#prepare>p', prepareItem1:'#prepare li:nth-child(1)', prepareItem2:'#prepare li:nth-child(2)', prepareItem3:'#prepare li:nth-child(3)', prepareItem4:'#prepare li:nth-child(4)', privacyTitle:'#privacy h2', privacyText1:'#privacy>p:nth-of-type(1)', privacyText2:'#privacy>p:nth-of-type(2)', supportTitle:'#support h2', supportText:'#support>p' };
 function enableWhistleblowerPreviewEditing(frame) {
   if (frame.dataset.previewBase !== '/whistleblower.html') return;
   try {
@@ -392,8 +409,7 @@ const recentlyJoinedCopyTargets = {
   heroLead:'.policy-hero h1 span', heroAccent:'.policy-hero h1 em', heroText:'.policy-hero > div > p:last-child',
   asideTitle:'.policy-hero-aside b', asideText:'.policy-hero-aside p',
   navTitle:'.policy-nav > p', navJoined:'.policy-nav a[href="#recently-joined"]', navGuidance:'.policy-nav a[href="/new-hires.html"]',
-  sectionTitle:'#recently-joined > h2', sectionText:'#recently-joined > p',
-  footerLeft:'.policy-footer span', footerGuidance:'.policy-footer a'
+  sectionTitle:'#recently-joined > h2', sectionText:'#recently-joined > p'
 };
 function enableRecentlyJoinedPageCopyEditing(frame, attempts = 0) {
   if (frame.dataset.previewBase !== '/recently-joined.html') return;
@@ -408,7 +424,7 @@ function enableRecentlyJoinedPageCopyEditing(frame, attempts = 0) {
     Object.entries(recentlyJoinedCopyTargets).forEach(([name, selector]) => {
       const element = doc.querySelector(selector), input = form.elements.namedItem(name);
       if (!element || !(input instanceof HTMLInputElement)) return;
-      if (!input.value) input.value = element.innerText.replace(/\s+/g, ' ').trim();
+      input.value = element.innerText.replace(/\s+/g, ' ').trim();
       element.contentEditable = 'true';
       element.dataset.adminPreviewPageCopy = name;
       element.setAttribute('aria-label', `Edit ${name.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
@@ -439,9 +455,10 @@ function enableSocialPreviewEditing(frame, attempts = 0) {
   } catch (_) {}
 }
 const previewCollectionTargets = {
-  apps:{ base:'/apps.html', selector:'.destination-app-item', records:items => items },
+  apps:{ base:'/apps.html', selector:'.app-directory-card, .destination-app-item', records:items => items },
   moments:{ base:'/moments.html', selector:'.moment-page-card', records:items => items },
   sessions:{ base:'/knowledge-hub.html', selector:'.knowledge-register tbody tr', records:items => items.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))) },
+  events:{ base:'/events.html', selector:'.event-page-open', records:items => items },
   newMembers:{ base:'/recently-joined.html', selector:'.new-member-announcement', records:items => items },
   policies:{ base:'/new-hires.html', selector:'.policy-detail-card', records:items => items },
   firstWeekChecklist:{ base:'/new-hires.html', selector:'#first-week-checklist > li', records:items => items },
@@ -451,9 +468,23 @@ function previewFieldsFor(key, record = {}) {
   const fields = editableCollections[key]?.fields || [];
   return key === 'sessions' ? [['title','Title'], ['presenterName','Presenter'], ...fields.filter(([name]) => name !== 'title')] : fields;
 }
-function previewValue(record, key, name) { return key === 'sessions' && name === 'presenterName' ? record.presenter?.name || '' : record[name] || ''; }
+function previewValue(record, key, name) {
+  if (key === 'sessions' && name === 'presenterName') return record.presenter?.name || '';
+  if (key === 'events' && name === 'date') {
+    const date = record.startsAt ? new Date(record.startsAt) : null;
+    if (date && !Number.isNaN(date.valueOf())) {
+      const parts = new Intl.DateTimeFormat('en', { timeZone:'Africa/Cairo', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(date);
+      const part = type => parts.find(item => item.type === type)?.value;
+      return `${part('year')}-${part('month')}-${part('day')}`;
+    }
+    const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].findIndex(item => item.toLowerCase() === String(record.month || '').slice(0, 3).toLowerCase());
+    return month >= 0 && Number(record.day) > 0 ? `${new Date().getFullYear()}-${String(month + 1).padStart(2, '0')}-${String(record.day).padStart(2, '0')}` : '';
+  }
+  return record[name] || '';
+}
 function previewRecordFromValues(key, values, record = {}) {
   const next = { ...record, ...values };
+  if (key === 'events') { const date = values.date; next.startsAt = `${date}T12:00:00Z`; next.day = String(Number(date.slice(8, 10))); next.month = new Intl.DateTimeFormat('en', { month:'short', timeZone:'UTC' }).format(new Date(`${date}T12:00:00Z`)); delete next.date; }
   if (key === 'sessions') { next.presenter = { name:String(values.presenterName || '').trim(), initials:String(values.presenterName || '').trim().split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0,2).toUpperCase() || 'SW' }; delete next.presenterName; }
   if (key === 'newMembers') { next.team = values.department; next.initials = String(values.name || '').trim().split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0,2).toUpperCase(); next.color ||= '#dceeff'; next.message ||= ''; }
   if (key === 'apps') next.icon ||= 'spark';
@@ -462,16 +493,22 @@ function previewRecordFromValues(key, values, record = {}) {
   return next;
 }
 async function savePreviewCollectionRecord(key, values, existing) {
-  const fields = previewFieldsFor(key), missing = fields.filter(([name,, type = 'text']) => type !== 'textarea' && !String(values[name] || '').trim()).map(([, label]) => label);
+  const fields = previewFieldsFor(key), missing = fields.filter(([name,, type = 'text', optional = false]) => !optional && !String(values[name] || '').trim()).map(([, label]) => label);
   if (missing.length) throw new Error(`Complete: ${missing.join(', ')}.`);
+  if (key === 'events') {
+    const date = String(values.date || ''), parsed = new Date(`${date}T12:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== date) throw new Error('Choose a valid event date.');
+  }
   if (key === 'sessions' && duplicateKnowledgeSession(values.title, existing?.id)) throw new Error('A Knowledge Hub session with this title already exists. Use a different title or edit the existing session.');
-  const media = values.momentMedia, photo = values.memberPhoto, iconImage = values.iconImage, policyDocument = values.policyDocument, deck = values.knowledgeDeck, recording = values.knowledgeRecording, materials = values.knowledgeMaterials; delete values.momentMedia; delete values.memberPhoto; delete values.iconImage; delete values.policyDocument; delete values.knowledgeDeck; delete values.knowledgeRecording; delete values.knowledgeMaterials;
+  if (key === 'firstWeekChecklist' && values.requiresResourceLinkClick === 'true' && !String(values.resourceUrl || '').trim()) throw new Error('Add a resource link before requiring employees to open it.');
+  const media = values.momentMedia, photo = values.memberPhoto, iconImage = values.iconImage, policyDocument = values.policyDocument, checklistAttachment = values.checklistAttachment, deck = values.knowledgeDeck, recording = values.knowledgeRecording, materials = values.knowledgeMaterials; delete values.momentMedia; delete values.memberPhoto; delete values.iconImage; delete values.policyDocument; delete values.checklistAttachment; delete values.knowledgeDeck; delete values.knowledgeRecording; delete values.knowledgeMaterials;
   const mediaUrl = key === 'moments' && media?.name ? await uploadAnnouncementFile(media, momentMediaTypes, 'moment media') : '';
   if (key === 'newMembers') { const linkedinUrl = safeLinkedInUrl(values.linkedinUrl); if (linkedinUrl === null) throw new Error('Use a valid linkedin.com profile URL, or leave this field empty.'); values.linkedinUrl = linkedinUrl; if (photo?.name && photo.size > 2 * 1024 * 1024) throw new Error('Employee photos must be 2 MB or smaller.'); }
   const photoUrl = key === 'newMembers' && photo?.name ? await uploadAnnouncementFile(photo, appIconImageTypes, 'employee photo') : '';
   const iconUrl = ['apps','supportPortals'].includes(key) && iconImage?.name ? await uploadAppIcon(iconImage) : '';
   const policyUrl = key === 'policies' ? normalisePolicyUrl(values.canonicalUrl) : '';
   const policyDocumentUrl = key === 'policies' && policyDocument?.name ? await uploadAnnouncementFile(policyDocument, ['application/pdf'], 'policy document') : '';
+  const checklistAttachmentUrl = key === 'firstWeekChecklist' && checklistAttachment?.name ? await uploadAnnouncementFile(checklistAttachment, knowledgeMaterialTypes, 'checklist attachment') : '';
   const presentationDeckUrl = key === 'sessions' ? safeKnowledgeAdminLink(values.presentationDeckUrl) : '', recordingUrl = key === 'sessions' ? safeKnowledgeAdminLink(values.recordingUrl) : '', supportingMaterialsUrl = key === 'sessions' ? safeKnowledgeAdminLink(values.supportingMaterialsUrl) : '';
   if ([presentationDeckUrl, recordingUrl, supportingMaterialsUrl].includes(null)) throw new Error('Use an https:// link, an intranet path, or an anchor for learning resources.');
   const [deckUpload, recordingUpload, materialsUpload] = key === 'sessions' ? await Promise.all([uploadAnnouncementFile(deck, knowledgeDeckTypes, 'presentation deck'), uploadAnnouncementFile(recording, knowledgeRecordingTypes, 'session recording'), uploadAnnouncementFile(materials, knowledgeMaterialTypes, 'supporting materials')]) : ['', '', ''];
@@ -480,17 +517,45 @@ async function savePreviewCollectionRecord(key, values, existing) {
   if (photoUrl) { record.photoUrl = photoUrl; record.photoFilename = photo.name; }
   if (iconUrl) { record.iconUrl = iconUrl; record.iconFilename = iconImage.name; }
   if (key === 'policies') record.canonicalUrl = policyDocumentUrl || policyUrl || '';
+  if (key === 'firstWeekChecklist' && checklistAttachmentUrl) record.attachmentUrl = checklistAttachmentUrl;
   if (key === 'sessions') Object.assign(record, { presentationDeckUrl:deckUpload || presentationDeckUrl || existing?.presentationDeckUrl || '', presentationFilename:deckUpload ? deck.name : (presentationDeckUrl ? '' : existing?.presentationFilename || ''), recordingUrl:recordingUpload || recordingUrl || existing?.recordingUrl || '', recordingFilename:recordingUpload ? recording.name : (recordingUrl ? '' : existing?.recordingFilename || ''), supportingMaterialsUrl:materialsUpload || supportingMaterialsUrl || existing?.supportingMaterialsUrl || '', supportingMaterialsFilename:materialsUpload ? materials.name : (supportingMaterialsUrl ? '' : existing?.supportingMaterialsFilename || '') });
   if (existing) Object.assign(existing, record); else collection.push(record);
-  await saveDashboard(mediaUrl ? 'Moment and featured media published.' : photoUrl ? 'Colleague and employee photo published.' : iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : deckUpload || recordingUpload || materialsUpload ? 'Knowledge Hub resources updated and published.' : existing ? `${editableCollections[key].title} updated and published.` : `${editableCollections[key].title} added and published.`);
+  await saveDashboard(mediaUrl ? 'Moment and featured media published.' : photoUrl ? 'Colleague and employee photo published.' : iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : deckUpload || recordingUpload || materialsUpload ? 'Knowledge Hub resources updated and published.' : existing ? `${editableCollections[key].title} updated and published.` : `${editableCollections[key].title} added and published.`, true);
+  window.dispatchEvent(new CustomEvent('admin:preview-collection-saved', { detail:{ key } }));
 }
+window.addEventListener('admin:preview-collection-saved', event => {
+  const view = ({ policies:'newsi', firstWeekChecklist:'newsi', supportPortals:'newsi', sessions:'knowledge', events:'events', newMembers:'people', apps:'apps', moments:'moments' })[event.detail?.key];
+  const frame = view && document.querySelector(`#view-${view} iframe[data-preview-auto-height]`);
+  if (frame) {
+    const previewUrl = new URL(frame.dataset.previewBase || frame.src, window.location.origin);
+    previewUrl.searchParams.set('adminPreview', String(Date.now()));
+    frame.src = previewUrl.href;
+  }
+});
 function openPreviewCollectionEditor(frame, key, record = null) {
   const doc = frame.contentDocument, target = previewCollectionTargets[key]; if (!doc || !target) return;
   const pageScrollY = window.scrollY;
   const visiblePreviewTop = Math.max(16, -frame.getBoundingClientRect().top + 16);
   let editor = doc.querySelector('#admin-preview-collection-editor');
   if (!editor) { editor = doc.createElement('form'); editor.id = 'admin-preview-collection-editor'; editor.className = 'admin-preview-collection-editor'; editor.noValidate = true; editor.innerHTML = '<div class="admin-preview-collection-editor-head"><b data-preview-editor-title></b><button type="button" data-preview-editor-close aria-label="Close editor">Close</button></div><div data-preview-editor-fields></div><p data-preview-editor-status role="status"></p><div class="admin-preview-collection-editor-actions"><button type="button" data-preview-editor-remove>Remove</button><button type="submit">Save changes</button></div>'; doc.body.append(editor); editor.querySelector('[data-preview-editor-close]').addEventListener('click', () => editor.hidden = true); doc.addEventListener('keydown', event => { if (event.key === 'Escape' && !editor.hidden) { event.preventDefault(); editor.hidden = true; } }); editor.addEventListener('submit', async event => { event.preventDefault(); const activeKey = editor.dataset.key, id = editor.dataset.id || '', values = Object.fromEntries(new FormData(editor)); const existing = dashboard[activeKey]?.find(item => item.id === id); const status = editor.querySelector('[data-preview-editor-status]'), save = editor.querySelector('button[type="submit"]'); try { save.disabled = true; status.textContent = 'Saving changes…'; await savePreviewCollectionRecord(activeKey, values, existing); } catch (error) { status.textContent = error.message || 'This item could not be saved.'; save.disabled = false; } }); editor.querySelector('[data-preview-editor-remove]').addEventListener('click', async () => { const activeKey = editor.dataset.key, id = editor.dataset.id; if (!id) return; const index = dashboard[activeKey]?.findIndex(item => item.id === id); if (index < 0 || !window.confirm('Remove this item from the employee page?')) return; dashboard[activeKey].splice(index, 1); await saveDashboard(`${editableCollections[activeKey].title} item removed.`); }); }
-  const fields = previewFieldsFor(key, record || {}), fieldsRoot = editor.querySelector('[data-preview-editor-fields]'); editor.dataset.key = key; editor.dataset.id = record?.id || ''; editor.querySelector('[data-preview-editor-title]').textContent = record ? `Edit ${recordLabel(key, record)}` : `Add ${editableCollections[key].title.replace(/s$/, '')}`; fieldsRoot.replaceChildren(); fields.forEach(([name, label, type = 'text']) => { const wrap = doc.createElement('label'); wrap.textContent = label; const value = String(previewValue(record || {}, key, name) || (type === 'color' ? '#0758a9' : '')); if (type === 'color') { const control = doc.createElement('div'), picker = doc.createElement('input'), hex = doc.createElement('input'), palette = doc.createElement('div'); control.className = 'admin-preview-colour-control'; picker.name = name; picker.type = 'color'; picker.value = value; picker.required = true; hex.type = 'text'; hex.value = value; hex.maxLength = 7; hex.setAttribute('aria-label', `${label} hex value`); palette.className = 'admin-preview-colour-palette'; ['#0758a9','#00a99d','#ea4335','#f59e0b','#7c5cff','#334155','#111827'].forEach(colour => { const swatch = doc.createElement('button'); swatch.type = 'button'; swatch.style.background = colour; swatch.setAttribute('aria-label', `Use ${colour}`); swatch.addEventListener('click', () => { picker.value = colour; hex.value = colour; }); palette.append(swatch); }); picker.addEventListener('input', () => hex.value = picker.value); hex.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) picker.value = hex.value; }); control.append(picker, hex); wrap.append(control, palette); } else { const input = type === 'textarea' ? doc.createElement('textarea') : doc.createElement('input'); input.name = name; input.required = type !== 'textarea'; if (input instanceof HTMLInputElement && /URL|link/i.test(label)) input.type = 'url'; if (input instanceof HTMLInputElement && name === 'date') input.type = 'date'; input.value = value; if (type === 'textarea') input.rows = 3; wrap.append(input); } fieldsRoot.append(wrap); }); if (key === 'policies') { const group = doc.createElement('fieldset'), legend = doc.createElement('legend'), link = doc.createElement('label'), url = doc.createElement('input'), file = doc.createElement('label'), upload = doc.createElement('input'), help = doc.createElement('small'); legend.textContent = 'Policy document'; link.textContent = 'Policy URL (optional)'; url.name = 'canonicalUrl'; url.type = 'text'; url.inputMode = 'url'; url.value = record?.canonicalUrl || ''; url.placeholder = 'https://… or /uploads/policy.pdf'; link.append(url); file.textContent = 'Upload PDF (optional)'; upload.name = 'policyDocument'; upload.type = 'file'; upload.accept = '.pdf,application/pdf'; help.textContent = record?.canonicalUrl ? 'A PDF upload replaces the current link. To clear it, save with the URL empty.' : 'Add an approved link or upload an employee-facing PDF. Maximum 45 MB.'; file.append(upload, help); group.append(legend, link, file); fieldsRoot.append(group); } if (key === 'moments') { const upload = doc.createElement('label'), input = doc.createElement('input'), help = doc.createElement('small'); upload.textContent = 'Featured media'; input.name = 'momentMedia'; input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation'; input.required = false; help.textContent = record?.mediaUrl ? 'Choose a file to replace the current featured media.' : 'Optional image, video, PDF, or presentation. Maximum 45 MB.'; upload.append(input, help); fieldsRoot.append(upload); } if (key === 'newMembers') { [['Company email','companyEmail','email'], ['Phone number','phone','tel'], ['LinkedIn profile','linkedinUrl','url']].forEach(([label, name, type]) => { const wrap = doc.createElement('label'), input = doc.createElement('input'); wrap.textContent = label; input.name = name; input.type = type; input.value = record?.[name] || ''; input.required = false; wrap.append(input); fieldsRoot.append(wrap); }); const upload = doc.createElement('label'), input = doc.createElement('input'), help = doc.createElement('small'); upload.textContent = 'Employee photo'; input.name = 'memberPhoto'; input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp,image/gif'; input.required = false; help.textContent = record?.photoUrl ? 'Choose a new image to replace the current employee photo.' : 'Optional PNG, JPEG, WebP, or GIF. Maximum 2 MB.'; upload.append(input, help); fieldsRoot.append(upload); } if (key === 'sessions') { [['Presentation deck','presentationDeckUrl','knowledgeDeck','application/pdf,.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation',record?.presentationDeckUrl], ['Session recording','recordingUrl','knowledgeRecording','video/mp4,video/webm,video/quicktime',record?.recordingUrl], ['Supporting materials','supportingMaterialsUrl','knowledgeMaterials','.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.txt,image/png,image/jpeg,image/webp,image/gif',record?.supportingMaterialsUrl]].forEach(([label, urlName, fileName, accept, value]) => { const group = doc.createElement('fieldset'), legend = doc.createElement('legend'), link = doc.createElement('label'), url = doc.createElement('input'), file = doc.createElement('label'), upload = doc.createElement('input'), help = doc.createElement('small'); legend.textContent = label; link.textContent = 'URL (optional)'; url.name = urlName; url.type = 'url'; url.value = value || ''; url.placeholder = 'https://… or /uploaded-file'; link.append(url); file.textContent = 'Upload file (optional)'; upload.name = fileName; upload.type = 'file'; upload.accept = accept; help.textContent = value ? 'Choose a replacement file, or replace the URL.' : 'Add a link or choose a file to upload.'; file.append(upload, help); group.append(legend, link, file); fieldsRoot.append(group); }); } editor.querySelector('[data-preview-editor-status]').textContent = ''; editor.querySelector('[data-preview-editor-remove]').hidden = !record; editor.hidden = false; editor.querySelector('input,textarea')?.focus();
+  const fields = previewFieldsFor(key, record || {}), fieldsRoot = editor.querySelector('[data-preview-editor-fields]'); editor.dataset.key = key; editor.dataset.id = record?.id || ''; editor.querySelector('[data-preview-editor-title]').textContent = record ? `Edit ${recordLabel(key, record)}` : `Add ${editableCollections[key].title.replace(/s$/, '')}`; fieldsRoot.replaceChildren(); fields.forEach(([name, label, type = 'text', optional = false]) => { const wrap = doc.createElement('label'); wrap.textContent = label; const value = String(previewValue(record || {}, key, name) || (type === 'color' ? '#0758a9' : '')); if (type === 'color') { const control = doc.createElement('div'), picker = doc.createElement('input'), hex = doc.createElement('input'), palette = doc.createElement('div'); control.className = 'admin-preview-colour-control'; picker.name = name; picker.type = 'color'; picker.value = value; picker.required = true; hex.type = 'text'; hex.value = value; hex.maxLength = 7; hex.setAttribute('aria-label', `${label} hex value`); palette.className = 'admin-preview-colour-palette'; ['#0758a9','#00a99d','#ea4335','#f59e0b','#7c5cff','#334155','#111827'].forEach(colour => { const swatch = doc.createElement('button'); swatch.type = 'button'; swatch.style.background = colour; swatch.setAttribute('aria-label', `Use ${colour}`); swatch.addEventListener('click', () => { picker.value = colour; hex.value = colour; }); palette.append(swatch); }); picker.addEventListener('input', () => hex.value = picker.value); hex.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) picker.value = hex.value; }); control.append(picker, hex); wrap.append(control, palette); } else { const input = type === 'textarea' ? doc.createElement('textarea') : doc.createElement('input'); input.name = name; input.required = type !== 'textarea' && !optional; if (input instanceof HTMLInputElement && /URL|link/i.test(label)) input.type = 'url'; if (input instanceof HTMLInputElement && name === 'date') input.type = 'date'; input.value = value; if (type === 'textarea') input.rows = 3; wrap.append(input); } fieldsRoot.append(wrap); }); if (key === 'policies') { const group = doc.createElement('fieldset'), legend = doc.createElement('legend'), link = doc.createElement('label'), url = doc.createElement('input'), file = doc.createElement('label'), upload = doc.createElement('input'), help = doc.createElement('small'); legend.textContent = 'Policy document'; link.textContent = 'Policy URL (optional)'; url.name = 'canonicalUrl'; url.type = 'text'; url.inputMode = 'url'; url.value = record?.canonicalUrl || ''; url.placeholder = 'https://… or /uploads/policy.pdf'; link.append(url); file.textContent = 'Upload PDF (optional)'; upload.name = 'policyDocument'; upload.type = 'file'; upload.accept = '.pdf,application/pdf'; help.textContent = record?.canonicalUrl ? 'A PDF upload replaces the current link. To clear it, save with the URL empty.' : 'Add an approved link or upload an employee-facing PDF. Maximum 45 MB.'; file.append(upload, help); group.append(legend, link, file); fieldsRoot.append(group); } if (key === 'moments') { const upload = doc.createElement('label'), input = doc.createElement('input'), help = doc.createElement('small'); upload.textContent = 'Featured media'; input.name = 'momentMedia'; input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation'; input.required = false; help.textContent = record?.mediaUrl ? 'Choose a file to replace the current featured media.' : 'Optional image, video, PDF, or presentation. Maximum 45 MB.'; upload.append(input, help); fieldsRoot.append(upload); } if (key === 'newMembers') { [['Company email','companyEmail','email'], ['Phone number','phone','tel'], ['LinkedIn profile','linkedinUrl','url']].forEach(([label, name, type]) => { const wrap = doc.createElement('label'), input = doc.createElement('input'); wrap.textContent = label; input.name = name; input.type = type; input.value = record?.[name] || ''; input.required = false; wrap.append(input); fieldsRoot.append(wrap); }); const upload = doc.createElement('label'), input = doc.createElement('input'), help = doc.createElement('small'); upload.textContent = 'Employee photo'; input.name = 'memberPhoto'; input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp,image/gif'; input.required = false; help.textContent = record?.photoUrl ? 'Choose a new image to replace the current employee photo.' : 'Optional PNG, JPEG, WebP, or GIF. Maximum 2 MB.'; upload.append(input, help); fieldsRoot.append(upload); } if (key === 'sessions') { [['Presentation deck','presentationDeckUrl','knowledgeDeck','application/pdf,.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation',record?.presentationDeckUrl], ['Session recording','recordingUrl','knowledgeRecording','video/mp4,video/webm,video/quicktime',record?.recordingUrl], ['Supporting materials','supportingMaterialsUrl','knowledgeMaterials','.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.txt,image/png,image/jpeg,image/webp,image/gif',record?.supportingMaterialsUrl]].forEach(([label, urlName, fileName, accept, value]) => { const group = doc.createElement('fieldset'), legend = doc.createElement('legend'), link = doc.createElement('label'), url = doc.createElement('input'), file = doc.createElement('label'), upload = doc.createElement('input'), help = doc.createElement('small'); legend.textContent = label; link.textContent = 'URL (optional)'; url.name = urlName; url.type = 'url'; url.value = value || ''; url.placeholder = 'https://… or /uploaded-file'; link.append(url); file.textContent = 'Upload file (optional)'; upload.name = fileName; upload.type = 'file'; upload.accept = accept; help.textContent = value ? 'Choose a replacement file, or replace the URL.' : 'Add a link or choose a file to upload.'; file.append(upload, help); group.append(legend, link, file); fieldsRoot.append(group); }); } editor.querySelector('[data-preview-editor-status]').textContent = ''; editor.querySelector('[data-preview-editor-remove]').hidden = !record; editor.hidden = false; editor.querySelector('input,textarea')?.focus();
+  if (key === 'firstWeekChecklist') {
+    const resourceGate = doc.createElement('label'), fallback = doc.createElement('input'), checkbox = doc.createElement('input');
+    resourceGate.textContent = 'Require opening the resource link before this task can be completed';
+    fallback.type = 'hidden'; fallback.name = 'requiresResourceLinkClick'; fallback.value = 'false';
+    checkbox.type = 'checkbox'; checkbox.name = 'requiresResourceLinkClick'; checkbox.value = 'true';
+    checkbox.checked = record?.requiresResourceLinkClick === true || record?.requiresResourceLinkClick === 'true';
+    resourceGate.prepend(fallback, checkbox);
+    fieldsRoot.append(resourceGate);
+  }
+  if (!editor.dataset.previewSaveClickBound) {
+    editor.dataset.previewSaveClickBound = 'true';
+    editor.querySelector('button[type="submit"]')?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      editor.dispatchEvent(new doc.defaultView.Event('submit', { bubbles:true, cancelable:true }));
+    }, true);
+  }
   if (key === 'policies') {
     const documentInput = fieldsRoot.querySelector('input[name="policyDocument"]');
     const documentHelp = documentInput?.parentElement?.querySelector('small');
@@ -541,6 +606,19 @@ function openPreviewCollectionEditor(frame, key, record = null) {
     const colourField = fieldsRoot.querySelector('.admin-preview-colour-control')?.closest('label');
     fieldsRoot.insertBefore(upload, colourField || null);
   }
+  if (key === 'events') {
+    editor.querySelector('[data-preview-editor-title]').textContent = record ? `Edit ${record.title}` : 'Add event';
+    if (!record) {
+      const parts = new Intl.DateTimeFormat('en', { timeZone:'Africa/Cairo', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+      const part = type => parts.find(item => item.type === type)?.value;
+      fieldsRoot.querySelector('[name="date"]').value = doc.querySelector('#events-page-calendar-input')?.value || `${part('year')}-${part('month')}-${part('day')}`;
+    }
+    if (record?.source === 'google-calendar') {
+      const notice = doc.createElement('p'); notice.className = 'admin-preview-event-source-note';
+      notice.textContent = 'This event is synced from Google Calendar. Changes here may be replaced at the next sync; update the source calendar for lasting changes.';
+      fieldsRoot.prepend(notice);
+    }
+  }
   if (key === 'newMembers') editor.querySelector('[data-preview-editor-remove]').textContent = 'Delete colleague';
   // The preview iframe is expanded to the full employee page. A fixed editor would
   // stay at the iframe's top and disappear when a lower session is selected.
@@ -551,8 +629,174 @@ function openPreviewCollectionEditor(frame, key, record = null) {
   fitEmployeePagePreview(frame);
   window.scrollTo({ top:pageScrollY, behavior:'instant' });
 }
+function addPreviewChecklistAttachmentFields(frame, key, record = null) {
+  if (key !== 'firstWeekChecklist') return;
+  const doc = frame.contentDocument, fieldsRoot = doc?.querySelector('#admin-preview-collection-editor [data-preview-editor-fields]');
+  if (!doc || !fieldsRoot || fieldsRoot.querySelector('[data-preview-checklist-attachment]')) return;
+  const group = doc.createElement('fieldset'), legend = doc.createElement('legend'), gate = doc.createElement('label'), gateFallback = doc.createElement('input'), gateInput = doc.createElement('input'), videoGate = doc.createElement('label'), videoGateFallback = doc.createElement('input'), videoGateInput = doc.createElement('input'), adminPortalGate = doc.createElement('label'), adminPortalGateFallback = doc.createElement('input'), adminPortalGateInput = doc.createElement('input'), link = doc.createElement('label'), url = doc.createElement('input'), file = doc.createElement('label'), upload = doc.createElement('input'), help = doc.createElement('small');
+  group.dataset.previewChecklistAttachment = '';
+  gateFallback.name = 'requiresPolicyAcknowledgement';
+  gateFallback.type = 'hidden';
+  gateFallback.value = 'false';
+  gateInput.name = 'requiresPolicyAcknowledgement';
+  gateInput.type = 'checkbox';
+  gateInput.value = 'true';
+  gateInput.checked = record?.requiresPolicyAcknowledgement === true || record?.requiresPolicyAcknowledgement === 'true';
+  gate.append(gateFallback, gateInput, doc.createTextNode(' Require policy confirmation before this task can be completed'));
+  videoGateFallback.name = 'requiresSecurityAwarenessVideo';
+  videoGateFallback.type = 'hidden';
+  videoGateFallback.value = 'false';
+  videoGateInput.name = 'requiresSecurityAwarenessVideo';
+  videoGateInput.type = 'checkbox';
+  videoGateInput.value = 'true';
+  videoGateInput.checked = record?.requiresSecurityAwarenessVideo === true || record?.requiresSecurityAwarenessVideo === 'true';
+  videoGate.append(videoGateFallback, videoGateInput, doc.createTextNode(' Require one Security Awareness Training video before this task can be completed'));
+  adminPortalGateFallback.name = 'requiresAdminPortalTraining';
+  adminPortalGateFallback.type = 'hidden';
+  adminPortalGateFallback.value = 'false';
+  adminPortalGateInput.name = 'requiresAdminPortalTraining';
+  adminPortalGateInput.type = 'checkbox';
+  adminPortalGateInput.value = 'true';
+  adminPortalGateInput.checked = record?.requiresAdminPortalTraining === true || record?.requiresAdminPortalTraining === 'true';
+  adminPortalGate.append(adminPortalGateFallback, adminPortalGateInput, doc.createTextNode(' Require Company Portal Training before this task can be completed'));
+  legend.textContent = 'Attachment (optional)';
+  link.textContent = 'Attachment link';
+  url.name = 'attachmentUrl';
+  url.type = 'url';
+  url.value = record?.attachmentUrl || '';
+  url.placeholder = 'https://… or /uploaded-file';
+  link.append(url);
+  file.textContent = 'Upload attachment';
+  upload.name = 'checklistAttachment';
+  upload.type = 'file';
+  upload.accept = 'application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,image/png,image/jpeg,image/webp,image/gif';
+  help.textContent = record?.attachmentUrl ? 'Choose a replacement file, replace the link, or leave both blank to remove the attachment.' : 'Add a link or upload a file. Maximum 45 MB.';
+  file.append(upload, help);
+  group.append(legend, link, file);
+  fieldsRoot.append(gate, videoGate, adminPortalGate, group);
+}
+const baseOpenPreviewCollectionEditor = openPreviewCollectionEditor;
+openPreviewCollectionEditor = (frame, key, record = null) => {
+  baseOpenPreviewCollectionEditor(frame, key, record);
+  addPreviewChecklistAttachmentFields(frame, key, record);
+};
+async function savePreviewAppOrder(appId, targetIndex) {
+  const currentIndex = dashboard.apps.findIndex(app => app.id === appId);
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= dashboard.apps.length || currentIndex === targetIndex) return;
+  const reordered = [...dashboard.apps];
+  const [app] = reordered.splice(currentIndex, 1);
+  reordered.splice(targetIndex, 0, app);
+  dashboard.apps = reordered;
+  await saveDashboard(`Main Apps order updated: ${app.name} is now position ${targetIndex + 1}.`, true);
+}
+function enableAppPreviewOrdering(frame, cards, records) {
+  const doc = frame.contentDocument;
+  if (!doc || !cards.length) return;
+  if (!doc.querySelector('#admin-preview-app-order-style')) {
+    const style = doc.createElement('style');
+    style.id = 'admin-preview-app-order-style';
+    style.textContent = '.app-directory-card[data-admin-preview-record]{position:relative;cursor:grab}.app-directory-card[data-admin-app-dragging="true"]{opacity:.42;transform:scale(.985)}.app-directory-card[data-admin-app-drop-target="true"]{outline:3px solid #0b7aa7;outline-offset:4px}.admin-preview-app-order{position:absolute;z-index:3;right:13px;bottom:12px;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #b8cde5;border-radius:8px;background:#fff;color:#35577d;font:800 10px Manrope,Arial,sans-serif}.admin-preview-app-order span{padding-inline:4px}.admin-preview-app-order button{display:grid;width:25px;height:25px;place-items:center;border:0;border-radius:5px;background:#edf5ff;color:#1458b6;cursor:pointer}.admin-preview-app-order button:hover{background:#dcecff}.admin-preview-app-order button:focus-visible{outline:2px solid #0b7aa7;outline-offset:2px}.admin-preview-app-order button:disabled{opacity:.42;cursor:not-allowed}.admin-preview-app-order svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:2}';
+    doc.head.append(style);
+  }
+  let draggedId = '';
+  const clearDropTargets = () => cards.forEach(card => { card.removeAttribute('data-admin-app-drop-target'); card.removeAttribute('data-admin-app-dragging'); });
+  cards.forEach((card, index) => {
+    const record = records[index];
+    if (!record || card.dataset.adminAppOrderBound) return;
+    card.dataset.adminAppOrderBound = 'true';
+    card.draggable = true;
+    const controls = doc.createElement('div');
+    controls.className = 'admin-preview-app-order';
+    controls.dataset.adminAppOrder = '';
+    controls.setAttribute('aria-label', `Move ${record.name}`);
+    controls.innerHTML = `<span>Move</span><button type="button" data-move-app="earlier" aria-label="Move ${escapeHtml(record.name)} earlier" ${index === 0 ? 'disabled' : ''}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M13 8H4M7.5 3.5 3 8l4.5 4.5"/></svg></button><button type="button" data-move-app="later" aria-label="Move ${escapeHtml(record.name)} later" ${index === records.length - 1 ? 'disabled' : ''}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg></button>`;
+    controls.addEventListener('click', async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.target.closest('[data-move-app]')?.dataset.moveApp;
+      if (!direction) return;
+      const from = dashboard.apps.findIndex(app => app.id === record.id);
+      try { await savePreviewAppOrder(record.id, from + (direction === 'earlier' ? -1 : 1)); }
+      catch (error) { flash(error.message || 'The app order could not be updated.'); }
+    }, true);
+    card.append(controls);
+    card.addEventListener('dragstart', event => {
+      if (event.target.closest('[data-admin-app-order]')) { event.preventDefault(); return; }
+      draggedId = record.id;
+      card.dataset.adminAppDragging = 'true';
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', record.id);
+    });
+    card.addEventListener('dragover', event => {
+      if (!draggedId || draggedId === record.id) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      card.dataset.adminAppDropTarget = 'true';
+    });
+    card.addEventListener('dragleave', () => card.removeAttribute('data-admin-app-drop-target'));
+    card.addEventListener('dragend', clearDropTargets);
+    card.addEventListener('drop', async event => {
+      event.preventDefault();
+      const sourceId = draggedId || event.dataTransfer.getData('text/plain');
+      clearDropTargets();
+      if (!sourceId || sourceId === record.id) return;
+      try { await savePreviewAppOrder(sourceId, dashboard.apps.findIndex(app => app.id === record.id)); }
+      catch (error) { flash(error.message || 'The app order could not be updated.'); }
+    });
+  });
+}
+let eventsPreviewSelectedDate = '';
+function enableEventsPreviewEditing(frame, attempts = 0) {
+  const doc = frame.contentDocument, root = doc?.querySelector('#destination-root');
+  if (!root || root.dataset.dashboardReady !== 'true') {
+    if (attempts < 20) window.setTimeout(() => enableEventsPreviewEditing(frame, attempts + 1), 180);
+    return;
+  }
+  if (doc.documentElement.dataset.adminEventsPreviewReady) return;
+  doc.documentElement.dataset.adminEventsPreviewReady = 'true';
+  const style = doc.createElement('style');
+  style.textContent = '[data-admin-events-copy]{outline:2px dashed transparent;outline-offset:5px;cursor:text;transition:outline-color .16s ease,background-color .16s ease}[data-admin-events-copy]:hover,[data-admin-events-copy]:focus-visible{outline-color:#0b7aa7;background:rgb(204 244 248 / 38%)}.admin-preview-events-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.admin-preview-events-actions button{border:1px solid #1458b6;border-radius:7px;padding:9px 13px;background:#1458b6;color:#fff;font:800 12px Manrope,Arial,sans-serif;cursor:pointer}.admin-preview-events-actions button+button{background:#fff;color:#1458b6}.admin-preview-events-actions button:hover{filter:brightness(.92)}.admin-preview-events-actions button:focus-visible{outline:3px solid #0b7aa7;outline-offset:3px}.admin-preview-event-source-note{margin:0 0 10px;padding:9px;border-radius:7px;background:#fff5e8;color:#72420a;font-size:11px;line-height:1.5}';
+  doc.head.append(style);
+  const form = $('#events-page-copy-form');
+  [['title','.destination-intro h1'],['intro','.destination-intro p']].forEach(([name, selector]) => {
+    const element = doc.querySelector(selector), input = form?.elements.namedItem(name);
+    if (!element || !input) return;
+    element.contentEditable = 'true'; element.tabIndex = 0; element.dataset.adminEventsCopy = name;
+    element.setAttribute('role', 'textbox'); element.setAttribute('aria-label', `Edit events page ${name === 'title' ? 'heading' : 'description'}`);
+    element.title = 'Click to edit this page text';
+    element.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); });
+    element.addEventListener('input', () => { input.value = element.innerText.replace(/\s+/g, ' ').trim(); fitEmployeePagePreview(frame); });
+  });
+  const actions = doc.createElement('div'); actions.className = 'admin-preview-events-actions';
+  actions.innerHTML = '<button type="button" data-admin-add-event>Add event</button><button type="button" data-admin-save-events-copy>Save page text</button>';
+  doc.querySelector('.destination-intro')?.append(actions);
+  actions.querySelector('[data-admin-add-event]').addEventListener('click', () => openPreviewCollectionEditor(frame, 'events'));
+  actions.querySelector('[data-admin-save-events-copy]').addEventListener('click', () => form?.requestSubmit());
+  const list = doc.querySelector('#events-page-list');
+  const picker = doc.querySelector('#events-page-calendar-input');
+  if (picker && eventsPreviewSelectedDate) { picker.value = eventsPreviewSelectedDate; picker.dispatchEvent(new doc.defaultView.Event('change', { bubbles:true })); }
+  const bindCards = () => {
+    if (picker?.value) eventsPreviewSelectedDate = picker.value;
+    list?.querySelectorAll('.event-page-open').forEach(card => {
+      if (card.dataset.adminPreviewRecord) return;
+      const record = (dashboard.events || []).find(item => String(item.id) === card.dataset.eventId);
+      if (!record) return;
+      card.dataset.adminPreviewRecord = record.id;
+      card.title = `Edit ${record.title}`;
+      card.setAttribute('aria-label', `Edit ${record.title}`);
+      const open = event => { event.preventDefault(); event.stopImmediatePropagation(); openPreviewCollectionEditor(frame, 'events', record); };
+      card.addEventListener('click', open, true);
+      card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') open(event); }, true);
+    });
+    fitEmployeePagePreview(frame);
+  };
+  bindCards();
+  frame._eventsPreviewObserver?.disconnect();
+  if (list) { frame._eventsPreviewObserver = new MutationObserver(bindCards); frame._eventsPreviewObserver.observe(list, { childList:true, subtree:true }); }
+}
 function enableCollectionPreviewEditing(frame, key, attempts = 0) {
   const target = previewCollectionTargets[key]; if (!target || frame.dataset.previewBase !== target.base) return;
+  if (key === 'events') return enableEventsPreviewEditing(frame, attempts);
   try {
     const doc = frame.contentDocument, records = target.records(dashboard[key] || []), cards = [...(doc?.querySelectorAll(target.selector) || [])];
     if (!doc || (key !== 'newMembers' && cards.length < records.length)) { if (attempts < 12) window.setTimeout(() => enableCollectionPreviewEditing(frame, key, attempts + 1), 180); return; }
@@ -560,8 +804,30 @@ function enableCollectionPreviewEditing(frame, key, attempts = 0) {
       doc.documentElement.dataset.adminMemberSearchBound = 'true';
       doc.addEventListener('recently-joined:rendered', () => enableCollectionPreviewEditing(frame, key));
     }
+    if (key === 'firstWeekChecklist' && !doc.querySelector('[data-admin-add-checklist-task]')) {
+      const addTask = doc.createElement('button');
+      addTask.type = 'button';
+      addTask.className = 'admin-preview-add-checklist-task';
+      addTask.dataset.adminAddChecklistTask = '';
+      addTask.textContent = 'Add checklist task';
+      addTask.addEventListener('click', () => openPreviewCollectionEditor(frame, key));
+      doc.querySelector('#first-week-checklist')?.insertAdjacentElement('afterend', addTask);
+    }
+    if (key === 'firstWeekChecklist' && !doc.documentElement.dataset.adminChecklistEditorBound) {
+      doc.documentElement.dataset.adminChecklistEditorBound = 'true';
+      doc.addEventListener('click', event => {
+        const card = event.target.closest('#first-week-checklist > li[data-admin-preview-record]');
+        if (!card) return;
+        const record = (dashboard.firstWeekChecklist || []).find(item => String(item.id) === card.dataset.adminPreviewRecord);
+        if (!record) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openPreviewCollectionEditor(frame, 'firstWeekChecklist', record);
+      }, true);
+    }
     if (!doc.querySelector('#admin-preview-collection-style')) { const style = doc.createElement('style'); style.id = 'admin-preview-collection-style'; style.textContent = '[data-admin-preview-record]{outline:2px dashed transparent;outline-offset:5px;cursor:pointer;transition:outline-color .16s ease,background .16s ease}[data-admin-preview-record]:hover,[data-admin-preview-record]:focus-visible{outline-color:#0b7aa7;background:#f4fbff}.admin-preview-collection-editor{position:fixed;z-index:2147483647;right:20px;top:20px;width:min(390px,calc(100vw - 40px));max-height:calc(100vh - 40px);overflow:auto;padding:17px;border:1px solid #b8cde5;border-radius:13px;background:#fff;box-shadow:0 18px 34px rgb(19 56 97 / 18%);font-family:inherit}.admin-preview-collection-editor[hidden]{display:none}.admin-preview-collection-editor-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px;color:#102c52}.admin-preview-collection-editor-head b{font-size:15px}.admin-preview-collection-editor-head button{border:0;background:transparent;color:#145ea9;font:800 12px inherit;cursor:pointer}.admin-preview-collection-editor label{display:grid;gap:5px;margin:9px 0;color:#35577d;font-size:12px;font-weight:800}.admin-preview-collection-editor input,.admin-preview-collection-editor textarea{box-sizing:border-box;width:100%;border:1px solid #a8c2df;border-radius:7px;padding:9px 10px;color:#102c52;font:600 13px inherit}.admin-preview-collection-editor textarea{resize:vertical}.admin-preview-collection-editor input:focus,.admin-preview-collection-editor textarea:focus{outline:3px solid rgb(10 120 167 / 24%);border-color:#0b7aa7}.admin-preview-icon-current{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid #d7e4f2;border-radius:8px;background:#f8fbff;color:#45698e;font-size:11px}.admin-preview-icon-current img{width:30px;height:30px;border-radius:7px;object-fit:cover}.admin-preview-colour-control{display:grid;grid-template-columns:48px 1fr;gap:8px}.admin-preview-collection-editor .admin-preview-colour-control input[type="color"]{width:48px;min-height:39px;padding:3px;cursor:pointer}.admin-preview-colour-palette{display:flex;flex-wrap:wrap;gap:7px}.admin-preview-colour-palette button{width:22px;height:22px;border:1px solid #9eb8d5;border-radius:50%;cursor:pointer}.admin-preview-colour-palette button:focus-visible{outline:3px solid rgb(10 120 167 / 28%);outline-offset:2px}.admin-preview-collection-editor-actions{display:flex;justify-content:space-between;gap:10px;margin-top:14px}.admin-preview-collection-editor-actions button{border:1px solid #b8cde5;border-radius:7px;background:#fff;color:#a4263d;padding:8px 10px;font:800 12px inherit;cursor:pointer}.admin-preview-collection-editor-actions button[type="submit"]{margin-left:auto;border-color:#145ea9;background:#145ea9;color:#fff}.admin-preview-collection-editor [data-preview-editor-status]{min-height:1.2em;margin:8px 0 0;color:#a4263d;font-size:12px;font-weight:700}'; doc.head.append(style); }
-    cards.slice(0, records.length).forEach((card, index) => { const record = key === 'newMembers' ? records.find(item => String(item.id) === card.dataset.memberId) : records[index]; if (!record || card.dataset.adminPreviewRecord) return; card.dataset.adminPreviewRecord = record.id; card.tabIndex ||= 0; card.title = `Edit ${recordLabel(key, record)}`; card.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openPreviewCollectionEditor(frame, key, record); }); });
+    cards.slice(0, records.length).forEach((card, index) => { const record = key === 'newMembers' ? records.find(item => String(item.id) === card.dataset.memberId) : records[index]; if (!record || card.dataset.adminPreviewRecord) return; card.dataset.adminPreviewRecord = record.id; card.tabIndex ||= 0; card.title = `Edit ${recordLabel(key, record)}`; card.addEventListener('click', event => { if (event.target.closest('[data-admin-app-order]')) return; event.preventDefault(); event.stopImmediatePropagation(); openPreviewCollectionEditor(frame, key, record); }, true); card.addEventListener('keydown', event => { if (event.target.closest('[data-admin-app-order]')) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopImmediatePropagation(); openPreviewCollectionEditor(frame, key, record); } }, true); });
+    if (key === 'apps') enableAppPreviewOrdering(frame, cards.slice(0, records.length), records);
   } catch (_) {}
 }
 const newSiPageCopyTargets = [
@@ -573,7 +839,7 @@ const newSiPageCopyTargets = [
   'helpTitle','helpText','itTitle','itIntro','itPortalLabel','itContactIntro','itEmailLabel',
   'peopleTitle','peopleIntro','peopleMohrLabel','peopleMiddle','peoplePortalLabel','peopleContactIntro','peopleEmailLabel',
   'administrationTitle','administrationIntro','administrationPortalLabel','administrationOutro',
-  'financeTitle','financeIntro','financePortalLabel','financeOutro','portalsTitle','portalsText','footerLeft','footerRight',
+  'financeTitle','financeIntro','financePortalLabel','financeOutro','portalsTitle','portalsText',
   'welcomeThanks','welcomeRecorded','welcomeBody','welcomeAction'
 ];
 function enableNewSiPageCopyEditing(frame, attempts = 0) {
@@ -649,7 +915,7 @@ function enableNewSiAcknowledgementPreviewEditing(frame, attempts = 0) {
 }
 const newSiPreviewGroups = {
   checklist:{ section:'#first-week', action:'Edit checklist messages', title:'Checklist messages', fields:[['checklistCompleteTitle','Completion heading'],['checklistCompleteText','Completion description'],['checklistEmptyText','Before any task is complete'],['checklistInProgressText','While tasks remain'],['checklistNextStepText','Next-step hint'],['checklistReopenText','All-done hint'],['heroCompleteText','Hero completion message']] },
-  training:{ section:'#training', action:'Edit video links', title:'Training video links', fields:[['securityEnglishUrl','Security Awareness — English URL'],['securityArabicUrl','Security Awareness — Arabic URL'],['adminPortalTrainingUrl','Admin Portal Training URL']] },
+  training:{ section:'#training', action:'Edit video links', title:'Training video links', fields:[['securityEnglishUrl','Security Awareness — English URL'],['securityArabicUrl','Security Awareness — Arabic URL'],['adminPortalTrainingUrl','Company Portal Training URL']] },
   policy:{ section:'#policies', action:'Edit policy & welcome messages', title:'Policy & welcome messages', fields:[['actionTitle','Action heading','ack'],['instructionText','Instruction','ack'],['beforeHeading','Context heading','ack'],['beforeText','Context text','ack'],['confirmationLabel','Confirmation statement','ack'],['confirmationHelp','Confirmation help','ack'],['acceptedTitle','Success heading','ack'],['afterText','Success text','ack'],['welcomeThanks','Welcome heading'],['welcomeRecorded','Confirmation message'],['welcomeBody','Welcome message'],['welcomeAction','Continue button']] }
 };
 const newSiAcknowledgementPreviewSelectors = { actionTitle:'.policy-acknowledgement-head:not(.policy-acknowledgement-head--accepted) h3', instructionText:'.policy-acknowledgement-head:not(.policy-acknowledgement-head--accepted) p', beforeHeading:'.policy-acknowledgement-notice b', beforeText:'.policy-acknowledgement-notice p', confirmationLabel:'[data-confirm-policy]', confirmationHelp:'.policy-acknowledgement-actions small', acceptedTitle:'.policy-acknowledgement-head--accepted h3', afterText:'.policy-acknowledgement-head--accepted .policy-acknowledged' };
@@ -733,7 +999,7 @@ function enableHomePreviewEditing(frame, attempts = 0) {
     if (attempts < 3) window.setTimeout(() => enableHomePreviewEditing(frame, attempts + 1), 220);
   } catch (_) {}
 }
-document.addEventListener('load', event => { const frame = event.target; if (frame instanceof HTMLIFrameElement && frame.matches('[data-preview-auto-height]')) { focusEmployeePagePreview(frame); fitEmployeePagePreview(frame); enableHomePreviewEditing(frame); enableWhistleblowerPreviewEditing(frame); enableMomentsPageCopyEditing(frame); enableKnowledgePageCopyEditing(frame); enableRecentlyJoinedPageCopyEditing(frame); enableSocialPreviewEditing(frame); enableNewSiPageCopyEditing(frame); enableNewSiPreviewTools(frame); frame.contentDocument?.addEventListener('first-week-checklist:rendered', () => enableNewSiPageCopyEditing(frame)); frame.contentDocument?.addEventListener('policy-acknowledgement:rendered', () => enableNewSiAcknowledgementPreviewEditing(frame)); enableNewSiAcknowledgementPreviewEditing(frame); Object.keys(previewCollectionTargets).forEach(key => enableCollectionPreviewEditing(frame, key)); } }, true);
+document.addEventListener('load', event => { const frame = event.target; if (frame instanceof HTMLIFrameElement && frame.matches('[data-preview-auto-height]')) { focusEmployeePagePreview(frame); fitEmployeePagePreview(frame); enableHomePreviewEditing(frame); enableWhistleblowerPreviewEditing(frame); enableMomentsPageCopyEditing(frame); enableKnowledgePageCopyEditing(frame); enableRecentlyJoinedPageCopyEditing(frame); enableSocialCardPreviewEditing(frame); enableNewSiPageCopyEditing(frame); enableNewSiPreviewTools(frame); frame.contentDocument?.addEventListener('first-week-checklist:rendered', () => enableNewSiPageCopyEditing(frame)); frame.contentDocument?.addEventListener('policy-acknowledgement:rendered', () => enableNewSiAcknowledgementPreviewEditing(frame)); enableNewSiAcknowledgementPreviewEditing(frame); Object.keys(previewCollectionTargets).forEach(key => enableCollectionPreviewEditing(frame, key)); } }, true);
 const socialCardDefaults = links => [
   { id:'linkedin', title:'LinkedIn', url:links.linkedinUrl || 'https://www.linkedin.com/company/si-ware-systems/?locale=en_US', icon:'linkedin', actionLabel:'Visit channel' },
   { id:'facebook', title:'Facebook', url:links.facebookUrl || 'https://www.facebook.com/SiWareSystems/', icon:'facebook', actionLabel:'Visit channel' },
@@ -741,7 +1007,66 @@ const socialCardDefaults = links => [
   { id:'website', title:'Si-Ware website', url:links.websiteUrl || 'https://www.si-ware.com', icon:'website', actionLabel:'Visit website' }
 ];
 function socialCards() { const links = dashboard.socialLinks || {}; return Array.isArray(links.cards) && links.cards.length ? links.cards : socialCardDefaults(links); }
+function enableSocialCardPreviewEditing(frame, attempts = 0) {
+  if (frame.dataset.previewBase !== '/social-media.html') return;
+  try {
+    const doc = frame.contentDocument, cards = [...(doc?.querySelectorAll('.social-link') || [])];
+    if (!doc || !cards.length) { if (attempts < 12) window.setTimeout(() => enableSocialCardPreviewEditing(frame, attempts + 1), 180); return; }
+    if (doc.querySelector('#admin-preview-social-card-style')) return;
+    const style = doc.createElement('style');
+    style.id = 'admin-preview-social-card-style';
+    style.textContent = '.social-link[data-admin-preview-social-card]{outline:2px dashed transparent;outline-offset:5px;cursor:pointer}.social-link[data-admin-preview-social-card]:hover,.social-link[data-admin-preview-social-card]:focus-visible{outline-color:#0b7aa7;background:#f5fbff}.admin-preview-social-card-editor{position:fixed;z-index:2147483647;box-sizing:border-box;width:min(356px,calc(100vw - 32px));padding:16px;border:1px solid #b8cde5;border-radius:12px;background:#fff;box-shadow:0 16px 32px rgb(19 56 97 / 18%);color:#102c52;font-family:inherit}.admin-preview-social-card-editor[hidden]{display:none}.admin-preview-social-card-editor header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.admin-preview-social-card-editor h2{margin:0;color:#173a78;font-size:15px;line-height:1.3}.admin-preview-social-card-editor label{display:grid;gap:6px;margin-top:11px;color:#193f6f;font-size:12px;font-weight:800}.admin-preview-social-card-editor input{width:100%;box-sizing:border-box;border:1px solid #99b9dc;border-radius:7px;padding:9px 10px;color:#102c52;font:600 12px inherit}.admin-preview-social-card-editor input:focus{outline:3px solid rgb(10 120 167 / 24%);border-color:#0b7aa7}.admin-preview-social-card-editor small{color:#526a87;font-size:10px;font-weight:600;line-height:1.45}.admin-preview-social-card-editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}.admin-preview-social-card-editor button{border:1px solid #b8cde5;border-radius:7px;background:#fff;color:#154f91;padding:8px 10px;font:800 11px inherit;cursor:pointer}.admin-preview-social-card-editor button[type="submit"]{border-color:#145ea9;background:#145ea9;color:#fff}.admin-preview-social-card-editor [data-social-editor-status]{min-height:16px;margin:10px 0 0;color:#b42318;font-size:11px;font-weight:700}';
+    doc.head.append(style);
+    const editor = doc.createElement('form');
+    editor.id = 'admin-preview-social-card-editor'; editor.className = 'admin-preview-social-card-editor'; editor.hidden = true; editor.noValidate = true;
+    editor.innerHTML = '<header><h2 data-social-editor-title>Edit channel</h2><button type="button" data-social-editor-close>Close</button></header><label>Channel link<input name="url" type="url" required maxlength="500" placeholder="https://…" /></label><label>Upload icon <input name="iconFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><small data-social-editor-icon-note>Leave empty to keep the current icon.</small></label><p data-social-editor-status role="status"></p><div class="admin-preview-social-card-editor-actions"><button type="button" data-social-editor-cancel>Cancel</button><button type="submit">Save changes</button></div>';
+    doc.body.append(editor);
+    let activeId = '', activeCard = null;
+    const close = () => { editor.hidden = true; activeCard?.removeAttribute('data-admin-preview-social-editing'); activeCard = null; activeId = ''; };
+    const open = (card, record) => {
+      activeCard?.removeAttribute('data-admin-preview-social-editing'); activeCard = card; activeId = record.id; card.dataset.adminPreviewSocialEditing = 'true';
+      editor.querySelector('[data-social-editor-title]').textContent = `Edit ${record.title}`;
+      editor.querySelector('[name="url"]').value = record.url || '';
+      editor.querySelector('[name="iconFile"]').value = '';
+      editor.querySelector('[data-social-editor-icon-note]').textContent = record.iconUrl ? 'A custom icon is in use. Upload another image to replace it.' : 'Leave empty to keep the current standard icon.';
+      editor.querySelector('[data-social-editor-status]').textContent = '';
+      editor.hidden = false;
+      const rect = card.getBoundingClientRect(), view = doc.defaultView || window, editorWidth = Math.min(356, Math.max(0, view.innerWidth - 32));
+      editor.style.left = `${Math.max(16, Math.min(rect.left + 12, view.innerWidth - editorWidth - 16))}px`; editor.style.top = `${Math.max(16, Math.min(rect.top + 12, view.innerHeight - 290))}px`;
+      editor.querySelector('[name="url"]').focus();
+    };
+    const records = socialCards();
+    cards.forEach((card, index) => {
+      const record = records[index]; if (!record) return;
+      card.dataset.adminPreviewSocialCard = record.id; card.tabIndex = 0; card.title = `Edit ${record.title}`;
+      const activate = event => { event.preventDefault(); event.stopPropagation(); open(card, record); };
+      card.addEventListener('click', activate);
+      card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') activate(event); });
+    });
+    editor.addEventListener('submit', async event => {
+      event.preventDefault(); const urlInput = editor.querySelector('[name="url"]'), fileInput = editor.querySelector('[name="iconFile"]'), status = editor.querySelector('[data-social-editor-status]');
+      const url = urlInput.value.trim();
+      try { const parsed = new URL(url); if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(); } catch { status.textContent = 'Enter a complete HTTPS or HTTP channel link.'; urlInput.focus(); return; }
+      const record = socialCards().find(item => item.id === activeId); if (!record) { close(); return; }
+      const submit = editor.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = 'Saving…'; status.textContent = '';
+      try {
+        const file = fileInput.files?.[0], iconUrl = file ? await uploadAppIcon(file) : '';
+        const next = socialCards().map(item => item.id === record.id ? { ...item, url, ...(iconUrl ? { iconUrl } : {}) } : item);
+        dashboard.socialLinks = { ...(dashboard.socialLinks || {}), cards:next };
+        await saveDashboard(`${record.title} updated and published.`, true);
+        close(); frame.src = frame.src;
+      } catch (error) { status.textContent = error?.message || 'The channel could not be saved. Please try again.'; }
+      finally { submit.disabled = false; submit.textContent = 'Save changes'; }
+    });
+    editor.querySelectorAll('[data-social-editor-close],[data-social-editor-cancel]').forEach(button => button.addEventListener('click', close));
+    doc.addEventListener('click', event => { if (!editor.hidden && !editor.contains(event.target)) close(); });
+    doc.addEventListener('keydown', event => { if (event.key === 'Escape' && !editor.hidden) { event.preventDefault(); close(); } });
+  } catch (_) {}
+}
 function renderSocial() {
+  const root = $('#view-social');
+  root.innerHTML = `<p class="view-intro">Select a channel in the employee-page preview to update its approved link or upload a replacement icon. Changes save and publish immediately.</p>${employeePagePreview('Social Media', '/social-media.html')}`;
+  return;
   const cards = socialCards(), selected = cards.find(card => card.id === editingRecord.socialCard);
   $('#view-social').innerHTML = `<p class="view-intro">Maintain the official destinations shown on the employee Social Media page. Add a channel when a new approved destination is ready, then save to publish it.</p><article class="panel"><div class="collection-heading"><div><h2>Official channels</h2><p>Use complete HTTPS addresses and a familiar icon so every employee can recognise the approved destination.</p></div><a class="action-button secondary" href="/social-media.html" target="_blank" rel="noopener">View employee page ↗</a></div><div class="collection-layout"><div class="list">${cards.map(card => `<div class="list-row"><span><b>${escapeHtml(card.title)}</b><small>${escapeHtml(card.url)}</small></span><div class="row-actions"><button class="tool-button" type="button" data-edit-social-card="${escapeHtml(card.id)}">Edit</button></div></div>`).join('') || '<p class="empty">No social media cards yet.</p>'}</div><form id="social-links-form" class="inline-editor"><h3>${selected ? `Edit ${escapeHtml(selected.title)}` : 'Add social media card'}</h3><label>Card title<input name="title" required maxlength="60" value="${escapeHtml(selected?.title || '')}" placeholder="e.g. Instagram" /></label><label>Channel URL<input name="url" type="url" required maxlength="500" value="${escapeHtml(selected?.url || '')}" placeholder="https://…" /></label><label>Icon<select name="icon"><option value="linkedin" ${selected?.icon === 'linkedin' ? 'selected' : ''}>LinkedIn</option><option value="facebook" ${selected?.icon === 'facebook' ? 'selected' : ''}>Facebook</option><option value="youtube" ${selected?.icon === 'youtube' ? 'selected' : ''}>YouTube</option><option value="website" ${selected?.icon === 'website' ? 'selected' : ''}>Website</option><option value="instagram" ${selected?.icon === 'instagram' ? 'selected' : ''}>Instagram</option><option value="x" ${selected?.icon === 'x' ? 'selected' : ''}>X</option><option value="generic" ${selected?.icon === 'generic' ? 'selected' : ''}>Generic link</option></select></label><label>Link label<input name="actionLabel" required maxlength="40" value="${escapeHtml(selected?.actionLabel || 'Visit channel')}" placeholder="Visit channel" /></label>${selected ? '<label class="social-remove-confirmation">Type DELETE to remove this card<input name="deleteConfirmation" autocomplete="off" spellcheck="false" /></label>' : ''}<p class="form-status" role="status"></p><div class="form-actions"><button class="action-button danger" type="button" data-remove-social-card ${selected ? 'disabled' : 'hidden'}>Remove</button><button class="action-button primary">${selected ? 'Save changes' : 'Add card'}</button></div></form></div></article>`;
   const form = $('#social-links-form');
@@ -754,7 +1079,7 @@ function renderSocial() {
 }
 function renderWhistleblower() {
   const config = dashboard.whistleblowerConfig || {};
-  $('#view-whistleblower').innerHTML = `<p class="view-intro">Maintain the employee guidance and approved reporting destination. This area never displays, exports, or changes confidential reports.</p><article class="panel"><div class="collection-heading"><div><h2>Employee Voice guidance</h2><p>Keep this content clear and review it with the appropriate policy owner before publishing.</p></div><a class="action-button secondary" href="/whistleblower.html" target="_blank" rel="noopener">View employee page ↗</a></div><form id="whistleblower-config-form" class="settings-form"><div class="form-grid"><label>Page title<input name="heroTitle" required maxlength="120" value="${escapeHtml(config.heroTitle || '')}" /></label><label>Safety note title<input name="safetyTitle" required maxlength="120" value="${escapeHtml(config.safetyTitle || '')}" /></label><label class="form-grid-full">Introduction<textarea name="heroText" required rows="4" maxlength="1200">${escapeHtml(config.heroText || '')}</textarea></label><label class="form-grid-full">Safety note<textarea name="safetyText" required rows="3" maxlength="800">${escapeHtml(config.safetyText || '')}</textarea></label><label class="form-grid-full">Employee Voice destination URL<input name="voiceUrl" type="url" required value="${escapeHtml(config.voiceUrl || '')}" placeholder="https://…" /><small>This is the protected route opened when an employee starts a confidential report.</small></label></div><p class="notice">Submitted reports remain outside Administration and are never available here.</p><div class="form-actions"><button class="action-button primary">Save guidance</button></div></form></article>`;
+  $('#view-whistleblower').innerHTML = `<p class="view-intro">Maintain the employee guidance and approved reporting destination. This area never displays, exports, or changes confidential reports.</p><article class="panel"><div class="collection-heading"><div><h2>Employee Voice guidance</h2><p>Keep this content clear and review it with the appropriate policy owner before publishing.</p></div><a class="action-button secondary" href="/whistleblower.html" target="_blank" rel="noopener">View employee page ↗</a></div><form id="whistleblower-config-form" class="settings-form"><div class="form-grid"><label>Page title<input name="heroTitle" required maxlength="120" value="${escapeHtml(config.heroTitle || '')}" /></label><label>Safety note title<input name="safetyTitle" required maxlength="120" value="${escapeHtml(config.safetyTitle || '')}" /></label><label class="form-grid-full">Introduction<textarea name="heroText" required rows="4" maxlength="1200">${escapeHtml(config.heroText || '')}</textarea></label><label class="form-grid-full">Safety note<textarea name="safetyText" required rows="3" maxlength="800">${escapeHtml(config.safetyText || '')}</textarea></label><label class="form-grid-full">Employee Voice destination<input name="voiceUrl" type="text" required maxlength="500" value="${escapeHtml(config.voiceUrl || '')}" placeholder="/employee-voice.html or https://…" /><small>Use an intranet HTML path or an approved HTTPS route. This opens when an employee starts a confidential report.</small></label></div><p class="notice">Submitted reports remain outside Administration and are never available here.</p><div class="form-actions"><button class="action-button primary">Save guidance</button></div></form></article>`;
   const editor = $('#whistleblower-config-form').closest('.panel'), workspace = document.createElement('div');
   workspace.className = 'admin-editor-preview-layout'; editor.before(workspace); workspace.append(editor); editor.hidden = true; workspace.insertAdjacentHTML('beforeend', employeePagePreview('Whistleblower', '/whistleblower.html', [], 'whistleblower-config-form'));
   const voiceLabel = $('#whistleblower-config-form [name="voiceUrl"]')?.closest('label'); if (voiceLabel?.firstChild) voiceLabel.firstChild.textContent = 'Employee Voice URL';
@@ -796,11 +1121,25 @@ function mountPreviewOnlyCollection(root, key, title, href) {
       const tooLong = Object.entries(values).find(([, value]) => String(value).length > 400);
       if (tooLong) { flash('Keep each text area under 400 characters.'); return; }
       dashboard.recentlyJoinedPageContent = values;
-      saveDashboard('Recently Joined page text saved and published.');
+      saveDashboard('Our Team page text saved and published.');
     });
     workspace.append(form);
   }
-  const saveFormId = key === 'moments' ? 'moments-page-copy-form' : key === 'sessions' ? 'knowledge-page-copy-form' : key === 'newMembers' ? 'recently-joined-page-copy-form' : '';
+  if (key === 'events') {
+    const copy = dashboard.eventsPageContent || {}, form = document.createElement('form');
+    form.id = 'events-page-copy-form'; form.hidden = true;
+    form.innerHTML = `<input type="hidden" name="title" value="${escapeHtml(copy.title || 'Events & key dates')}" /><input type="hidden" name="intro" value="${escapeHtml(copy.intro || 'Important dates, sessions and company moments to plan around.')}" />`;
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(form));
+      if (!values.title.trim() || !values.intro.trim()) { flash('The Events heading and description cannot be empty.'); return; }
+      if (values.title.length > 120 || values.intro.length > 300) { flash('Keep the heading under 120 characters and the description under 300.'); return; }
+      dashboard.eventsPageContent = values;
+      await saveDashboard('Events page text saved and published.');
+    });
+    workspace.append(form);
+  }
+  const saveFormId = key === 'moments' ? 'moments-page-copy-form' : key === 'sessions' ? 'knowledge-page-copy-form' : key === 'events' ? 'events-page-copy-form' : key === 'newMembers' ? 'recently-joined-page-copy-form' : '';
   workspace.insertAdjacentHTML('beforeend', employeePagePreview(title, href, [], saveFormId, [key]));
   editor.querySelector('.collection-actions')?.remove();
   if (key === 'sessions') {
@@ -841,7 +1180,7 @@ function renderContentPage(view) {
   if (page.key === 'sessions') enhanceKnowledgeSessionEditor(root);
   if (page.key === 'moments') enhanceMomentEditor(root);
   if (page.key === 'newMembers') enhancePersonEditor(root);
-  const previewPages = { apps:['Quick Launch apps','/apps.html'], moments:['Moments','/moments.html'], sessions:['Knowledge Hub','/knowledge-hub.html'], newMembers:['Recently Joined','/recently-joined.html'] };
+  const previewPages = { apps:['Quick Launch apps','/apps.html'], moments:['Moments','/moments.html'], sessions:['Knowledge Hub','/knowledge-hub.html'], events:['Events & key dates','/events.html'], newMembers:['Our Team','/recently-joined.html'] };
   if (previewPages[page.key]) mountPreviewOnlyCollection(root, page.key, ...previewPages[page.key]);
 }
 function knowledgeResourceField(label, urlName, fileName, url, filename, accept, help) {
@@ -937,20 +1276,20 @@ function safeLinkedInUrl(value) { const raw = String(value || '').trim(); if (!r
 async function saveMember(event, form) {
   event.preventDefault();
   const formData = new FormData(form), existing = editingRecord.newMembers && dashboard.newMembers.find(item => item.id === editingRecord.newMembers), status = form.querySelector('.member-editor-status'), button = form.querySelector('.action-button.primary');
-  const name = String(formData.get('name') || '').trim(), role = String(formData.get('role') || '').trim(), employmentType = String(formData.get('employmentType') || '').trim(), department = String(formData.get('department') || '').trim(), division = String(formData.get('division') || '').trim(), directManager = String(formData.get('directManager') || '').trim(), joined = String(formData.get('joined') || '').trim(), companyEmail = String(formData.get('companyEmail') || '').trim(), phone = String(formData.get('phone') || '').trim(), linkedinUrl = safeLinkedInUrl(formData.get('linkedinUrl')), photo = formData.get('memberPhoto');
+  const name = String(formData.get('name') || '').trim(), role = String(formData.get('role') || '').trim(), employmentType = String(formData.get('employmentType') || '').trim(), department = String(formData.get('department') || '').trim(), division = String(formData.get('division') || '').trim(), directManager = String(formData.get('directManager') || '').trim(), employeeId = String(formData.get('employeeId') || '').trim(), joined = String(formData.get('joined') || '').trim(), companyEmail = String(formData.get('companyEmail') || '').trim(), phone = String(formData.get('phone') || '').trim(), linkedinUrl = safeLinkedInUrl(formData.get('linkedinUrl')), photo = formData.get('memberPhoto');
   if (!name || !role || !employmentType || !department || !division || !directManager || !joined) { status.textContent = 'Complete the required employment details before saving.'; return; }
   if (linkedinUrl === null) { status.textContent = 'Use a valid linkedin.com profile URL, or leave this field empty.'; return; }
   if (photo?.name && photo.size > 2 * 1024 * 1024) { status.textContent = 'Employee photos must be 2 MB or smaller.'; return; }
   try {
     button.disabled = true; button.textContent = photo?.name ? 'Uploading photo…' : 'Saving colleague…'; status.textContent = photo?.name ? `Uploading ${photo.name}…` : 'Saving colleague…';
     const photoUrl = await uploadAnnouncementFile(photo, appIconImageTypes, 'employee photo');
-    const record = { ...(existing || { id:`member-${Date.now()}`, color:'#dceeff', message:'' }), name, role, employmentType, department, division, directManager, joined, companyEmail, phone, linkedinUrl, team:department, initials:name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase(), photoUrl:photoUrl || existing?.photoUrl || '', photoFilename:photoUrl ? photo.name : existing?.photoFilename || '' };
+    const record = { ...(existing || { id:`member-${Date.now()}`, color:'#dceeff', message:'' }), name, role, employmentType, department, division, directManager, employeeId, joined, companyEmail, phone, linkedinUrl, team:department, initials:name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase(), photoUrl:photoUrl || existing?.photoUrl || '', photoFilename:photoUrl ? photo.name : existing?.photoFilename || '' };
     if (existing) Object.assign(existing, record); else dashboard.newMembers.unshift(record);
     editingRecord.newMembers = record.id; await saveDashboard(photoUrl ? 'Colleague and employee photo published.' : 'Colleague details published.');
   } catch (error) { status.textContent = error.message || 'The colleague could not be saved.'; button.disabled = false; button.textContent = 'Save changes'; }
 }
 function renderPeople() { renderContentPage('people'); }
-function renderApps() { $('#view-apps').innerHTML = `<p class="view-intro">Control employee Quick Launch destinations from this workspace.</p>${renderCollection('apps')}`; }
+function renderApps() { renderContentPage('apps'); }
 function normaliseYouTubeVideoUrl(value) {
   try {
     const url = new URL(String(value || '').trim());
@@ -982,7 +1321,6 @@ function renderNewSi() {
   copyForm.id = 'newsi-page-copy-form'; copyForm.hidden = true;
   newSiPageCopyTargets.forEach(name => { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = copy[name] || newSiCopyDefaults[name] || ''; copyForm.append(input); });
   workspace.className = 'newsi-editor-preview-layout'; editors.before(workspace); workspace.append(editors, copyForm); editors.hidden = true; workspace.insertAdjacentHTML('beforeend', employeePagePreview('New Si-Warians', '/new-hires.html', [['first-week','Checklist'], ['policies','Policies'], ['training','Training videos'], ['help','Support portals']], 'ack-content-form', ['policies', 'firstWeekChecklist', 'supportPortals']));
-  renderAcknowledgementRecords();
 }
 async function renderAcknowledgementRecords() {
   let root = $('#view-newsi'); if (!root) return; root = root.querySelector('.newsi-editor-preview-layout') || root;
@@ -992,6 +1330,17 @@ async function renderAcknowledgementRecords() {
     const result = await api('/api/policy-acknowledgements?limit=25');
     panel.innerHTML = `<div class="collection-heading"><div><h2>Acknowledgement records</h2><p>${result.total} employee confirmation${result.total === 1 ? '' : 's'} recorded for current policy versions.</p></div></div>${result.records.length ? `<div class="list">${result.records.map(record => `<div class="list-row"><span><b>${escapeHtml(record.employee.name)}</b><small>${escapeHtml(record.employee.email)} · ${record.policies.length} policies · Confirmed ${cairo(record.acceptedAt)}</small></span><span class="record-tag">Confirmed</span></div>`).join('')}</div>` : '<p class="empty">No employee acknowledgements have been recorded yet.</p>'}`;
   } catch (error) { panel.innerHTML = `<h2>Acknowledgement records</h2><p class="notice warning">${escapeHtml(error.message)}</p>`; }
+}
+async function renderComplianceAcknowledgements() {
+  const panel = $('#view-compliance');
+  if (!panel) return;
+  panel.innerHTML = '<p class="view-intro">Review employee confirmations required by Si-Ware’s information-security and policy governance programme.</p><article class="panel"><h2>Loading compliance acknowledgements…</h2></article>';
+  try {
+    const result = await api('/api/compliance-acknowledgements');
+    const policyRows = result.policy.length ? `<div class="list">${result.policy.map(record => `<div class="list-row"><span><b>${escapeHtml(record.employee.name)}</b><small>${escapeHtml(record.employee.email)} · ${record.policies.length} policies · Confirmed ${cairo(record.acceptedAt)}</small></span><span class="record-tag">Confirmed</span></div>`).join('')}</div>` : '<p class="empty">No Essential Policies acknowledgements have been recorded yet.</p>';
+    const securityRows = result.security.length ? `<div class="list">${result.security.map(record => `<div class="list-row"><span><b>${escapeHtml(record.employee.name)}</b><small>${escapeHtml(record.employee.email)} · ${escapeHtml(record.method || 'Completed training')} · Completed ${cairo(record.completedAt)}</small></span><span class="record-tag">Completed</span></div>`).join('')}</div>` : '<p class="empty">No Security Awareness Training completions have been recorded yet.</p>';
+    panel.innerHTML = `<p class="view-intro">Review employee confirmations required by Si-Ware’s information-security and policy governance programme.</p><div class="manage-stack"><article class="panel"><div class="collection-heading"><div><h2>Essential Policies acknowledgements</h2><p>${result.policy.length} employee confirmation${result.policy.length === 1 ? '' : 's'} recorded.</p></div></div>${policyRows}</article><article class="panel"><div class="collection-heading"><div><h2>Security Awareness Training acknowledgements</h2><p>${result.security.length} employee completion${result.security.length === 1 ? '' : 's'} recorded.</p></div></div>${securityRows}</article></div>`;
+  } catch (error) { panel.innerHTML = `<h2>Compliance acknowledgements</h2><p class="notice warning">${escapeHtml(error.message)}</p>`; }
 }
 function renderAppearance() {
   const labels = { apps:'Main Apps', announcements:'Announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
@@ -1038,6 +1387,128 @@ async function resetHomeToDefaults() {
   catch (error) { applyHomeSnapshot(before); homeHistory.undo.pop(); throw error; }
 }
 function homeWidgetSize(key) { return dashboard.settings?.widgetSizes?.[key] || defaultHomeWidgetSizes[key] || 'standard'; }
+const globalLoginPreviewTargets = {
+  loginEyebrow:['[data-global-login-eyebrow]','Sign-in label'],
+  loginTitle:['#sign-in-heading','Welcome heading'],
+  loginLead:['.login-lead','Welcome description'],
+  loginTopline:['[data-global-login-topline]','Introduction label'],
+  loginIntroTitle:['.login-intro .intro-copy h2','Introduction heading'],
+  loginIntroAccent:['.login-intro .intro-copy h2 span','Highlighted heading'],
+  loginIntroDescription:['.login-intro .intro-copy p','Introduction description'],
+  loginPreviewTitle:['.login-intro .preview-heading b','Workspace heading'],
+  loginPreviewDescription:['.login-intro .preview-heading small','Workspace description'],
+  loginPreviewAudience:['.login-intro .preview-audience','Workspace audience'],
+  ...Object.fromEntries(['News','People','Tools','Onboarding','Policies'].flatMap((item, index) => [
+    [`loginPreview${item}Title`,[`.login-intro .preview-item:nth-child(${index + 1}) strong`,`${item} card title`]],
+    [`loginPreview${item}Description`,[`.login-intro .preview-item:nth-child(${index + 1}) small`,`${item} card description`]]
+  ]))
+};
+function enableGlobalLoginPreviewEditing(frame) {
+  const doc = frame.contentDocument;
+  if (!doc?.body || doc.querySelector('#global-login-preview-editor')) return;
+  applyGlobalPageContent(dashboard.globalPageContent || defaultGlobalPageContent, doc);
+  doc.querySelector('#login-status')?.setAttribute('hidden', '');
+  doc.querySelector('#login-content')?.setAttribute('aria-busy', 'false');
+  doc.querySelector('.preview-card')?.removeAttribute('aria-hidden');
+  const style = doc.createElement('style');
+  style.textContent = `[data-global-edit-key]{cursor:pointer;outline:2px dashed transparent;outline-offset:4px;transition:outline-color .16s ease,background-color .16s ease}[data-global-edit-key]:hover,[data-global-edit-key]:focus-visible{outline-color:#00a7c9;background:rgb(0 167 201 / 14%)}.global-login-preview-editor{position:fixed;z-index:1000;top:18px;right:18px;width:min(360px,calc(100vw - 36px));padding:17px;border:1px solid #b8cde5;border-radius:13px;background:#fff;box-shadow:0 18px 34px rgb(19 56 97 / 18%);color:#102b50;font:500 13px/1.5 Manrope,Arial,sans-serif}.global-login-preview-editor[hidden]{display:none}.global-login-preview-editor header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.global-login-preview-editor header b{font-size:15px}.global-login-preview-editor label{display:grid;gap:7px;font-size:12px;font-weight:800}.global-login-preview-editor input,.global-login-preview-editor textarea{width:100%;border:1px solid #aac3df;border-radius:7px;padding:10px;color:#102b50;background:#fff;font:600 13px/1.5 Manrope,Arial,sans-serif}.global-login-preview-editor textarea{resize:vertical;min-height:88px}.global-login-preview-editor input:focus,.global-login-preview-editor textarea:focus{outline:3px solid rgb(0 167 201 / 24%);border-color:#0759aa}.global-login-preview-editor .editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}.global-login-preview-editor button{border:1px solid #aac3df;border-radius:7px;padding:8px 11px;background:#fff;color:#0759aa;font:800 12px Manrope,Arial,sans-serif;cursor:pointer}.global-login-preview-editor button[type=submit]{border-color:#0759aa;background:#0759aa;color:#fff}.global-login-preview-editor button:disabled{opacity:.6;cursor:wait}.global-login-preview-editor [role=status]{min-height:1.2em;margin:9px 0 0;color:#a4263d;font-size:12px;font-weight:700}`;
+  doc.head.append(style);
+  for (const [key, [selector, label]] of Object.entries(globalLoginPreviewTargets)) {
+    const node = doc.querySelector(selector);
+    if (!node) continue;
+    node.dataset.globalEditKey = key;
+    node.tabIndex = 0;
+    node.setAttribute('role', 'button');
+    node.setAttribute('aria-label', `Edit ${label.toLowerCase()}`);
+    node.title = `Edit ${label.toLowerCase()}`;
+  }
+  const editor = doc.createElement('form');
+  editor.id = 'global-login-preview-editor';
+  editor.className = 'global-login-preview-editor';
+  editor.hidden = true;
+  editor.innerHTML = '<header><b>Edit login text</b><button type="button" data-close>Close</button></header><label><span data-field-label></span><input data-value required maxlength="400" /></label><p role="status" aria-live="polite"></p><div class="editor-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Save changes</button></div>';
+  doc.body.append(editor);
+  const close = () => { editor.hidden = true; doc.querySelector(`[data-global-edit-key="${editor.dataset.key}"]`)?.focus(); };
+  editor.querySelector('[data-close]').addEventListener('click', close);
+  editor.querySelector('[data-cancel]').addEventListener('click', close);
+  const open = key => {
+    const target = globalLoginPreviewTargets[key]; if (!target) return;
+    const current = normaliseGlobalPageContent(dashboard.globalPageContent);
+    editor.dataset.key = key;
+    editor.querySelector('[data-field-label]').textContent = target[1];
+    const old = editor.querySelector('[data-value]');
+    const multiline = key === 'loginLead' || key === 'loginIntroDescription';
+    const input = doc.createElement(multiline ? 'textarea' : 'input');
+    input.dataset.value = '';
+    input.required = true;
+    input.maxLength = multiline ? 400 : 180;
+    input.value = current[key];
+    if (multiline) input.rows = 3;
+    old.replaceWith(input);
+    editor.querySelector('[role=status]').textContent = '';
+    editor.hidden = false;
+    input.focus(); input.select();
+  };
+  doc.addEventListener('click', event => {
+    if (event.target.closest('a')) event.preventDefault();
+    if (event.target.closest('#global-login-preview-editor')) return;
+    const target = event.target.closest('[data-global-edit-key]');
+    if (target) open(target.dataset.globalEditKey);
+  });
+  doc.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !editor.hidden) { event.preventDefault(); close(); return; }
+    if (!['Enter',' '].includes(event.key) || !editor.hidden) return;
+    const target = event.target.closest('[data-global-edit-key]');
+    if (target) { event.preventDefault(); open(target.dataset.globalEditKey); }
+  });
+  editor.addEventListener('submit', async event => {
+    event.preventDefault();
+    const key = editor.dataset.key, value = editor.querySelector('[data-value]').value.trim();
+    const status = editor.querySelector('[role=status]'), button = editor.querySelector('button[type=submit]');
+    if (!value) { status.textContent = 'Enter text before saving.'; return; }
+    button.disabled = true; status.textContent = 'Saving changes…';
+    try {
+      dashboard.globalPageContent = normaliseGlobalPageContent({ ...dashboard.globalPageContent, [key]:value });
+      await saveDashboard('Login page text saved and published.', true);
+    } catch (error) { status.textContent = error.message || 'Could not save this text. Try again.'; button.disabled = false; }
+  });
+  frame.style.height = `${Math.max(820, doc.documentElement.scrollHeight, doc.body.scrollHeight)}px`;
+}
+function renderGlobalPages() {
+  const content = normaliseGlobalPageContent(dashboard.globalPageContent || defaultGlobalPageContent);
+  const imageFields = [
+    ['headerLogoUrl','Header and page logo','Shown in the intranet header and shared brand locations.'],
+    ['loginLogoUrl','Login page logo','Shown above the sign-in form.'],
+    ['footerLogoUrl','Footer and brand mark','Shown in the standard footer and small Si-Ware marks.'],
+    ['faviconUrl','Browser favicon','Shown in browser tabs and bookmarks.']
+  ];
+  const textField = (name, label, options = {}) => `<label class="global-field"><span>${label}</span>${options.multiline ? `<textarea name="${name}" rows="3" maxlength="400" required>${escapeHtml(content[name])}</textarea>` : `<input name="${name}" type="${options.type || 'text'}" ${options.type === 'url' ? 'pattern="https://.*" title="Use a complete HTTPS address"' : ''} maxlength="${options.type === 'url' ? 500 : 200}" value="${escapeHtml(content[name])}" required />`}</label>`;
+  const imageField = ([name, label, help]) => `<label class="global-image-field"><span class="global-image-sample"><img src="${escapeHtml(content[name])}" alt="Current ${escapeHtml(label.toLowerCase())}" /></span><span class="global-image-copy"><b>${label}</b><small>${help}</small><small>Current file: ${escapeHtml(content[name])}</small><input name="${name}File" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.ico,image/png,image/jpeg,image/webp,image/gif,image/x-icon" aria-label="Upload ${escapeHtml(label.toLowerCase())}" /></span></label>`;
+  $('#view-global').innerHTML = `<p class="view-intro">Manage the shared identity and page copy from one place. Publish changes here to update every intranet page without editing its code.</p>
+    <nav class="global-page-nav" aria-label="Global content sections"><a href="#global-branding">Branding</a><a href="#global-login">Login page</a><a href="#global-footer">Footer</a></nav>
+    <form id="global-pages-form" class="global-pages-form">
+      <section id="global-branding" class="panel global-pages-section"><div class="global-section-heading"><div><h2>Shared branding</h2><p>Upload a replacement only where you want to change the current image. PNG is recommended for logos; ICO or PNG works for the favicon.</p></div><a class="tool-link" href="/" target="_blank" rel="noopener">View intranet ↗</a></div><div class="global-image-grid">${imageFields.map(imageField).join('')}</div><div class="global-field-grid">${textField('headerWordmark','Header label')}</div></section>
+      <section id="global-login" class="panel global-pages-section"><div class="global-section-heading"><div><h2>Login page</h2><p>Select highlighted text in the page preview to edit and publish it. Sign-in controls and security messages remain system-managed.</p></div><a class="tool-link" href="/login.html" target="_blank" rel="noopener">View login ↗</a></div><div class="global-login-preview"><div class="global-login-preview-head"><b>Login page preview</b><span>Click highlighted copy to edit</span></div><iframe src="/login.html" sandbox="allow-same-origin" data-global-login-preview title="Editable login page preview"></iframe></div></section>
+      <section id="global-footer" class="panel global-pages-section"><div class="global-section-heading"><div><h2>Standard footer</h2><p>These details appear in the shared footer across employee pages and on the login page.</p></div></div><div class="global-field-grid">${textField('footerLegal','Copyright line')}${textField('footerSupportText','Support prompt')}${textField('footerSupportEmail','Support email',{type:'email'})}${textField('footerLinkedinUrl','LinkedIn URL',{type:'url'})}${textField('footerFacebookUrl','Facebook URL',{type:'url'})}${textField('footerYoutubeUrl','YouTube URL',{type:'url'})}${textField('footerWebsiteUrl','Website URL',{type:'url'})}</div></section>
+      <div class="global-save-bar"><span>Changes publish to the employee intranet when saved.</span><button class="action-button primary" type="submit">Publish global content</button></div>
+    </form>`;
+  const loginFrame = $('#global-login iframe[data-global-login-preview]');
+  loginFrame.addEventListener('load', () => enableGlobalLoginPreviewEditing(loginFrame));
+  $('#global-pages-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
+    if (!form.reportValidity()) return;
+    try {
+      button.disabled = true; button.textContent = 'Publishing…';
+      const values = Object.fromEntries(new FormData(form));
+      const next = { ...content };
+      for (const key of Object.keys(defaultGlobalPageContent)) if (Object.hasOwn(values, key) && !imageFields.some(([imageKey]) => imageKey === key)) next[key] = String(values[key] || '').trim();
+      for (const [key] of imageFields) { const file = form.elements.namedItem(`${key}File`)?.files?.[0]; if (file) next[key] = await uploadGlobalImage(file); }
+      dashboard.globalPageContent = normaliseGlobalPageContent(next);
+      await saveDashboard('Global page content published across the intranet.', true);
+    } catch (error) { flash(error.message || 'Global content could not be published.'); button.disabled = false; button.textContent = 'Publish global content'; }
+  });
+}
 function renderHomeEditor() {
   const labels = { apps:'Main Apps', announcements:'Hero & announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
   const destinations = { apps:'apps', announcements:'announcements', 'new-members':'people', social:'social', moments:'moments', knowledge:'knowledge', events:'events', whistleblower:'whistleblower' };
@@ -1074,6 +1545,7 @@ async function saveDashboard(message, rethrow = false, recordHistory = true, ope
       history.redo.length = 0;
     }
     savedDashboard = structuredClone(dashboard);
+    applyGlobalPageContent(dashboard.globalPageContent);
     summary = await api('/api/admin/summary').catch(() => summary);
     flash(message);
     renderAllowedAdminViews(); updatePageTools();
@@ -1085,16 +1557,15 @@ async function saveDashboard(message, rethrow = false, recordHistory = true, ope
 }
 function activeAdminView() { return document.querySelector('.admin-view.active')?.id.replace(/^view-/, '') || 'overview'; }
 const pageCreateActions = {
-  apps:{ key:'apps', label:'Add Quick Launch app' },
+  apps:{ key:'apps', label:'Add Quick Launch app', preview:true },
   announcements:{ key:'announcements', label:'Add announcement' },
-  social:{ key:'social-card', label:'Add social card' },
   moments:{ key:'moments', label:'Add moment', preview:true },
   knowledge:{ key:'sessions', label:'Add session', preview:true },
-  events:{ key:'events', label:'Add event' },
+  events:{ key:'events', label:'Add event', preview:true },
   people:{ key:'newMembers', label:'Add colleague', preview:true },
   newsi:[{ key:'policies', label:'Add policy', preview:true }, { key:'firstWeekChecklist', label:'Add checklist item', preview:true }, { key:'supportPortals', label:'Add support portal', preview:true }]
 };
-const pageSaveForms = { social:'social-links-form', whistleblower:'whistleblower-config-form', moments:'moments-page-copy-form', knowledge:'knowledge-page-copy-form', people:'recently-joined-page-copy-form', newsi:'ack-content-form' };
+const pageSaveForms = { whistleblower:'whistleblower-config-form', moments:'moments-page-copy-form', knowledge:'knowledge-page-copy-form', events:'events-page-copy-form', people:'recently-joined-page-copy-form', newsi:'ack-content-form' };
 const pageImportTools = {
   knowledge:{ input:'knowledge-sessions-csv', accept:'.csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain', template:'/knowledge-hub-sessions-import-template.csv', filename:'knowledge-hub-sessions-import-template.csv', action:'data-import-knowledge-sessions' },
   people:{ input:'new-members-csv', accept:'.csv,text/csv', template:'/recently-joined-import-template.csv', filename:'recently-joined-import-template.csv', action:'data-import-new-members' }
@@ -1106,7 +1577,7 @@ function pageToolbarMarkup(view, history) {
   const hasPreview = Boolean(saveForm || createActions.some(action => action.preview));
   const importTool = pageImportTools[view];
   const editGroup = [create, saveForm ? `<button type="button" data-page-save-content="${saveForm}">Save content</button>` : '', hasPreview ? '<button type="button" data-page-preview-refresh>Refresh preview</button>' : ''].join('');
-  const dataItems = `${importTool && hasAdminPermission('action.import') ? `<input id="${importTool.input}" type="file" accept="${importTool.accept}" hidden /><a href="${importTool.template}" download="${importTool.filename}">Download template</a><button type="button" ${importTool.action}>Import CSV</button>` : ''}${hasAdminPermission('action.export') ? '<button type="button" data-page-export>Export JSON</button>' : ''}`;
+  const dataItems = `${importTool && hasAdminPermission('action.import') ? `<input id="${importTool.input}" type="file" accept="${importTool.accept}" hidden /><a href="${importTool.template}" download="${importTool.filename}">Download template</a><button type="button" ${importTool.action}>Import CSV</button>` : ''}${hasAdminPermission('action.export_csv') ? '<button type="button" data-page-export-csv>Export CSV</button>' : ''}${hasAdminPermission('action.export') ? '<button type="button" data-page-export>Export JSON</button>' : ''}`;
   const dataMenu = dataItems ? `<details class="admin-page-tools-menu"><summary>Data</summary><div class="admin-page-tools-menu-items" role="menu">${dataItems}</div></details>` : '';
   const historyItems = `${hasAdminPermission('action.undo') ? `<button type="button" data-page-undo ${pageToolBusy || !history.undo.length ? 'disabled' : ''}>Undo</button>` : ''}${hasAdminPermission('action.redo') ? `<button type="button" data-page-redo ${pageToolBusy || !history.redo.length ? 'disabled' : ''}>Redo</button>` : ''}`;
   const historyGroup = historyItems ? `<div class="admin-page-tools-group">${historyItems}</div>` : '';
@@ -1132,6 +1603,23 @@ function exportPageData(view) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
   flash(`${label} data exported. Uploaded files are referenced, not included.`);
 }
+function csvEscape(value) { const text = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value); return `"${text.replace(/"/g, '""')}"`; }
+function csvRecordsForPage(view) {
+  const snapshot = pageSnapshot(savedDashboard || dashboard, view);
+  const primary = { apps:'apps', announcements:'announcements', moments:'moments', knowledge:'sessions', events:'events', people:'newMembers', newsi:'policies' }[view];
+  if (primary && Array.isArray(snapshot[primary])) return snapshot[primary];
+  return Object.entries(snapshot).flatMap(([section, value]) => Array.isArray(value) ? value.map(record => ({ section, ...record })) : value && typeof value === 'object' ? [{ section, ...value }] : [{ section, value }]);
+}
+function exportPageCsv(view) {
+  const label = $('#page-title').textContent, records = csvRecordsForPage(view), columns = [...new Set(records.flatMap(record => Object.keys(record)))];
+  if (!columns.length) { flash(`There is no ${label} data to export.`); return; }
+  const csv = `\uFEFF${columns.map(csvEscape).join(',')}\r\n${records.map(record => columns.map(column => csvEscape(record[column])).join(',')).join('\r\n')}\r\n`;
+  const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' })), link = document.createElement('a');
+  link.href = url; link.download = `siware-${view}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.append(link); link.click(); link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  flash(`${label} exported as CSV.`);
+}
 async function stepPageHistory(view, direction) {
   const history = pageHistory[view], source = direction === 'undo' ? history.undo : history.redo, destination = direction === 'undo' ? history.redo : history.undo;
   if (pageToolBusy || !source?.length) return;
@@ -1148,6 +1636,7 @@ async function resetPageToDefault(view) {
   const previous = structuredClone(dashboard), label = $('#page-title').textContent;
   const response = await api('/api/admin/defaults');
   const defaults = pageSnapshot(response.defaults, view);
+  if (view === 'announcements') Object.assign(defaults, { announcements:[], announcementSchedules:[], announcementTemplates:[] });
   if (JSON.stringify(pageSnapshot(dashboard, view)) === JSON.stringify(defaults)) { flash(`${label} already matches its default.`); return; }
   applyPageSnapshot(dashboard, view, defaults);
   try { await saveDashboard(`${label} restored to default. Use Undo to restore the previous version.`, true, true, 'reset'); }
@@ -1158,6 +1647,7 @@ function setupPageTools() {
   tools.addEventListener('click', event => {
     const view = activeAdminView(); if (!pageDataKeys[view]) return;
     if (event.target.closest('[data-page-export]')) exportPageData(view);
+    if (event.target.closest('[data-page-export-csv]')) exportPageCsv(view);
     if (event.target.closest('[data-page-undo]')) stepPageHistory(view, 'undo');
     if (event.target.closest('[data-page-redo]')) stepPageHistory(view, 'redo');
     if (event.target.closest('[data-page-reset]')) openPageResetDialog(view);
@@ -1187,7 +1677,7 @@ function openPeopleDeleteAllDialog() {
     dialog = document.createElement('dialog');
     dialog.id = 'people-delete-all-dialog';
     dialog.className = 'knowledge-remove-dialog';
-    dialog.innerHTML = '<form><h2>Delete all Recently Joined colleagues?</h2><p data-people-delete-description></p><label>Type DELETE to confirm<input name="confirmation" autocomplete="off" spellcheck="false" required /></label><p class="knowledge-remove-error" role="alert"></p><div class="knowledge-remove-dialog-actions"><button type="button" class="action-button" data-people-delete-cancel>Cancel</button><button type="submit" class="action-button knowledge-remove-all">Delete all colleagues</button></div></form>';
+    dialog.innerHTML = '<form><h2>Delete all Our Team directory entries?</h2><p data-people-delete-description></p><label>Type DELETE to confirm<input name="confirmation" autocomplete="off" spellcheck="false" required /></label><p class="knowledge-remove-error" role="alert"></p><div class="knowledge-remove-dialog-actions"><button type="button" class="action-button" data-people-delete-cancel>Cancel</button><button type="submit" class="action-button knowledge-remove-all">Delete all colleagues</button></div></form>';
     document.body.append(dialog);
     dialog.querySelector('[data-people-delete-cancel]').addEventListener('click', () => dialog.close());
     dialog.querySelector('form').addEventListener('submit', async event => {
@@ -1198,12 +1688,12 @@ function openPeopleDeleteAllDialog() {
       submit.disabled = true;
       dashboard.newMembers = [];
       editingRecord.newMembers = '';
-      try { await saveDashboard(`${previous.length} Recently Joined colleague${previous.length === 1 ? '' : 's'} deleted. Use Undo to restore them in this browser tab.`, true, true, 'delete'); dialog.close(); }
+      try { await saveDashboard(`${previous.length} Our Team colleague${previous.length === 1 ? '' : 's'} deleted. Use Undo to restore them in this browser tab.`, true, true, 'delete'); dialog.close(); }
       catch (saveError) { dashboard.newMembers = previous; error.textContent = saveError.message || 'Colleagues were not deleted. Try again.'; submit.disabled = false; }
     });
   }
   const count = dashboard.newMembers.length;
-  dialog.querySelector('[data-people-delete-description]').textContent = `This removes all ${count} colleague${count === 1 ? '' : 's'} from Recently Joined, including Google-synced cards. It does not delete Google Workspace accounts. You can use Undo in this browser tab after a successful deletion.`;
+  dialog.querySelector('[data-people-delete-description]').textContent = `This removes all ${count} colleague${count === 1 ? '' : 's'} from the Our Team directory, including Google-synced cards. It does not delete Google Workspace accounts. You can use Undo in this browser tab after a successful deletion.`;
   dialog.querySelector('[name="confirmation"]').value = '';
   dialog.querySelector('[role="alert"]').textContent = '';
   dialog.showModal();
@@ -1231,13 +1721,15 @@ function openPageResetDialog(view) {
   dialog.querySelector('#admin-reset-title').textContent = `Reset ${label} to default?`;
   dialog.querySelector('#admin-reset-description').textContent = view === 'knowledge'
     ? 'This replaces the saved Knowledge Hub content with the 17 sessions from your latest upload. Export a backup first if needed. You can undo the reset in this browser tab.'
+    : view === 'settings'
+      ? 'This restores the approved Google Workspace sync configuration: selected organisational units and calendars, daily directory sync at 08:00, and hourly calendar sync. You can undo the reset in this browser tab.'
     : 'This replaces the saved content on this page with its built-in starter content. Export a backup first if needed. You can undo the reset in this browser tab.';
   dialog.querySelector('[name="confirmation"]').value = '';
   dialog.querySelector('[role="alert"]').textContent = '';
   dialog.showModal();
   dialog.querySelector('[name="confirmation"]').focus();
 }
-function createRecord(key, form) { const record = Object.fromEntries(new FormData(form)); delete record.iconImage; delete record.policyDocument; delete record.announcementMedia; delete record.announcementAttachment; if (key === 'sessions') record.presenter = { name:'Intranet team', initials:'IT' }; if (key === 'newMembers') { record.initials = String(record.name || '').split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase(); record.team = record.department; record.message = ''; record.color = '#dceeff'; } if (key === 'firstWeekChecklist') { record.resourceUrl ||= ''; record.attachmentUrl = ''; } if (key === 'apps') record.icon = 'spark'; if (key === 'moments') record.mediaUrl = ''; return { id:`${key}-${Date.now()}`, ...record }; }
+function createRecord(key, form) { const record = Object.fromEntries(new FormData(form)); delete record.iconImage; delete record.policyDocument; delete record.checklistAttachment; delete record.announcementMedia; delete record.announcementAttachment; if (key === 'sessions') record.presenter = { name:'Intranet team', initials:'IT' }; if (key === 'newMembers') { record.initials = String(record.name || '').split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase(); record.team = record.department; record.message = ''; record.color = '#dceeff'; } if (key === 'firstWeekChecklist') { record.resourceUrl ||= ''; record.attachmentUrl ||= ''; } if (key === 'apps') record.icon = 'spark'; if (key === 'moments') record.mediaUrl = ''; return { id:`${key}-${Date.now()}`, ...record }; }
 function renderEditorArea(key) { if (['policies','firstWeekChecklist','supportPortals'].includes(key)) return renderNewSi(); if (key === 'newMembers') return renderPeople(); if (key === 'apps') return renderApps(); const page = contentPages.find(entry => entry.key === key); if (page) return renderContentPage(page.view); return renderContent(); }
 document.addEventListener('click', event => {
   const previewRefresh = event.target.closest('[data-preview-refresh]'), previewAnchor = event.target.closest('[data-preview-anchor]'), previewSave = event.target.closest('[data-preview-save-form]'), previewAdd = event.target.closest('[data-preview-add-key]');
@@ -1356,6 +1848,34 @@ function syncAnnouncementRepeatOptions(form) {
   if (weekly && weekday && weekday.dataset.userSelected !== 'true') weekday.value = String(selected.getDay());
   if (frequency?.value === 'monthly' && monthday) monthday.value = String(selected.getDate());
 }
+function applyTemplatePublicationSettings(form, template) {
+  const publication = template?.templatePublication;
+  if (!form || !publication) return syncAnnouncementRepeatOptions(form);
+  const scheduled = publication.deliveryMode === 'scheduled';
+  const mode = form.querySelector(`[name="deliveryMode"][value="${scheduled ? 'scheduled' : 'now'}"]`);
+  if (mode) mode.checked = true;
+  const setValue = (name, value) => {
+    const field = form.elements.namedItem(name);
+    if (field && value !== undefined && value !== null && value !== '') field.value = String(value);
+  };
+  setValue('scheduleDate', publication.scheduledDate);
+  setValue('scheduleTime', publication.time);
+  setValue('scheduleFrequency', publication.frequency === 'monthly' ? 'monthly' : 'weekly');
+  setValue('scheduleDayOfWeek', publication.dayOfWeek);
+  setValue('scheduleDayOfMonth', publication.dayOfMonth);
+  const repeat = form.querySelector('[name="repeatAnnouncement"]');
+  if (repeat) repeat.checked = scheduled && publication.frequency !== 'once';
+  syncAnnouncementRepeatOptions(form);
+}
+document.addEventListener('click', event => {
+  const action = event.target.closest('[data-use-announcement-template], [data-edit-announcement-template]');
+  if (!action) return;
+  const id = action.dataset.useAnnouncementTemplate || action.dataset.editAnnouncementTemplate;
+  const template = dashboard.announcementTemplates?.find(item => item.id === id);
+  const form = document.querySelector('[data-editor="announcements"]');
+  if (!template || !form) return;
+  window.setTimeout(() => applyTemplatePublicationSettings(form, template), 0);
+}, true);
 document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; syncAnnouncementRepeatOptions(form); });
 document.addEventListener('click', async event => { const action = event.target.closest('[data-toggle-announcement-schedule], [data-remove-announcement-schedule]'); if (!action) return; const id = action.dataset.toggleAnnouncementSchedule || action.dataset.removeAnnouncementSchedule, schedule = dashboard.announcementSchedules?.find(item => item.id === id); if (!schedule) return; if (action.dataset.removeAnnouncementSchedule) { dashboard.announcementSchedules = dashboard.announcementSchedules.filter(item => item.id !== id); await saveDashboard('Announcement schedule removed.'); } else { schedule.enabled = !schedule.enabled; await saveDashboard(`Announcement schedule ${schedule.enabled ? 'resumed' : 'paused'}.`); } });
 document.addEventListener('click', async event => { const use = event.target.closest('[data-use-announcement-template]'), remove = event.target.closest('[data-remove-announcement-template]'); if (!use && !remove) return; const id = (use || remove).dataset.useAnnouncementTemplate || (use || remove).dataset.removeAnnouncementTemplate, template = dashboard.announcementTemplates?.find(item => item.id === id); if (!template) return; if (remove) { dashboard.announcementTemplates = dashboard.announcementTemplates.filter(item => item.id !== id); await saveDashboard('Announcement template removed.'); return; } const form = document.querySelector('[data-editor="announcements"]'); if (!form) return; delete form.dataset.editAnnouncementTemplate; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''), missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>This template keeps its original email layout. Select Edit email to change its text.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; flash(`Template “${template.title}” loaded. Choose Send now, Schedule, or save an updated template.`); });
@@ -1365,13 +1885,14 @@ document.addEventListener('submit', async event => {
   const form = event.target.closest('[data-editor]');
   if (form) {
     event.preventDefault();
-    const key = form.dataset.editor, id = editingRecord[key], record = id && dashboard[key].find(item => item.id === id), formData = new FormData(form), values = Object.fromEntries(formData), iconImage = formData.get('iconImage'), policyDocument = formData.get('policyDocument'), announcementMedia = formData.get('announcementMedia'), announcementAttachments = formData.getAll('announcementAttachment').filter(file => file?.name), attachmentInput = form.querySelector('input[name="announcementAttachment"]'), policyDocumentInput = form.querySelector('input[name="policyDocument"]'), richEditor = form.querySelector('[data-rich-editor]');
+    const key = form.dataset.editor, id = editingRecord[key], record = id && dashboard[key].find(item => item.id === id), formData = new FormData(form), values = Object.fromEntries(formData), iconImage = formData.get('iconImage'), policyDocument = formData.get('policyDocument'), checklistAttachment = formData.get('checklistAttachment'), announcementMedia = formData.get('announcementMedia'), announcementAttachments = formData.getAll('announcementAttachment').filter(file => file?.name), attachmentInput = form.querySelector('input[name="announcementAttachment"]'), policyDocumentInput = form.querySelector('input[name="policyDocument"]'), richEditor = form.querySelector('[data-rich-editor]');
     const editedTemplateId = form.dataset.editAnnouncementTemplate || '', deliveryMode = form.dataset.saveAsTemplate === 'true' || editedTemplateId ? 'template' : values.deliveryMode, schedule = { frequency:values.repeatAnnouncement === 'true' ? values.scheduleFrequency : 'once', scheduledDate:values.scheduleDate, time:values.scheduleTime, dayOfWeek:Number(values.scheduleDayOfWeek), dayOfMonth:Number(values.scheduleDayOfMonth) };
     delete form.dataset.saveAsTemplate;
     delete form.dataset.editAnnouncementTemplate;
     form.noValidate = false;
-    delete values.iconImage; delete values.policyDocument; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
+    delete values.iconImage; delete values.policyDocument; delete values.checklistAttachment; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
     const capturedEmailHtml = String(values.legacyEmailHtml || form.dataset.emailClipboardHtml || ''); delete values.legacyEmailHtml; delete form.dataset.emailClipboardHtml;
+    if (key === 'firstWeekChecklist' && values.requiresResourceLinkClick === 'true' && !String(values.resourceUrl || '').trim()) { flash('Add a resource link before requiring employees to open it.'); return; }
     if (key === 'announcements' && capturedEmailHtml) { values.bodyHtml = capturedEmailHtml; values.body = new DOMParser().parseFromString(capturedEmailHtml, 'text/html').body.innerText.trim(); }
     else if (richEditor) {
       const sourceHtml = richEditor.innerHTML;
@@ -1385,6 +1906,7 @@ document.addEventListener('submit', async event => {
     try {
       const iconUrl = ['apps','supportPortals'].includes(key) ? await uploadAppIcon(iconImage) : '';
       const policyDocumentUrl = key === 'policies' ? await uploadAnnouncementFile(policyDocument, ['application/pdf'], 'policy document') : '';
+      const checklistAttachmentUrl = key === 'firstWeekChecklist' && checklistAttachment?.name ? await uploadAnnouncementFile(checklistAttachment, knowledgeMaterialTypes, 'checklist attachment') : '';
       const mediaUrl = key === 'announcements' ? await uploadAnnouncementFile(announcementMedia, announcementMediaTypes, 'photo or video') : '';
       const uploadedAttachments = key === 'announcements' ? await Promise.all(announcementAttachments.map(async file => ({ url:await uploadAnnouncementFile(file, announcementAttachmentTypes, 'attachment'), filename:file.name }))) : [];
       const iconData = iconUrl ? { iconUrl, iconFilename:iconImage.name } : {};
@@ -1402,9 +1924,10 @@ document.addEventListener('submit', async event => {
       if (key === 'announcements' && deliveryMode === 'now' && !record) { const publishedAt = new Date(); values.date = announcementTimestamp(publishedAt); values.publishedAt = publishedAt.toISOString(); }
       const policyUrl = key === 'policies' ? normalisePolicyUrl(values.canonicalUrl) : '';
       const policyData = key === 'policies' ? (policyDocumentUrl ? { canonicalUrl:policyDocumentUrl } : policyDocumentInput?._removeCurrentDocument ? { canonicalUrl:'' } : { canonicalUrl:policyUrl }) : {};
+      const checklistData = checklistAttachmentUrl ? { attachmentUrl:checklistAttachmentUrl } : {};
       if (key === 'announcements' && deliveryMode === 'scheduled') { dashboard.announcementSchedules ||= []; dashboard.announcementSchedules.push({ id:`announcement-schedule-${Date.now()}`, ...values, ...schedule, ...announcementData, enabled:true }); }
-      else if (key === 'announcements' && deliveryMode === 'template') { dashboard.announcementTemplates ||= []; const template = editedTemplateId && dashboard.announcementTemplates.find(item => item.id === editedTemplateId); if (template) Object.assign(template, values, announcementData); else dashboard.announcementTemplates.push({ id:`announcement-template-${Date.now()}`, ...values, ...announcementData }); }
-      else if (record) Object.assign(record, values, iconData, announcementData, policyData); else { const created = createRecord(key, form); Object.assign(created, values, iconData, announcementData, policyData); dashboard[key].push(created); }
+      else if (key === 'announcements' && deliveryMode === 'template') { dashboard.announcementTemplates ||= []; const template = editedTemplateId && dashboard.announcementTemplates.find(item => item.id === editedTemplateId), templatePublication = { deliveryMode:values.deliveryMode === 'scheduled' ? 'scheduled' : 'now', ...schedule }; if (template) Object.assign(template, values, announcementData, { templatePublication }); else dashboard.announcementTemplates.push({ id:`announcement-template-${Date.now()}`, ...values, ...announcementData, templatePublication }); }
+      else if (record) Object.assign(record, values, iconData, announcementData, policyData, checklistData); else { const created = createRecord(key, form); Object.assign(created, values, iconData, announcementData, policyData, checklistData); dashboard[key].push(created); }
       editingRecord[key] = '';
       await saveDashboard(deliveryMode === 'scheduled' ? 'Announcement scheduled. It will publish automatically in Cairo time.' : deliveryMode === 'template' ? editedTemplateId ? 'Announcement template updated.' : 'Announcement template saved. Use it any time from this list.' : iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and changes published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : policyDocumentInput?._removeCurrentDocument ? 'Policy PDF removed from the employee page.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : mediaUrl || uploadedAttachments.length || removedAttachmentUrls.size ? 'Announcement attachments updated and published.' : 'Changes saved and published to the intranet.');
     } catch (error) { flash(error.message); }
@@ -1425,29 +1948,30 @@ document.addEventListener('submit', async event => {
 async function renderMedia() { const root = $('#view-media'); root.innerHTML = '<p class="view-intro">Loading reusable media inventory…</p>'; try { const files = await api('/api/admin/media'); root.innerHTML = `<p class="view-intro">Reusable uploads are checked for current usage before any removal. Direct destructive removal is intentionally unavailable here.</p><div class="media-grid">${files.map(file => `<article class="media-file"><b title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</b><small>${Math.ceil(file.size / 1024)} KB · ${cairo(file.modifiedAt)}</small><a class="tool-link" href="${encodeURI(file.url)}" target="_blank" rel="noopener">Open file ↗</a><span class="record-tag">${file.inUse ? 'In use' : 'Not referenced'}</span></article>`).join('') || '<p class="empty">No uploaded media yet.</p>'}</div>`; } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
 let accessDirectory = null;
 const roleLabel = role => String(role || '').split('_').map(part => part[0] + part.slice(1).toLowerCase()).join(' ');
-const permissionLabel = permission => ({ 'admin.access':'Admin Panel access', 'content.edit':'Edit content', 'content.publish':'Publish announcements', 'media.manage':'Manage media', 'access.manage':'Manage users', 'audit.view':'View audit trail', 'audit.export':'Export audit trail', 'settings.manage':'Manage settings' }[permission] || intranetPages.find(page => page.permission === permission)?.label || (pagePermissionNames[permission] ? `Admin · ${pagePermissionNames[permission]}` : permission));
+const permissionLabel = permission => ({ 'admin.access':'Admin Panel access', 'events.details.all':'View all calendar event details', 'content.edit':'Edit content', 'content.publish':'Publish announcements', 'media.manage':'Manage media', 'access.manage':'Manage users', 'audit.view':'View audit trail', 'audit.export':'Export audit trail', 'settings.manage':'Manage settings', 'action.export_csv':'Export CSV' }[permission] || intranetPages.find(page => page.permission === permission)?.label || (pagePermissionNames[permission] ? `Admin · ${pagePermissionNames[permission]}` : permission));
 const initialsForUser = user => String(user.name || user.email || 'U').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
 const pagePermissionOptions = Object.values(adminViewPermissions);
 const globalActionPermissions = adminActionPermissions;
 async function loadAccessDirectory() { accessDirectory = await api('/api/admin/access'); }
 function usersRoleOptions(roles) { return roles.map(role => `<option value="${escapeHtml(role.id)}">${escapeHtml(roleLabel(role.id))}</option>`).join(''); }
-function renderAccessUsers() { const root = $('#view-access'), data = accessDirectory, users = data.users || [], roles = data.roles || [], roleOptions = usersRoleOptions(roles); root.innerHTML = `<div class="access-page-heading"><div><h1>Users</h1><p>Manage platform users and their access.</p></div><div class="access-actions"><button class="action-button" type="button" data-users-template>Download CSV template</button><label class="action-button" for="users-csv-input">Import CSV</label><input id="users-csv-input" type="file" accept=".csv,text/csv" hidden /><button class="action-button primary" type="button" data-add-user>Add user</button></div></div><div class="user-metrics"><article><span>Total users</span><b>${users.length}</b></article><article><span>Administrators</span><b>${users.filter(user => user.role === 'ADMIN').length}</b></article><article><span>Editors</span><b>${users.filter(user => user.role === 'CONTENT_EDITOR').length}</b></article><article class="user-metric-online"><span><i></i>Role assigned</span><b>${users.length}</b></article><article><span>Employee access</span><b>${users.filter(user => user.role === 'EMPLOYEE').length}</b></article></div><article class="users-workspace"><div class="users-workspace-head"><h2>All users <small>(${users.length})</small></h2><div class="users-filters"><label class="user-search"><span>Search users</span><input id="users-search" type="search" placeholder="Search users…" /></label><label><span>Role</span><select id="users-role-filter"><option value="">All roles</option>${roleOptions}</select></label></div></div><div class="users-table-wrap"><table class="users-table"><thead><tr><th>User</th><th>Role</th><th>Access</th><th>Last updated</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="users-table-body"></tbody></table></div></article><dialog class="access-user-dialog" id="access-user-dialog"><form id="access-form"><div class="dialog-heading"><div><h2>Add user</h2><p>Assign an intranet role to an approved Workspace identity.</p></div><button type="button" class="dialog-close" data-close-user-dialog aria-label="Close">×</button></div><div class="form-grid"><label>Name<input name="name" maxlength="80" placeholder="Employee name" /></label><label>Work email<input name="email" required type="email" placeholder="name@si-ware.com" /></label><label class="form-grid-full">Role<select name="role">${roleOptions}</select></label></div><p class="notice">This never changes Google Workspace access. The role takes effect on the person’s next sign-in.</p><div class="form-actions"><button class="action-button" type="button" data-close-user-dialog>Cancel</button><button class="action-button primary">Save user</button></div></form></dialog>`; const paint = () => { const search = $('#users-search').value.trim().toLowerCase(), role = $('#users-role-filter').value; const filtered = users.filter(user => (!role || user.role === role) && (!search || `${user.name || ''} ${user.email || ''} ${roleLabel(user.role)}`.toLowerCase().includes(search))); $('#users-table-body').innerHTML = filtered.map(user => `<tr><td><span class="user-identity"><span class="user-avatar">${escapeHtml(initialsForUser(user))}</span><span><b>${escapeHtml(user.name || user.email)}</b><small>${escapeHtml(user.email)}</small></span></span></td><td><span class="role-chip role-${escapeHtml(String(user.role).toLowerCase())}">${escapeHtml(roleLabel(user.role))}</span></td><td><span class="access-status"><i></i>Assigned</span></td><td>${escapeHtml(cairo(user.updatedAt || user.createdAt || ''))}</td><td><button class="user-row-action" type="button" data-edit-user="${escapeHtml(user.email)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="5" class="users-empty">No users match these filters.</td></tr>'; }; paint(); $('#users-search').addEventListener('input', paint); $('#users-role-filter').addEventListener('change', paint); root.querySelector('[data-users-template]').addEventListener('click', downloadUsersTemplate); root.querySelector('[data-add-user]').addEventListener('click', () => $('#access-user-dialog').showModal()); root.querySelectorAll('[data-close-user-dialog]').forEach(button => button.addEventListener('click', () => $('#access-user-dialog').close())); root.querySelector('#access-form').addEventListener('submit', saveAccess); root.querySelector('#users-table-body').addEventListener('click', event => { const button = event.target.closest('[data-edit-user]'); if (!button) return; const user = users.find(item => item.email === button.dataset.editUser); if (!user) return; const form = $('#access-form'); form.elements.name.value = user.name || ''; form.elements.email.value = user.email; form.elements.email.readOnly = true; form.elements.role.value = user.role; form.querySelector('h2').textContent = 'Edit user'; $('#access-user-dialog').showModal(); }); root.querySelector('#users-csv-input').addEventListener('change', event => importAccessCsv(event.target.files[0])); }
+function renderAccessUsers() { mountUsersPage($('#view-access'), accessDirectory, { onSave:saveAccess, onImport:importAccessCsv, onTemplate:downloadUsersTemplate }); }
 function downloadUsersTemplate() { const url = URL.createObjectURL(new Blob(['Name,Work Email,Role\nExample User,example@si-ware.com,EMPLOYEE\n'], { type:'text/csv' })), link = document.createElement('a'); link.href = url; link.download = 'siware-users-import-template.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 async function importAccessCsv(file) { if (!file) return; if (!hasAdminPermission('action.import')) return flash('Import permission is required.'); if (!/\.csv$/i.test(file.name) || file.size > 1024 * 1024) return flash('Choose a CSV file of 1 MB or smaller.'); try { const rows = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean).map(row => row.split(',').map(value => value.trim())), [header, ...records] = rows, fields = header.map(value => value.toLowerCase().replace(/[^a-z]/g, '')), nameAt = fields.indexOf('name'), emailAt = fields.findIndex(value => ['workemail','email'].includes(value)), roleAt = fields.indexOf('role'); if (nameAt < 0 || emailAt < 0 || roleAt < 0) throw new Error('CSV needs Name, Work Email, and Role columns.'); for (const row of records) await api('/api/admin/access', { method:'PATCH', body:JSON.stringify({ name:row[nameAt], email:row[emailAt], role:row[roleAt], operation:'import' }) }); flash(`${records.length} user${records.length === 1 ? '' : 's'} imported.`); await loadAccessDirectory(); renderAccessUsers(); } catch (error) { flash(error.message || 'The CSV could not be imported.'); } }
-async function saveAccess(event) { event.preventDefault(); try { await api('/api/admin/access', { method:'PATCH', body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); $('#access-user-dialog')?.close(); flash('User role saved. It takes effect on the person’s next sign-in.'); await loadAccessDirectory(); renderAccessUsers(); if (activeAdminView() === 'roles') renderRolesCards(); } catch (error) { flash(error.message); } }
+async function saveAccess(event) { event.preventDefault(); const form = event.currentTarget, submit = form.querySelector('[type="submit"]'), errorField = form.querySelector('[data-user-form-error]'); errorField.textContent = ''; if (!form.reportValidity()) return; const values = Object.fromEntries(new FormData(form)); values.active = form.elements.active.checked; if (values.authType === 'local' || form.elements.authType.value === 'local') { if (values.password !== values.passwordConfirm) { errorField.textContent = 'The passwords do not match.'; return; } } else { delete values.password; delete values.passwordConfirm; } submit.disabled = true; try { await api('/api/admin/access', { method:'PATCH', body:JSON.stringify(values) }); $('#access-user-dialog')?.close(); flash('User saved. Access changes take effect at the next sign-in.'); await loadAccessDirectory(); renderAccessUsers(); if (activeAdminView() === 'roles') renderRolesCards(); } catch (error) { errorField.textContent = error.message || 'The user could not be saved.'; flash(errorField.textContent); } finally { submit.disabled = false; } }
 async function renderAccess() { const root = $('#view-access'); root.innerHTML = '<p class="view-intro">Loading users…</p>'; try { await loadAccessDirectory(); renderAccessUsers(); } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
 async function renderRoles() { const root = $('#view-roles'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { if (!accessDirectory) await loadAccessDirectory(); const roles = accessDirectory.roles || [], users = accessDirectory.users || [], permissions = [...new Set(roles.flatMap(role => role.permissions))]; root.innerHTML = `<div class="access-page-heading"><div><h1>Roles</h1><p>Review the permissions that each intranet role grants.</p></div></div><div class="roles-summary"><article><b>${roles.length}</b><span>Configured roles</span></article><article><b>${permissions.length}</b><span>Permission types</span></article><article><b>${users.length}</b><span>Assigned users</span></article></div><article class="roles-workspace"><div class="roles-workspace-head"><h2>Role permissions</h2><p>Roles are fixed safeguards in this local prototype. Assign them from the Users page.</p></div><div class="roles-table-wrap"><table class="roles-table"><thead><tr><th>Permission</th>${roles.map(role => `<th>${escapeHtml(roleLabel(role.id))}<small>${users.filter(user => user.role === role.id).length} users</small></th>`).join('')}</tr></thead><tbody>${permissions.map(permission => `<tr><th>${escapeHtml(permissionLabel(permission))}<small>${escapeHtml(permission)}</small></th>${roles.map(role => `<td>${role.permissions.includes(permission) ? '<span class="permission-granted" aria-label="Granted">✓</span>' : '<span class="permission-none" aria-label="Not granted">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></article>`; } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
 function renderActivity() { return renderAuditTrail($('#view-activity'), hasAdminPermission('audit.export')); }
-function renderSettings() { $('#view-settings').innerHTML = `<p class="view-intro">Manage Google content sources and review the environment safeguards for this intranet.</p><div id="google-sync-settings"></div><div class="section-grid"><article class="panel"><h2>Audit archive</h2><p>Audit and browser activity older than 90 days are archived automatically at the next daily run, then removed from the active trail.</p><p class="notice">Archive files are saved on the Docker host under <code>data/audit trail archive/</code>. They are not included in Audit Trail search or CSV export and are not deleted automatically. Include this folder in your backups.</p></article><article class="panel"><h2>Environment security</h2><p>Google Workspace SSO is the supported authentication path. Configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>APP_ORIGIN</code>, <code>GOOGLE_WORKSPACE_DOMAIN</code>, <code>GOOGLE_ADMIN_EMAILS</code>, and <code>SECURE_COOKIES=true</code> outside this UI.</p><p class="notice warning">This local prototype uses JSON storage and memory-backed sessions. Use a transactional database and shared session store before production deployment.</p></article></div>`; renderGoogleSyncSettings($('#google-sync-settings'), api); }
+function renderSettings() { $('#view-settings').innerHTML = `<p class="view-intro">Manage Google content sources and review the environment safeguards for this intranet.</p><div id="google-sync-settings"></div><div class="section-grid"><article class="panel"><h2>Audit archive</h2><p>Audit and browser activity older than 90 days are archived automatically at the next daily run, then removed from the active trail.</p><p class="notice">Archive files are saved on the Docker host under <code>data/audit trail archive/</code>. They are not included in Audit Trail search or CSV export and are not deleted automatically. Include this folder in your backups.</p></article><article class="panel"><h2>Environment security</h2><p>Google Workspace SSO and administrator-created local accounts are supported. Local account passwords are stored as salted hashes. Configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>APP_ORIGIN</code>, <code>GOOGLE_WORKSPACE_DOMAIN</code>, <code>GOOGLE_ADMIN_EMAILS</code>, and <code>SECURE_COOKIES=true</code> outside this UI.</p><p class="notice warning">This local prototype uses JSON storage and memory-backed sessions. Use a transactional database and shared session store before production deployment.</p></article></div>`; renderGoogleSyncSettings($('#google-sync-settings'), api); }
 function renderAllowedAdminViews() {
   if (canAccessAdminView('overview')) renderOverview();
   if (canAccessAdminView('content')) renderContent();
   contentPages.filter(page => canAccessAdminView(page.view)).forEach(page => renderContentPage(page.view));
   if (canAccessAdminView('people')) renderPeople();
-  if (canAccessAdminView('apps')) renderApps();
   if (canAccessAdminView('appearance')) renderAppearance();
   if (canAccessAdminView('home')) renderHomeEditor();
+  if (canAccessAdminView('global')) renderGlobalPages();
   if (canAccessAdminView('settings')) renderSettings();
+  if (canAccessAdminView('compliance')) renderComplianceAcknowledgements();
 }
 async function refreshAdminPermissions() {
   const me = await api('/api/auth/me');
@@ -1472,15 +1996,17 @@ function showView(name) {
   if (!canAccessAdminView(name)) { flash('You do not have access to this Administration page.'); return; }
   $$('.admin-sidebar button[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === name));
   $$('.admin-view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
-  const titles = { home:'Home', apps:'Apps', access:'Users', roles:'Roles', activity:'Audit Trail', newsi:'New Si-Warians', announcements:'Announcements', social:'Social Media', whistleblower:'Whistleblower', moments:'Moments' };
+  const titles = { home:'Home', global:'Global pages content', apps:'Apps', access:'Users', roles:'Roles', activity:'Audit Trail', compliance:'Compliance acknowledgements', newsi:'New Si-Warians', announcements:'Announcements', social:'Social Media', whistleblower:'Whistleblower', moments:'Moments' };
   $('#page-title').textContent = titles[name] || name[0].toUpperCase() + name.slice(1);
   window.dispatchEvent(new CustomEvent('siware:page-view', { detail:{ title:`Administration · ${$('#page-title').textContent}` } }));
   if (contentPages.some(page => page.view === name)) renderContentPage(name);
   if (name === 'home') renderHomeEditor();
+  if (name === 'global') renderGlobalPages();
   if (name === 'media') renderMedia();
   if (name === 'access') renderAccess();
   if (name === 'roles') renderRolesCards();
   if (name === 'activity') renderActivity();
+  if (name === 'compliance') renderComplianceAcknowledgements();
   updatePageTools();
 }
 function updateIntranetExitLinks() {
@@ -1508,7 +2034,8 @@ async function start() {
     setupPageTools(); updatePageTools();
     $$('.admin-sidebar button[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
     document.addEventListener('click', event => { const target = event.target.closest('[data-goto]'); if (target) showView(target.dataset.goto); });
-    const initialView = Object.keys(adminViewPermissions).find(view => canAccessAdminView(view));
+    const requestedView = new URLSearchParams(location.search).get('view');
+    const initialView = canAccessAdminView(requestedView) ? requestedView : Object.keys(adminViewPermissions).find(view => canAccessAdminView(view));
     if (initialView) showView(initialView);
     const signOut = async () => { await api('/auth/logout', { method:'POST' }); location.assign('/login.html'); };
     $('#sign-out').addEventListener('click', signOut);
@@ -1542,7 +2069,7 @@ function setupAdminHeader() {
   document.addEventListener('click', event => { if (!event.target.closest('.admin-account')) closeAccount(); if (!event.target.closest('.admin-header-search-panel, .admin-header-search')) closeSearch(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeAccount(); closeSearch(); } });
 }
-function setupSidebarToggle() { const shell = document.querySelector('.admin-shell'); const toggle = $('#sidebar-toggle'); if (!shell || !toggle) return; const shortLabels = { overview:'OV', home:'HM', content:'CT', apps:'AP', announcements:'AN', social:'SM', moments:'MO', knowledge:'KH', events:'EV', whistleblower:'WB', people:'RJ', newsi:'NS', appearance:'AR', media:'MD', access:'UA', activity:'AA', settings:'ST' }; $$('.admin-sidebar button[data-view]').forEach(button => { const label = button.textContent.trim(); button.setAttribute('aria-label', label); button.dataset.shortLabel = shortLabels[button.dataset.view] || label.slice(0, 2).toUpperCase(); }); const setCollapsed = collapsed => { shell.classList.toggle('sidebar-collapsed', collapsed); toggle.setAttribute('aria-expanded', String(!collapsed)); toggle.title = collapsed ? 'Expand navigation' : 'Collapse navigation'; toggle.querySelector('span').textContent = collapsed ? 'Expand' : 'Collapse'; try { localStorage.setItem('siware-admin-sidebar-collapsed', String(collapsed)); } catch (_) {} }; let collapsed = false; try { collapsed = localStorage.getItem('siware-admin-sidebar-collapsed') === 'true'; } catch (_) {} setCollapsed(collapsed); toggle.addEventListener('click', () => setCollapsed(!shell.classList.contains('sidebar-collapsed'))); }
+function setupSidebarToggle() { const shell = document.querySelector('.admin-shell'); const toggle = $('#sidebar-toggle'); if (!shell || !toggle) return; const shortLabels = { overview:'OV', home:'HM', content:'CT', apps:'AP', announcements:'AN', social:'SM', moments:'MO', knowledge:'KH', events:'EV', whistleblower:'WB', people:'RJ', newsi:'NS', appearance:'AR', media:'MD', access:'UA', activity:'AA', compliance:'CA', settings:'ST' }; $$('.admin-sidebar button[data-view]').forEach(button => { const label = button.textContent.trim(); button.setAttribute('aria-label', label); button.dataset.shortLabel = shortLabels[button.dataset.view] || label.slice(0, 2).toUpperCase(); }); const setCollapsed = collapsed => { shell.classList.toggle('sidebar-collapsed', collapsed); toggle.setAttribute('aria-expanded', String(!shell.classList.contains('sidebar-collapsed'))); toggle.title = collapsed ? 'Expand navigation' : 'Collapse navigation'; toggle.querySelector('span').textContent = collapsed ? 'Expand' : 'Collapse'; try { localStorage.setItem('siware-admin-sidebar-collapsed', String(collapsed)); } catch (_) {} }; let collapsed = false; try { collapsed = localStorage.getItem('siware-admin-sidebar-collapsed') === 'true'; } catch (_) {} setCollapsed(collapsed); toggle.addEventListener('click', () => setCollapsed(!shell.classList.contains('sidebar-collapsed'))); }
 function setupSidebarIcons() {
   const iconShapes = {
     overview:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -1562,6 +2089,7 @@ function setupSidebarIcons() {
     access:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>',
     roles:'<path d="M12 3 4 7v5c0 4.5 3.1 7.9 8 9 4.9-1.1 8-4.5 8-9V7l-8-4Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/>',
     activity:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
+    compliance:'<path d="M12 3 5 6v5c0 4.5 3 8.2 7 10 4-1.8 7-5.5 7-10V6l-7-3Z"/><path d="m8.5 12 2.3 2.3 4.8-5"/>',
     settings:'<circle cx="12" cy="12" r="3"/><path d="M10 2h4l.5 2.3 1.7.7 2-1.2 2.8 2.8-1.2 2 .7 1.7L23 11v4l-2.5.5-.7 1.7 1.2 2-2.8 2.8-2-1.2-1.7.7L14 24h-4l-.5-2.5-1.7-.7-2 1.2L3 19.2l1.2-2-.7-1.7L1 15v-4l2.5-.5.7-1.7-1.2-2L5.8 4l2 1.2 1.7-.7L10 2Z" transform="translate(1 0) scale(.92)"/>',
     open:'<path d="M13 4h7v7M20 4 10 14"/><path d="M20 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/>',
     signout:'<path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 8l4 4-4 4M8 12h10"/>'
@@ -1594,7 +2122,7 @@ document.addEventListener('click', event => { const edit = event.target.closest(
 document.addEventListener('click', async event => { const button = event.target.closest('[data-delete-role]'); if (!button) return; const form = $('#role-editor-form'), roleId = form?.elements.id?.value; if (!roleId || !confirm(`Remove ${roleLabel(roleId)}? This cannot be undone.`)) return; try { button.disabled = true; await api(`/api/admin/roles/${encodeURIComponent(roleId)}`, { method:'DELETE' }); $('#role-editor-dialog').close(); flash('Role removed.'); renderRolesEditable(); } catch (error) { form.querySelector('.role-editor-error').textContent = error.message || 'This role could not be removed.'; button.disabled = false; } });
 async function renderRolesCards() { const root = $('#view-roles'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { await loadAccessDirectory(); const roles = accessDirectory.roles || [], users = accessDirectory.users || []; root.innerHTML = `<div class="access-page-heading"><div><h1>Roles</h1><p>Define roles and manage access permissions for Si-Ware Systems.</p></div><div class="access-actions"><button class="action-button primary" type="button" data-add-role>Add role</button></div></div><div class="role-cards">${roles.map(role => `<article class="role-card"><div class="role-card-head"><span class="role-card-mark"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 2.8 8.3 7 10 4.2-1.7 7-5.6 7-10V6l-7-3Z"/></svg></span><div class="role-card-title"><h2>${escapeHtml(roleLabel(role.id))}</h2><p>${users.filter(user => user.role === role.id).length} assigned users · ${role.permissions.length} permissions</p></div><div class="role-card-actions"><button class="role-card-action" type="button" data-card-edit-role="${escapeHtml(role.id)}" aria-label="Edit ${escapeHtml(roleLabel(role.id))}"><svg viewBox="0 0 24 24"><path d="m4 20 4.2-1 10-10a2.2 2.2 0 0 0-3.1-3.1l-10 10L4 20Z"/><path d="m13.5 7.5 3 3"/></svg></button>${role.id === 'ADMIN' ? '' : `<button class="role-card-action danger" type="button" data-card-delete-role="${escapeHtml(role.id)}" aria-label="Remove ${escapeHtml(roleLabel(role.id))}"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-3h4l1 3M6 7l1 14h10l1-14"/></svg></button>`}</div></div><div class="role-card-permissions">${role.permissions.map(permission => `<span>${escapeHtml(permissionLabel(permission))}</span>`).join('')}</div>${role.id === 'ADMIN' ? '<p class="role-card-note">Administrator is protected from removal.</p>' : ''}</article>`).join('')}</div>`; root.querySelector('[data-add-role]').addEventListener('click', () => { renderRolesEditable(); setTimeout(() => $('#role-editor-dialog')?.showModal(), 0); }); root.addEventListener('click', async event => { const edit = event.target.closest('[data-card-edit-role]'); if (edit) { const id = edit.dataset.cardEditRole; renderRolesEditable(); setTimeout(() => document.querySelector(`[data-edit-role="${id}"]`)?.click(), 0); return; } const remove = event.target.closest('[data-card-delete-role]'); if (!remove || !confirm(`Remove ${roleLabel(remove.dataset.cardDeleteRole)}? This cannot be undone.`)) return; try { await api(`/api/admin/roles/${encodeURIComponent(remove.dataset.cardDeleteRole)}`, { method:'DELETE' }); flash('Role removed.'); renderRolesCards(); } catch (error) { flash(error.message || 'This role could not be removed.'); } }); } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
 function openCardRoleEditor(id) { const role = accessDirectory?.roles?.find(item => item.id === id); if (!role) return; let dialog = $('#role-card-editor-dialog'); if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'role-card-editor-dialog'; dialog.className = 'access-user-dialog role-editor-dialog'; document.body.append(dialog); } const permissions = [...new Set(accessDirectory.roles.flatMap(item => item.permissions))]; dialog.innerHTML = `<form id="role-card-editor-form"><div class="dialog-heading"><div><h2>Edit ${escapeHtml(roleLabel(role.id))}</h2><p>Choose the permissions this role can use.</p></div><button type="button" class="dialog-close" data-card-editor-close aria-label="Close">×</button></div><fieldset class="role-permission-list"><legend>Permissions</legend>${permissions.map(permission => `<label class="role-permission-option"><input type="checkbox" name="permissions" value="${escapeHtml(permission)}" ${role.permissions.includes(permission) ? 'checked' : ''} ${role.id === 'ADMIN' && permission === 'access.manage' ? 'disabled' : ''}/><span><b>${escapeHtml(permissionLabel(permission))}</b><small>${escapeHtml(permission)}</small></span></label>`).join('')}</fieldset><p class="role-editor-error" role="alert"></p><div class="form-actions"><button class="action-button" type="button" data-card-editor-close>Cancel</button><button class="action-button primary">Save role</button></div></form>`; dialog.querySelectorAll('[data-card-editor-close]').forEach(button => button.addEventListener('click', () => dialog.close())); dialog.querySelector('form').addEventListener('submit', async event => { event.preventDefault(); const selected = [...dialog.querySelectorAll('[name="permissions"]:checked')].map(input => input.value), error = dialog.querySelector('.role-editor-error'); if (!selected.length) { error.textContent = 'Choose at least one permission.'; return; } try { await api('/api/admin/roles', { method:'PATCH', body:JSON.stringify({ id:role.id, permissions:selected }) }); dialog.close(); flash('Role permissions updated.'); renderRolesCards(); } catch (reason) { error.textContent = reason.message || 'This role could not be saved.'; } }); dialog.showModal(); }
-const pagePermissionNames = { 'page.overview':'Overview', 'page.home':'Home', 'page.content':'Content', 'page.apps':'Main Apps', 'page.announcements':'Announcements', 'page.social':'Social Media', 'page.moments':'Moments', 'page.knowledge':'Knowledge Hub', 'page.events':'Events & key dates', 'page.whistleblower':'Whistleblower', 'page.people':'Recently Joined', 'page.newsi':'New Si-Warians', 'page.appearance':'Appearance', 'page.media':'Media', 'page.users':'Users', 'page.roles':'Roles', 'page.activity':'Activity & audit', 'page.settings':'Settings' };
+const pagePermissionNames = { 'page.overview':'Overview', 'page.home':'Home', 'page.content':'Content', 'page.apps':'Main Apps', 'page.announcements':'Announcements', 'page.social':'Social Media', 'page.moments':'Moments', 'page.knowledge':'Knowledge Hub', 'page.events':'Events & key dates', 'page.whistleblower':'Whistleblower', 'page.people':'Our Team', 'page.newsi':'New Si-Warians', 'page.appearance':'Appearance', 'page.media':'Media', 'page.users':'Users', 'page.roles':'Roles', 'page.activity':'Activity & audit', 'page.compliance':'Compliance acknowledgements', 'page.settings':'Settings' };
 function openGroupedRoleEditor(id) {
   const role = id ? accessDirectory?.roles?.find(item => item.id === id) : null;
   if (id && !role) return;
@@ -1610,11 +2138,19 @@ function openGroupedRoleEditor(id) {
   const known = new Set(['admin.access', ...intranetPagePermissions, ...capabilities, ...pagePermissionOptions, ...globalActionPermissions]);
   const other = (role?.permissions || []).filter(permission => !known.has(permission));
   const intranetNames = Object.fromEntries(intranetPages.map(page => [page.permission, page.label]));
-  const actionNames = { 'action.undo':'Undo changes', 'action.redo':'Redo changes', 'action.reset':'Reset to default', 'action.import':'Import content', 'action.export':'Export content', 'action.delete':'Delete content' };
+  const actionNames = { 'action.undo':'Undo changes', 'action.redo':'Redo changes', 'action.reset':'Reset to default', 'action.import':'Import content', 'action.export':'Export JSON', 'action.export_csv':'Export CSV', 'action.delete':'Delete content' };
   const protectedForAdmin = new Set(['admin.access','access.manage','page.users','page.roles']);
   const option = permission => `<label class="role-permission-option"><input type="checkbox" name="permissions" value="${escapeHtml(permission)}" ${selected.has(permission) ? 'checked' : ''} ${role?.id === 'ADMIN' && protectedForAdmin.has(permission) ? 'disabled' : ''}/><span><b>${escapeHtml(intranetNames[permission] || pagePermissionNames[permission] || actionNames[permission] || permissionLabel(permission))}</b></span></label>`;
   const group = (title, items, note = '') => `<section class="role-group"><div class="role-group-head"><h3>${title}</h3><span><button type="button" data-select-group>Select all</button><button type="button" data-deselect-group>Clear</button></span></div>${note ? `<p class="role-group-note">${note}</p>` : ''}<div class="role-group-grid">${items.map(option).join('')}</div></section>`;
   dialog.innerHTML = `<form><div class="dialog-heading"><div><h2>${role ? `Edit ${escapeHtml(roleLabel(role.id))}` : 'Add role'}</h2><p>Choose what this role can see in the intranet and what it can manage in Administration.</p></div><button type="button" class="dialog-close" data-card-editor-close aria-label="Close">×</button></div>${role ? '' : '<label class="role-name-field">Role name<input name="name" required maxlength="41" placeholder="e.g. Department editor" /><small>Use a name your team will recognize.</small></label>'}${group('Intranet pages access', intranetPagePermissions, 'Controls the employee-facing pages and their content. My profile stays available to every signed-in user.')}<section class="role-admin-section"><div class="role-admin-section-head"><div><h3>Admin Panel (Edit Content)</h3><p>Separate access to Administration from the pages employees can view.</p></div><label class="role-admin-switch"><input type="checkbox" name="permissions" value="admin.access" ${selected.has('admin.access') ? 'checked' : ''} ${role?.id === 'ADMIN' ? 'disabled' : ''}/><span>Allow Admin Panel</span></label></div><div class="role-admin-scope">${group('Administration capabilities', capabilities, 'Choose the work this role can perform.')}${group('Administration page access', pagePermissionOptions, 'Choose the pages visible in the Administration sidebar.')}${group('Administration actions', globalActionPermissions, 'These actions apply only to Administration pages this role can access.')}</div></section>${other.length ? group('Other permissions', other) : ''}<p class="role-editor-error" role="alert"></p><div class="form-actions"><button class="action-button" type="button" data-card-editor-close>Cancel</button><button class="action-button primary">${role ? 'Update role' : 'Create role'}</button></div></form>`;
+  const calendarDetailGroup = [...dialog.querySelectorAll('.role-group')].find(group => group.querySelector('[value="events.details.all"]'));
+  if (calendarDetailGroup) {
+    calendarDetailGroup.querySelector('h3').textContent = 'Calendar detail access';
+    const note = document.createElement('p');
+    note.className = 'role-group-note';
+    note.textContent = 'Allows this role to view descriptions, meeting links, and attachments for every calendar event. Without it, those details stay limited to invited guests.';
+    calendarDetailGroup.querySelector('.role-group-head').insertAdjacentElement('afterend', note);
+  }
   dialog.querySelectorAll('[data-card-editor-close]').forEach(button => button.addEventListener('click', () => dialog.close()));
   const inputFor = permission => [...dialog.querySelectorAll('[name="permissions"]')].find(input => input.value === permission);
   const adminToggle = inputFor('admin.access'), adminScope = dialog.querySelector('.role-admin-scope');
@@ -1685,4 +2221,5 @@ function openGroupedRoleEditor(id) {
 }
 document.addEventListener('click', event => { const button = event.target.closest('[data-card-edit-role]'); if (!button) return; event.stopImmediatePropagation(); event.preventDefault(); openGroupedRoleEditor(button.dataset.cardEditRole); }, true);
 document.addEventListener('click', event => { const button = event.target.closest('[data-add-role]'); if (!button) return; event.stopImmediatePropagation(); event.preventDefault(); openGroupedRoleEditor(null); }, true);
-api('/api/auth/me').then(me => { const pagePermissions = me.permissions?.filter(permission => permission.startsWith('page.')) || []; if (!pagePermissions.length) return; const views = { overview:'page.overview', home:'page.home', content:'page.content', apps:'page.apps', announcements:'page.announcements', social:'page.social', moments:'page.moments', knowledge:'page.knowledge', events:'page.events', whistleblower:'page.whistleblower', people:'page.people', newsi:'page.newsi', appearance:'page.appearance', media:'page.media', access:'page.users', roles:'page.roles', activity:'page.activity', settings:'page.settings' }; Object.entries(views).forEach(([view, permission]) => { const button = document.querySelector(`[data-view="${view}"]`); if (button && !pagePermissions.includes(permission)) button.hidden = true; }); }).catch(() => {});
+loadGlobalPageContent();
+api('/api/auth/me').then(me => { const pagePermissions = me.permissions?.filter(permission => permission.startsWith('page.')) || []; if (!pagePermissions.length) return; const views = { overview:'page.overview', home:'page.home', global:'page.home', content:'page.content', apps:'page.apps', announcements:'page.announcements', social:'page.social', moments:'page.moments', knowledge:'page.knowledge', events:'page.events', whistleblower:'page.whistleblower', people:'page.people', newsi:'page.newsi', appearance:'page.appearance', media:'page.media', access:'page.users', roles:'page.roles', activity:'page.activity', compliance:'page.compliance', settings:'page.settings' }; Object.entries(views).forEach(([view, permission]) => { const button = document.querySelector(`[data-view="${view}"]`); if (button && !pagePermissions.includes(permission)) button.hidden = true; }); }).catch(() => {});
