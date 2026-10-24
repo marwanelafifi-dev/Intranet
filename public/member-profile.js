@@ -45,13 +45,13 @@ function profileMarkup(member) {
   const name = String(member.name || 'Colleague').trim();
   const initials = String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2)).trim();
   const color = /^#[\da-f]{3,8}$/i.test(String(member.color || '')) ? member.color : '#dceeff';
-  const photoUrl = safePhotoUrl(member.photoUrl);
+  const photoUrl = safePhotoUrl(member.profilePhotoUrl || member.photoUrl);
   const avatar = photoUrl
-    ? `<button class="member-profile-photo-button" type="button" data-member-photo-view aria-label="View photo of ${escapeHtml(name)}"><img class="member-profile-avatar member-profile-photo" src="${escapeHtml(photoUrl)}" alt="" /></button>`
+    ? `<button class="member-profile-photo-button" type="button" data-member-photo-view aria-label="View photo of ${escapeHtml(name)}"><img class="member-profile-avatar member-profile-photo" src="${escapeHtml(photoUrl)}" alt="Photo of ${escapeHtml(name)}" /></button>`
     : `<span class="member-profile-avatar" style="--member-color:${color}" aria-hidden="true">${escapeHtml(initials)}</span>`;
   const facts = [
     detail('Department', member.department),
-    detail('Division', member.division),
+    detail('Division', member.division === 'To be confirmed' ? '' : member.division),
     member.team && ![member.department, member.division].includes(member.team) ? detail('Team', member.team) : '',
     detail('Direct manager', member.directManager),
     detail('Employment type', member.employmentType),
@@ -114,14 +114,14 @@ function ensurePhotoViewer() {
 }
 
 function openMemberPhoto(member, trigger) {
-  const photoUrl = safePhotoUrl(member.photoUrl);
+  const photoUrl = safePhotoUrl(member.profilePhotoUrl || member.photoUrl);
   if (!photoUrl) return;
+  const hasOriginal = Boolean(safePhotoUrl(member.profilePhotoUrl));
   const viewer = ensurePhotoViewer();
   photoReturnFocus = trigger;
-  viewer.innerHTML = `<div class="member-photo-viewer-content"><div class="member-photo-viewer-heading"><h2>${escapeHtml(member.name || 'Employee photo')}</h2><button type="button" data-member-photo-close aria-label="Close photo viewer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 19 19M19 5 5 19" /></svg></button></div><img src="${escapeHtml(photoUrl)}" alt="Profile photo of ${escapeHtml(member.name || 'employee')}" /></div>`;
+  viewer.innerHTML = `<div class="member-photo-viewer-content"><div class="member-photo-viewer-heading"><div><h2>${escapeHtml(member.name || 'Employee photo')}</h2><p>${hasOriginal ? 'Original profile photo' : 'Google Workspace photo · native resolution'}</p></div><button type="button" data-member-photo-close aria-label="Close photo viewer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 19 19M19 5 5 19" /></svg></button></div><img src="${escapeHtml(photoUrl)}" alt="Profile photo of ${escapeHtml(member.name || 'employee')}" /></div>`;
   viewer.showModal();
-  const image = viewer.querySelector('img');
-  image.addEventListener('error', () => viewer.close(), { once:true });
+  viewer.querySelector('img').addEventListener('error', () => viewer.close(), { once:true });
   viewer.querySelector('[data-member-photo-close]').focus({ preventScroll:true });
 }
 

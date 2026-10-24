@@ -1,0 +1,51 @@
+/* Final dark-mode cascade for Administration. Page-level CSS loads before this layer. */
+html.dark body,html.dark .admin-view{background:var(--ground);color:var(--ink)}
+html.dark :is(.panel,.metric,.media-file,.users-workspace,.roles-workspace,.user-metrics article,.roles-summary article,.audit-stat,.audit-trail-shell,.google-sync-panel,.google-sync-group,.google-sync-schedule,.home-editor-layout .panel,.global-pages-section,.global-login-preview){background:var(--surface);border-color:var(--line);color:var(--ink)}
+html.dark :is(.admin-view,.panel,.users-workspace,.roles-workspace,.audit-trail-shell,.google-sync-panel,.google-sync-group,.google-sync-schedule) :is(h1,h2,h3,h4,b,strong,legend){color:var(--ink)}
+
+/* Shared controls and messages */
+html.dark :is(.action-button,.view-link,.tool-button):not(.primary):not(.danger):not(:disabled){background:#173757;border-color:#6385aa;color:#d6e9ff}
+html.dark :is(.action-button,.view-link,.tool-button):not(.primary):not(.danger):not(:disabled):hover{background:#214b73}
+html.dark :is(.action-button,.admin-page-primary,.access-actions .action-button.primary){background:#1762aa;border-color:#2478c4;color:#fff}
+html.dark :is(.action-button,.admin-page-primary,.access-actions .action-button.primary):hover:not(:disabled){background:#2478c4;border-color:#3b8ddb}
+html.dark .notice{background:#153e4b;color:#c4f3ef}html.dark .notice.warning{background:#483817;color:#ffe6aa}html.dark .flash:not(:empty){background:#153e36;color:#bcf0d4}
+html.dark :is(.form-grid label,.settings-form label,.home-hero-form label,.google-sync-search-label,.google-sync-schedule-controls label,.users-filters label){color:#bfd1e5}
+
+/* Users and access management */
+html.dark #view-access .access-actions .action-button.primary{background:#1762aa;border-color:#2478c4;color:#fff}
+html.dark #view-access .access-actions .action-button.primary:hover{background:#2478c4;border-color:#3b8ddb}
+html.dark #view-access .user-metric-online{background:#103b35!important;border-color:#2e9570!important}
+html.dark #view-access .user-metric-online :is(span,b){color:#88e4bc!important}
+html.dark #view-access .users-filters input,html.dark #view-access .users-filters select,html.dark #view-access .form-grid input,html.dark #view-access .form-grid select{background:#0e223a;border-color:#55718f;color:#edf4ff}
+html.dark #view-access .users-filters input::placeholder{color:#afc2d9}html.dark #view-access .users-filters .user-search svg{color:#afc2d9}
+html.dark #view-access .users-table th,html.dark #view-access .roles-table thead th{background:#10243e;color:#bfd1e5}
+html.dark #view-access :is(.users-table td,.roles-table td,.roles-table tbody th){color:#edf4ff}
+html.dark #view-access .user-avatar{background:#1c4773;color:#d8edff}html.dark #view-access .auth-chip{background:#4a3c18;color:#ffe3a0}html.dark #view-access .auth-local{background:#1b416e;color:#cce5ff}
+html.dark #view-access .user-state{color:#b9cce1}html.dark #view-access .user-state.is-active{color:#88e4bc}
+html.dark #view-access :is(.user-joined,.user-readonly,.users-managed-note,.local-password-fields small){color:#b9cce1}html.dark #view-access .user-row-action{color:#9dcaff}
+html.dark #view-access :is(.users-workspace,.roles-workspace) :is(tbody tr:hover,tbody tr:focus-within){background:#183655}
+html.dark #view-access .access-user-dialog,html.dark #view-access .role-editor-dialog,html.dark #role-card-editor-dialog{background:#142943;border-color:#36516f;color:#edf4ff;box-shadow:0 24px 64px rgb(0 0 0 / 42%)}
+html.dark #view-access .access-user-dialog::backdrop,html.dark #view-access .role-editor-dialog::backdrop,html.dark #role-card-editor-dialog::backdrop{background:rgb(2 10 22 / 68%)}
+html.dark #view-access .dialog-heading p{color:#bfd1e5}html.dark #view-access .dialog-close{color:#b9cce1}html.dark #view-access .dialog-close:hover{background:#1b3a5b;color:#edf4ff}
+html.dark #view-access .access-user-dialog .notice{background:#153e4b;color:#c4f3ef}html.dark #view-access .user-form-error,html.dark #role-card-editor-dialog .role-editor-error{color:#ffb4c2}
+html.dark #role-card-editor-dialog .role-admin-switch:has(input:checked){background:#183655;border-color:#6385aa}
+
+/* Editor and sync surfaces that specify a light fill in their feature CSS. */
+html.dark :is(.announcement-content-disclosure,.announcement-email-preview,.moment-media-preview,.member-photo-preview,.rich-editor,.rich-toolbar,.knowledge-remove-dialog,.google-sync-schedule,.google-sync-schedule.is-disabled){background:#10243e;border-color:#36516f;color:#edf4ff}
+html.dark .announcement-content-disclosure[open] summary{background:#173757}html.dark .announcement-email-preview.is-editing{background:#183655;border-color:#6385aa}
+html.dark :is(.announcement-email-preview iframe,.moment-media-preview iframe,.global-login-preview iframe){background:#0b1728}
+html.dark .home-layout-number{background:#1b416e;color:#cce5ff}html.dark .google-sync-connection.is-disconnected{background:#483817;color:#ffe6aa}
+html.dark .google-sync-schedule-controls :is(select,input){background:#0e223a;border-color:#55718f;color:#edf4ff}html.dark .google-sync-feedback{color:#96e6bd}
+html.dark .google-sync-remove-calendar{color:#ffb4c2}html.dark .google-sync-remove-calendar:hover{color:#ffd5de}
+
+/* Audit trail: differentiated but subdued color, no residual white chips. */
+html.dark .audit-trail-toolbar,html.dark .audit-change-list li{background:#10243e;border-color:#36516f}
+html.dark .audit-filter-chip{background:#173757;border-color:#55718f;color:#d6e9ff}html.dark .audit-filter-chip:hover{background:#214b73;border-color:#7ba0c6}html.dark .audit-filter-chip[aria-pressed="true"]{background:#2478c4;border-color:#3b8ddb;color:#fff}
+html.dark .audit-stat-icon,html.dark .audit-event-icon{background:#1b416e;color:#b8d8ff}
+html.dark :is(.audit-stat,.audit-event)[data-kind="page"] :is(.audit-stat-icon,.audit-event-icon){background:#123f47;color:#9eeaf2}
+html.dark :is(.audit-stat,.audit-event)[data-kind="click"] :is(.audit-stat-icon,.audit-event-icon){background:#39295b;color:#d9c2ff}
+html.dark :is(.audit-stat,.audit-event)[data-kind="change"] :is(.audit-stat-icon,.audit-event-icon){background:#4a2942;color:#ffc1df}
+html.dark :is(.audit-stat,.audit-event)[data-kind="access"] :is(.audit-stat-icon,.audit-event-icon){background:#183d6e;color:#b9d8ff}
+html.dark :is(.audit-stat,.audit-event)[data-kind="system"] :is(.audit-stat-icon,.audit-event-icon){background:#283e57;color:#cbd9e9}
+html.dark :is(.audit-event-title span,.audit-event-route,.audit-event-description,.audit-event-foot,.audit-event-side time,.audit-change-values span){color:#c7d5e6}
+html.dark .audit-event-kind{background:#1b3a5b;color:#cfe3f8}html.dark .audit-change-list em{color:#ffb4c2}html.dark .audit-change-list strong{color:#96e6bd}

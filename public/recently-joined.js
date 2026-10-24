@@ -38,8 +38,9 @@ function contactLinks(member) {
 function memberCard(member) {
   const name = String(member.name || 'Colleague');
   const initials = String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2));
-  const avatar = member.photoUrl
-    ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(member.photoUrl)}" alt="" loading="lazy" /><span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" hidden aria-hidden="true">${escapeHtml(initials)}</span>`
+  const photoUrl = member.profilePhotoUrl || member.photoUrl;
+  const avatar = photoUrl
+    ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(photoUrl)}" alt="" loading="lazy" /><span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" hidden aria-hidden="true">${escapeHtml(initials)}</span>`
     : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(initials)}</span>`;
   const facts = [
     ['Department', member.department || member.team],
@@ -125,7 +126,7 @@ async function loadTeam() {
       ...member,
       employmentType:String(member.employmentType || '').trim() || 'To be confirmed',
       department:member.department || member.team || 'To be confirmed',
-      division:member.division || member.team || 'To be confirmed',
+      division:member.division || 'To be confirmed',
       organizationUnit:String(member.organizationUnit || '').trim()
     }));
     populateFilters();

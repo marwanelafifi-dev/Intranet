@@ -15,7 +15,7 @@ const icon = kind => `<svg viewBox="0 0 24 24" aria-hidden="true">${kindIcons[ki
 
 function kindFor(event) {
   if (event.category === 'activity') return /^(page\.|page$)/.test(event.action || '') ? 'page' : /click|activate/.test(event.action || '') ? 'click' : 'system';
-  if (/^(content\.|presentation\.)/.test(event.action || '')) return 'change';
+  if (/^(content\.|presentation\.|profile\.)/.test(event.action || '')) return 'change';
   if (/^(authentication\.|access\.)/.test(event.action || '')) return 'access';
   return 'system';
 }
@@ -25,7 +25,7 @@ function actionLabel(event) {
     'page.open':'Page opened', 'page.navigation':'Page opened',
     'button.click':'Button clicked', 'link.click':'Link clicked', 'interface.activate':'Control clicked',
     'control.change':'Control changed', 'interface.change':'Control changed',
-    'content.updated':'Content updated', 'presentation.updated':'Appearance updated',
+    'content.updated':'Content updated', 'presentation.updated':'Appearance updated', 'profile.linkedin.updated':'LinkedIn profile updated', 'profile.photo.updated':'Profile photo updated',
     'authentication.login':'Signed in', 'authentication.logout':'Signed out'
   };
   return labels[event.action] || String(event.action || 'Event recorded').replace(/[._-]/g, ' ');

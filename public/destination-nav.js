@@ -50,12 +50,22 @@ const nav = existingNav || document.createElement('nav');
 
 nav.classList.add('destination-nav-inline');
 nav.setAttribute('aria-label', 'Intranet destinations');
-nav.innerHTML = destinations.map(({ path, label, permission }) => `<a href="${path}" data-intranet-permission="${permission}"${path === currentPath ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+nav.innerHTML = destinations.filter(destination => destination.path !== '/whistleblower-2.html').map(({ path, label, permission }) => `<a href="${path}" data-intranet-permission="${permission}"${path === currentPath ? ' aria-current="page"' : ''}>${label}</a>`).join('');
 nav.style.visibility = 'hidden';
 const identityRequest = fetch('/api/auth/me').then(response => response.ok ? response.json() : null).catch(() => null);
-identityRequest.then(identity => {
+const visibilityRequest = fetch('/api/dashboard').then(response => response.ok ? response.json() : null).catch(() => null);
+Promise.all([identityRequest, visibilityRequest]).then(([identity, dashboard]) => {
   const permissions = new Set(identity?.permissions || []);
-  nav.querySelectorAll('[data-intranet-permission]').forEach(link => { const allowed = permissions.has(link.dataset.intranetPermission); link.hidden = !allowed; link.style.display = allowed ? '' : 'none'; });
+  const googleFormRouteActive = dashboard?.whistleblower2Config?.enabled === true;
+  const activeWhistleblowerPath = googleFormRouteActive ? '/whistleblower-2.html' : '/whistleblower.html';
+  nav.querySelectorAll('[data-intranet-permission]').forEach(link => {
+    const destination = destinations.find(item => item.path === link.getAttribute('href'));
+    const isWhistleblower = destination?.path === '/whistleblower.html';
+    const enabled = isWhistleblower ? dashboard?.[googleFormRouteActive ? 'whistleblower2Config' : 'whistleblowerConfig']?.enabled !== false : !destination?.visibilityKey || dashboard?.[destination.visibilityKey]?.enabled !== false;
+    const allowed = permissions.has(link.dataset.intranetPermission) && enabled;
+    if (isWhistleblower) { link.href = activeWhistleblowerPath; link.toggleAttribute('aria-current', currentPath === activeWhistleblowerPath); }
+    link.hidden = !allowed; link.style.display = allowed ? '' : 'none';
+  });
   const landing = firstAvailableIntranetPage(permissions)?.path || (canOpenAdmin(permissions) ? '/admin.html' : '/profile.html');
   document.querySelectorAll('header a[href="/"]').forEach(link => { link.href = landing; });
   nav.style.visibility = '';

@@ -1,5 +1,5 @@
 (() => {
-  if (/^\/(?:whistleblower(?:\.html|\/|$)|login\.html$)/i.test(location.pathname) || navigator.doNotTrack === '1') return;
+  if (/^\/(?:whistleblower(?:-2)?(?:\.html|\/|$)|login\.html$)/i.test(location.pathname) || navigator.doNotTrack === '1') return;
 
   const queue = [], maxQueue = 200;
   let storeKey = '', timer, sending = false, authenticated = false;

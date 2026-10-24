@@ -61,8 +61,8 @@ Provide a standardized 12-app grid with hover tooltips, smooth hover scaling, an
 8. **Time Tracker:** Attendance & Timesheet Logging
 9. **Arena PLM:** Product Lifecycle Management (Engineering Parts/BOMs)
 10. **NetSuite ERP:** Enterprise Financials & Supply Chain
-11. **Si-Brain:** Internal R&D AI Knowledge Assistant
-12. **Si-Bot:** Automated Support Workflow Bot
+11. **Si-Brain:** Si-Ware’s main AI platform, combining company knowledge with ClickUp, Google Drive, Gmail, and Google Calendar
+12. **Si-Bot:** AI chat and specialist agents for questions, guidance, and lightweight files
 
 ### 3.2 Si-Ware Knowledge Hub
 * **Metadata Schema:**

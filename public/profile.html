@@ -32,6 +32,23 @@
               <div><dt>Access level</dt><dd id="account-access"></dd></div>
               <div><dt>Sign-in method</dt><dd id="account-method"></dd></div>
             </dl>
+            <section class="profile-directory" id="profile-directory" hidden aria-labelledby="profile-directory-title">
+              <div><h2 id="profile-directory-title">Your directory details</h2><p>Details shown on your Our Team card.</p></div>
+              <dl id="profile-directory-facts"></dl>
+              <nav id="profile-directory-contacts" aria-label="Your directory contact details" hidden></nav>
+              <p class="profile-completion-prompt" id="profile-completion-prompt" hidden><b></b><span></span></p>
+              <form class="profile-linkedin" id="profile-linkedin-form" hidden>
+                <label for="profile-linkedin-url">LinkedIn profile</label>
+                <div><input id="profile-linkedin-url" name="linkedinUrl" type="url" inputmode="url" autocomplete="url" maxlength="300" placeholder="https://www.linkedin.com/in/your-profile" /><button type="submit">Save LinkedIn</button></div>
+                <p id="profile-linkedin-status" role="status" aria-live="polite"></p>
+              </form>
+              <form class="profile-photo" id="profile-photo-form" hidden>
+                <label for="profile-photo-file">Profile photo</label>
+                <div><input id="profile-photo-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp" /><button type="submit">Upload photo</button></div>
+                <p id="profile-photo-help">Use an original JPEG, PNG, or WebP photo that is at least 600 × 600 pixels. It will appear on your Our Team card and open in full quality.</p>
+                <p id="profile-photo-status" role="status" aria-live="polite"></p>
+              </form>
+            </section>
             <p class="account-note" id="account-note"></p>
             <div class="account-actions"><a href="/">Back to intranet</a><button id="account-sign-out" type="button">Sign out</button></div>
             <p class="account-error" id="account-sign-out-status" role="alert" hidden></p>

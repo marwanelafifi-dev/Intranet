@@ -90,6 +90,15 @@ html.dark .onboarding-hero-aside>a{color:#9ac4ff}
 .onboarding-hero-aside>a{width:fit-content;max-width:100%;min-width:0;flex-wrap:wrap}
 .onboarding-hero-aside>a>span:first-child{min-width:0;overflow-wrap:anywhere}
 
+/* A clearer first-week promise and a more purposeful progress panel. */
+.policy-hero h1{max-width:11ch;letter-spacing:-.04em}
+.onboarding-hero-aside{gap:10px;padding:22px;background:#eaf4ff;border-color:#b9d8fb}
+.onboarding-hero-aside b{margin:1px 0 0;font:800 18px/1.25 Manrope,Arial,sans-serif;letter-spacing:-.025em}
+.onboarding-hero-aside p{font-size:12px;line-height:1.6}
+.onboarding-hero-aside>a{margin-top:5px;font-size:14px;line-height:1.35}
+html:not(.dark) .onboarding-hero-aside{background:#eaf4ff;border-color:#b9d8fb}
+html.dark .onboarding-hero-aside{background:#10243e;border-color:#365779}
+
 .onboarding-training{scroll-margin-top:18px}
 .onboarding-video-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:22px}
 .onboarding-video-card{min-width:0;padding:16px;border:1px solid #d6e4f2;border-radius:10px;background:#f8fbff}

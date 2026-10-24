@@ -126,13 +126,13 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
       googleCreatedAt:Number.isFinite(createdAt) ? new Date(createdAt).toISOString() : ''
     };
     if (existing) {
-      const previous = existing.googleImportedFields || {};
+      const intranetOverrides = existing.intranetOverrides || {};
       let dirty = false;
       for (const [key, value] of Object.entries(imported)) {
-        if (!existing[key] || existing[key] === placeholder || existing[key] === previous[key]) {
-          if (existing[key] !== value) { existing[key] = value; dirty = true; }
-        }
+        if (intranetOverrides[key] === true) continue;
+        if (existing[key] !== value) { existing[key] = value; dirty = true; }
       }
+      if (intranetOverrides.team !== true && existing.team !== imported.department) { existing.team = imported.department; dirty = true; }
       if (existing.googleUserId !== String(user.id)) { existing.googleUserId = String(user.id); dirty = true; }
       existing.googleImportedFields = imported;
       if (dirty) updated += 1;

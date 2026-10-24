@@ -95,6 +95,28 @@ const sessionFor = req => {
 const isGoogleConfigured = () => Boolean(googleClientId && googleClientSecret);
 const isLocalAdminConfigured = () => Boolean(localAdminEmail && localAdminPassword);
 const isAuthenticationConfigured = () => isGoogleConfigured() || isLocalAdminConfigured() || localAccountsConfigured;
+const googleProfilePhotoUrl = value => {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:' && /(^|\.)googleusercontent\.com$/i.test(url.hostname) ? url.toString() : '';
+  } catch { return ''; }
+};
+const linkedInProfileUrl = value => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'https:' && /(^|\.)linkedin\.com$/i.test(url.hostname) ? url.toString() : null;
+  } catch { return null; }
+};
+const employeeProfilePhotoUpload = (dataUrl, filename) => {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
+  if (!match) throw new Error('Choose a JPEG, PNG, or WebP profile photo.');
+  const content = Buffer.from(match[2], 'base64');
+  if (!content.length || content.length > 10 * 1024 * 1024) throw new Error('Profile photos must be 10 MB or smaller.');
+  return { dataUrl:`data:${match[1].toLowerCase()};base64,${match[2]}`, filename:String(filename || 'profile-photo') };
+};
 const isValidLocalAdminPassword = value => { const expected = Buffer.from(localAdminPassword), supplied = Buffer.from(String(value || '')); return expected.length === supplied.length && timingSafeEqual(expected, supplied); };
 const safeReturnTo = value => {
   const path = String(value || '/');
@@ -109,8 +131,9 @@ const rolePermissions = {
   ADMIN: [...intranetPagePermissions, 'events.details.all', 'admin.access', 'content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage', ...adminActionPermissions, ...adminPagePermissions]
 };
 const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 280);
-const adminDefaultKeys = ['apps','announcements','announcementSchedules','announcementTemplates','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','eventsPageContent','whistleblowerConfig','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','globalPageContent','settings','adminSettings'];
+const adminDefaultKeys = ['apps','announcements','announcementSchedules','announcementTemplates','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','eventsPageContent','whistleblowerConfig','whistleblower2Config','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','homePageContent','globalPageContent','settings','adminSettings'];
 const contentChangeLabels = {
+  whistleblower2Config: 'Whistleblower 2 Google Form',
   user: 'Intranet profile',
   apps: 'Main Apps · app links',
   announcements: 'Announcements',
@@ -180,6 +203,7 @@ const configuredRoles = data => {
 };
 const storedUserFor = (data, email) => data.accessUsers.find(user => String(user.email || '').toLowerCase() === email);
 const activeSessionForEmail = email => [...sessions.values()].some(session => session.expiresAt > Date.now() && String(session.actor?.email || '').toLowerCase() === email);
+const directoryProfilePhotoFor = (data, email) => String(data.newMembers?.find(member => String(member.companyEmail || '').trim().toLowerCase() === String(email || '').trim().toLowerCase())?.profilePhotoUrl || '').trim();
 function directoryAccessUsers(data) {
   const users = new Map();
   for (const member of data.newMembers || []) {
@@ -207,10 +231,12 @@ const actorFor = (req, data) => {
     if (account?.active === false || (account && (account.authType === 'local') !== Boolean(session.local))) return null;
     if (session.local) {
       if (!account || account.active === false || account.authType !== 'local' || !account.passwordHash) return null;
-      return configuredRoles(data)[account.role] ? { ...session, name:account.name, role:account.role } : null;
+      const profilePhotoUrl = directoryProfilePhotoFor(data, session.email);
+      return configuredRoles(data)[account.role] ? { ...session, name:account.name, role:account.role, avatarUrl:profilePhotoUrl || session.avatarUrl || '' } : null;
     }
     const role = account?.role || session.role;
-    return configuredRoles(data)[role] ? { ...session, role, name:account?.name || session.name } : null;
+    const profilePhotoUrl = directoryProfilePhotoFor(data, session.email);
+    return configuredRoles(data)[role] ? { ...session, role, name:account?.name || session.name, avatarUrl:profilePhotoUrl || account?.avatarUrl || session.avatarUrl || '' } : null;
   }
   // The demo identity is available only when no sign-in method was explicitly configured.
   if (!isAuthenticationConfigured()) return { id:'local-demo-user', name:data.user?.name || 'Local employee', email:data.user?.email || 'local.employee@si-ware.com', role:configuredRoles(data)[data.user?.role] ? data.user.role : 'EMPLOYEE', demo:true };
@@ -241,7 +267,7 @@ function requireEveryPermission(req, res, data, permissions) {
   return actor;
 }
 const employeeDashboardKeys = new Set([
-  'socialLinks','whistleblowerConfig','policyAcknowledgementContent','newSiPageContent',
+  'socialLinks','whistleblowerConfig','whistleblower2Config','policyAcknowledgementContent','newSiPageContent',
   'settings','supportPortals','firstWeekChecklist','newMembers','policies','people',
   'forms','faqs','serviceRequests','apps','announcements','sessions','feeds','moments',
   'events','eventsPageContent','homePageContent','knowledgePageContent','momentsPageContent','recentlyJoinedPageContent','globalPageContent','_version'
@@ -291,7 +317,7 @@ function dashboardResponse(data, actor, admin = false) {
     return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
   }));
   if (Object.hasOwn(visible, 'events')) visible.events = publicEvents(visible.events);
-  return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
+  return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
   const changedKeys = Object.keys(next).filter(key => adminContentKeyPages[key] && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
@@ -302,6 +328,7 @@ function dashboardMutationError(data, actor, next, operation = '') {
     return { error:'Appearance page access is required to change the shared theme.', status:403 };
   }
   if (changedKeys.some(key => key === 'announcements' || key === 'announcementSchedules') && !can(data, actor, 'content.publish')) return { error:'Publish content permission is required for announcements.', status:403 };
+  if (changedKeys.some(key => key === 'whistleblowerConfig' || key === 'whistleblower2Config') && next.whistleblowerConfig?.enabled === next.whistleblower2Config?.enabled) return { error:'Select exactly one active Whistleblower reporting route for employees.', status:422 };
   if (removedContent(data, next, changedKeys) && !can(data, actor, 'action.delete')) return { error:'Delete permission is required to remove content.', status:403 };
   const action = { undo:'action.undo', redo:'action.redo', reset:'action.reset', import:'action.import', delete:'action.delete' }[operation];
   if (action && !can(data, actor, action)) return { error:`Permission required: ${action}.`, status:403 };
@@ -326,7 +353,7 @@ function activityEvent(data, actor, event, ip = '') {
   data.activityEvents ||= [];
   if (data.activityEvents.some(entry => entry.id === event.id)) return false;
   const route = safeText(event.route).split(/[?#]/)[0];
-  if (/^\/(?:whistleblower(?:\.html|\/|$)|login\.html$)/i.test(route)) return false;
+  if (/^\/(?:whistleblower(?:-2)?(?:\.html|\/|$)|login\.html$)/i.test(route)) return false;
   const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
   const safeMetadata = Object.fromEntries(['page','control','destination','keyboard'].filter(key => Object.hasOwn(metadata, key)).map(key => [key, key === 'keyboard' ? Boolean(metadata[key]) : safeText(metadata[key])]));
   const clientTime = Date.parse(event.occurredAt), now = Date.now();
@@ -605,6 +632,10 @@ async function dashboard() {
     if (JSON.stringify(data.socialLinks || {}) !== JSON.stringify(socialLinks)) { data.socialLinks = socialLinks; changed = true; }
     const whistleblowerConfig = { ...(seed.whistleblowerConfig || {}), ...(data.whistleblowerConfig || {}) };
     if (JSON.stringify(data.whistleblowerConfig || {}) !== JSON.stringify(whistleblowerConfig)) { data.whistleblowerConfig = whistleblowerConfig; changed = true; }
+    const whistleblower2Config = { ...(seed.whistleblower2Config || {}), ...(data.whistleblower2Config || {}) };
+    if (JSON.stringify(data.whistleblower2Config || {}) !== JSON.stringify(whistleblower2Config)) { data.whistleblower2Config = whistleblower2Config; changed = true; }
+    if (data.whistleblower2Config.enabled === true && data.whistleblowerConfig.enabled !== false) { data.whistleblowerConfig.enabled = false; changed = true; }
+    if (data.whistleblowerConfig.enabled === false && data.whistleblower2Config.enabled === false) { data.whistleblowerConfig.enabled = true; changed = true; }
     const acknowledgementContent = data.policyAcknowledgementContent || {}, hydratedAcknowledgementContent = { ...acknowledgementContentDefault, ...acknowledgementContent };
     if (JSON.stringify(acknowledgementContent) !== JSON.stringify(hydratedAcknowledgementContent)) { data.policyAcknowledgementContent = hydratedAcknowledgementContent; changed = true; }
     const newSiPageContent = { ...(seed.newSiPageContent || {}), ...(adminDefaults.newSiPageContent || {}), ...(data.newSiPageContent || {}) };
@@ -619,7 +650,7 @@ async function dashboard() {
         directManager: member.directManager || seededMembers.get(member.id)?.directManager || 'To be confirmed',
         employmentType: employmentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time',
         department: member.department || member.team || 'To be confirmed',
-        division: member.division || member.team || 'To be confirmed'
+        division: member.division || 'To be confirmed'
       }));
       changed = true;
     }
@@ -746,7 +777,7 @@ await dashboard();
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower|employee-voice)\.html$/i.test(url.pathname);
+    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower(?:-2)?|employee-voice)\.html$/i.test(url.pathname);
     if (isAuthenticationConfigured() && !sessionFor(req) && ['GET','HEAD'].includes(req.method) && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
     const documentRoute = url.pathname.toLowerCase(), requiredPage = intranetRoutePermissions[documentRoute];
     if (['GET','HEAD'].includes(req.method) && (requiredPage || documentRoute === '/admin.html')) {
@@ -760,6 +791,8 @@ const server = createServer(async (req, res) => {
         res.writeHead(403, { 'content-type':'text/html; charset=utf-8', 'cache-control':'no-store' });
         return res.end(req.method === 'HEAD' ? '' : denied.replaceAll('@@RETURN_PATH@@', next));
       }
+      const whistleblowerRouteDisabled = (documentRoute === '/whistleblower.html' && data.whistleblowerConfig?.enabled === false) || (documentRoute === '/whistleblower-2.html' && data.whistleblower2Config?.enabled === false);
+      if (whistleblowerRouteDisabled) return json(res, 404, { error:'This reporting route is not currently available.' });
     }
     if (req.method === 'GET' && url.pathname === '/api/auth/options') return json(res, 200, { google:isGoogleConfigured(), local:isLocalAdminConfigured() || localAccountsConfigured });
     if (req.method === 'GET' && url.pathname === '/api/global-page-content') {
@@ -829,14 +862,16 @@ const server = createServer(async (req, res) => {
       if (assignedUser?.active === false || assignedUser?.authType === 'local') return fail('account');
       const role = configuredRoles(current)[assignedUser?.role] ? assignedUser.role : (googleAdminEmails.has(email) ? 'ADMIN' : 'EMPLOYEE');
       const signedInAt = new Date().toISOString();
+      const avatarUrl = googleProfilePhotoUrl(profile.picture);
       if (!assignedUser) {
-        assignedUser = { id:randomUUID(), email, name:profile.name || email, role, authType:'google', active:true, createdAt:signedInAt, firstSignedInAt:signedInAt, lastLoginAt:signedInAt };
+        assignedUser = { id:randomUUID(), email, name:profile.name || email, role, avatarUrl, authType:'google', active:true, createdAt:signedInAt, firstSignedInAt:signedInAt, lastLoginAt:signedInAt };
         current.accessUsers.push(assignedUser);
       } else {
+        assignedUser.avatarUrl = avatarUrl;
         assignedUser.firstSignedInAt ||= signedInAt;
         assignedUser.lastLoginAt = signedInAt;
       }
-      const sessionId = randomUUID(), actor = { id:String(profile.sub), email, name:profile.name || email, role };
+      const sessionId = randomUUID(), actor = { id:String(profile.sub), email, name:profile.name || email, role, avatarUrl };
       const landing = allowedLanding(current, actor, stateRecord.returnTo);
       sessions.set(sessionId, { actor, expiresAt:Date.now() + sessionLifetimeMs }); setCookie(res, sessionId); auditEvent(current, actor, { action:'authentication.login', resource:'session', route:landing, outcome:'success' }); await save(current); res.writeHead(302, { location:landing }); return res.end();
     }
@@ -857,6 +892,38 @@ const server = createServer(async (req, res) => {
       res.setHeader('cache-control', 'no-store');
       const data = await dashboard(), employee = actorFor(req, data);
       return employee ? json(res, 200, { ...employee, permissions:configuredRoles(data)[employee.role] || [] }) : json(res, 401, { error:'Sign in is required to continue.' });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/profile/linkedin') {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!actor) return json(res, 401, { error:'Sign in is required.' });
+      const body = await readBody(req), linkedinUrl = linkedInProfileUrl(body.linkedinUrl);
+      if (linkedinUrl === null) return json(res, 422, { error:'Use a valid linkedin.com profile URL, or leave the field blank.' });
+      const email = String(actor.email || '').trim().toLowerCase();
+      const member = data.newMembers.find(item => String(item.companyEmail || '').trim().toLowerCase() === email);
+      if (!member) return json(res, 404, { error:'Your Our Team card is not available yet. Ask an administrator to add or sync your directory record.' });
+      if (member.linkedinUrl === linkedinUrl) return json(res, 200, { linkedinUrl });
+      member.linkedinUrl = linkedinUrl;
+      member.intranetOverrides = { ...(member.intranetOverrides || {}), linkedinUrl:true };
+      data._version += 1;
+      auditEvent(data, actor, { action:'profile.linkedin.updated', resource:'LinkedIn profile', route:'/profile.html', outcome:'success', changes:{ fields:['linkedinUrl'] } });
+      await save(data);
+      return json(res, 200, { linkedinUrl });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/profile/photo') {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!actor) return json(res, 401, { error:'Sign in is required.' });
+      const body = await readBody(req), upload = employeeProfilePhotoUpload(body.dataUrl, body.filename);
+      const email = String(actor.email || '').trim().toLowerCase();
+      const member = data.newMembers.find(item => String(item.companyEmail || '').trim().toLowerCase() === email);
+      if (!member) return json(res, 404, { error:'Your Our Team card is not available yet. Ask an administrator to add or sync your directory record.' });
+      const profilePhotoUrl = await saveAdminUpload(upload.dataUrl, `profile-${member.id}`);
+      member.profilePhotoUrl = profilePhotoUrl;
+      member.profilePhotoFilename = upload.filename;
+      member.intranetOverrides = { ...(member.intranetOverrides || {}), profilePhotoUrl:true };
+      data._version += 1;
+      auditEvent(data, actor, { action:'profile.photo.updated', resource:'Profile photo', route:'/profile.html', outcome:'success', changes:{ fields:['profilePhotoUrl'] } });
+      await save(data);
+      return json(res, 200, { profilePhotoUrl });
     }
     if (isAuthenticationConfigured() && url.pathname.startsWith('/api/') && !sessionFor(req)) return json(res, 401, { error:'Sign in is required.' });
     if (url.pathname.startsWith('/api/admin/')) {
@@ -986,6 +1053,14 @@ const server = createServer(async (req, res) => {
       if (permissionCheck.error) return json(res, permissionCheck.status, { error:permissionCheck.error });
       if (Object.hasOwn(next, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(next.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
       const changedKeys = permissionCheck.changedKeys;
+      if (changedKeys.includes('newMembers')) {
+        const existingById = new Map(data.newMembers.map(member => [String(member.id), member]));
+        next.newMembers.forEach(member => {
+          const existing = existingById.get(String(member.id));
+          if (!existing || String(member.division || '').trim() === String(existing.division || '').trim()) return;
+          member.intranetOverrides = { ...(existing.intranetOverrides || {}), ...(member.intranetOverrides || {}), division:true };
+        });
+      }
       const contentDetails = describeContentChanges(data, next, changedKeys);
       changedKeys.forEach(key => { data[key] = key === 'globalPageContent' ? normaliseGlobalPageContent(next[key]) : next[key]; });
       if (changedKeys.includes('settings')) { data.adminSettings.layoutHistory ||= []; data.adminSettings.layoutHistory.unshift({ at:new Date().toISOString(), by:actor.email, settings:data.settings }); data.adminSettings.layoutHistory = data.adminSettings.layoutHistory.slice(0, 12); }
@@ -1235,7 +1310,8 @@ const server = createServer(async (req, res) => {
       const document = await readFile(filename, 'utf8');
       const hasSharedDedicatedHeader = /<body\b[^>]*\bclass="[^"]*\b(?:destination-page|news-page-body|policy-page)\b/.test(document);
       const destinationStyles = hasSharedDedicatedHeader ? '<link rel="stylesheet" href="/dedicated-standard.css" /><link rel="stylesheet" href="/header-search.css?v=20261017-white-brand" /><link rel="stylesheet" href="/shared-footer.css" />' : '';
-      const themeBootstrap = `<script>try{const theme=localStorage.getItem('siware-theme-preference')==='dark'?'dark':'light',root=document.documentElement;root.classList.toggle('dark',theme==='dark');root.dataset.theme=theme;root.style.colorScheme=theme}catch(_){}</script>${destinationStyles}<script src="/activity.js" defer></script>`;
+      const profileCompletionAssets = requested === '/index.html' ? '<link rel="stylesheet" href="/profile-completion.css?v=20261024-home-profile-quality" /><script type="module" src="/profile-completion.js"></script>' : '';
+      const themeBootstrap = `<script>try{const theme=localStorage.getItem('siware-theme-preference')==='dark'?'dark':'light',root=document.documentElement;root.classList.toggle('dark',theme==='dark');root.dataset.theme=theme;root.style.colorScheme=theme}catch(_){}</script>${destinationStyles}${profileCompletionAssets}<script src="/activity.js" defer></script>`;
       res.writeHead(200, { 'content-type':contentType, 'cache-control':'no-store' }); return res.end(document.replace(/<head(\s[^>]*)?>/i, `$&${themeBootstrap}`));
     }
     res.writeHead(200, { 'content-type':contentType, 'cache-control':'no-store' }); createReadStream(filename).pipe(res);

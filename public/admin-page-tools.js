@@ -6,7 +6,7 @@ export const pageDataKeys = Object.freeze({
   moments:['moments','momentsPageContent'],
   knowledge:['sessions','knowledgePageContent'],
   events:['events','eventsPageContent'],
-  whistleblower:['whistleblowerConfig'],
+  whistleblower:['whistleblowerConfig','whistleblower2Config'],
   people:['newMembers','recentlyJoinedPageContent'],
   newsi:['policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent'],
   appearance:['settings'],

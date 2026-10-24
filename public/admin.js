@@ -33,6 +33,7 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '
 const cairo = value => value ? new Intl.DateTimeFormat('en', { dateStyle:'medium', timeStyle:'short', timeZone:'Africa/Cairo' }).format(new Date(value)) : '—';
 async function api(path, options = {}) { const response = await fetch(path, { credentials:'same-origin', headers:{ 'content-type':'application/json', ...(options.headers || {}) }, ...options }); const type = response.headers.get('content-type') || ''; const payload = type.includes('json') ? await response.json() : await response.text(); if (!response.ok) throw new Error(payload.error || 'The request could not be completed.'); return payload; }
 const appIconImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const employeeProfilePhotoTypes = ['image/png', 'image/jpeg', 'image/webp'];
 const announcementMediaTypes = [...appIconImageTypes, 'video/mp4', 'video/webm', 'video/quicktime'];
 const announcementAttachmentTypes = ['application/pdf', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain'];
 const knowledgeDeckTypes = ['application/pdf', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
@@ -41,6 +42,22 @@ const knowledgeMaterialTypes = [...announcementAttachmentTypes, ...appIconImageT
 const momentMediaTypes = [...appIconImageTypes, 'video/mp4', 'video/webm', 'video/quicktime', 'application/pdf', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
 function readImageFile(file) { if (!file?.name) return Promise.resolve(''); if (!appIconImageTypes.includes(file.type)) return Promise.reject(new Error('Choose a PNG, JPEG, WebP, or GIF image.')); if (file.size > 2 * 1024 * 1024) return Promise.reject(new Error('App icon images must be 2 MB or smaller.')); return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The app icon image could not be read.')); reader.readAsDataURL(file); }); }
 async function uploadAppIcon(file) { const dataUrl = await readImageFile(file); if (!dataUrl) return ''; return (await api('/api/uploads', { method:'POST', body:JSON.stringify({ dataUrl, filename:file.name }) })).url; }
+async function uploadEmployeeProfilePhoto(file) {
+  if (!file?.name) return '';
+  if (!employeeProfilePhotoTypes.includes(file.type)) throw new Error('Choose a JPEG, PNG, or WebP employee photo.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('Employee photos must be 10 MB or smaller.');
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const dimensions = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve({ width:image.naturalWidth, height:image.naturalHeight });
+      image.onerror = () => reject(new Error('The employee photo could not be read.'));
+      image.src = objectUrl;
+    });
+    if (Math.min(dimensions.width, dimensions.height) < 600) throw new Error('Use an employee photo that is at least 600 × 600 pixels.');
+  } finally { URL.revokeObjectURL(objectUrl); }
+  return uploadAnnouncementFile(file, employeeProfilePhotoTypes, 'employee photo');
+}
 async function uploadGlobalImage(file) {
   if (!file) return '';
   const mime = file.type || (/\.ico$/i.test(file.name) ? 'image/x-icon' : '');
@@ -104,6 +121,7 @@ function recordFields(key, record = {}) {
   const fields = editableCollections[key].fields.map(([name, label, type = 'text', optional = false]) => `<label>${label}${type === 'textarea' ? `<textarea name="${name}" rows="3" maxlength="5000" ${key === 'firstWeekChecklist' && name === 'text' ? 'required' : ''}>${escapeHtml(record[name] || '')}</textarea>` : `<input name="${name}" ${type === 'color' ? 'type="color"' : ''} ${optional ? '' : 'required'} value="${escapeHtml(record[name] || (type === 'color' ? '#0758a9' : ''))}" />`}</label>`).join('');
   if (key === 'firstWeekChecklist') return `${fields}<input type="hidden" name="requiresResourceLinkClick" value="false" /><label><input name="requiresResourceLinkClick" type="checkbox" value="true" ${record.requiresResourceLinkClick === true || record.requiresResourceLinkClick === 'true' ? 'checked' : ''} /> Require opening the resource link before this task can be completed</label><input type="hidden" name="requiresPolicyAcknowledgement" value="false" /><label><input name="requiresPolicyAcknowledgement" type="checkbox" value="true" ${record.requiresPolicyAcknowledgement === true || record.requiresPolicyAcknowledgement === 'true' ? 'checked' : ''} /> Require policy confirmation before this task can be completed</label><input type="hidden" name="requiresSecurityAwarenessVideo" value="false" /><label><input name="requiresSecurityAwarenessVideo" type="checkbox" value="true" ${record.requiresSecurityAwarenessVideo === true || record.requiresSecurityAwarenessVideo === 'true' ? 'checked' : ''} /> Require one Security Awareness Training video before this task can be completed</label><input type="hidden" name="requiresAdminPortalTraining" value="false" /><label><input name="requiresAdminPortalTraining" type="checkbox" value="true" ${record.requiresAdminPortalTraining === true || record.requiresAdminPortalTraining === 'true' ? 'checked' : ''} /> Require Company Portal Training before this task can be completed</label><fieldset><legend>Attachment (optional)</legend><label>Attachment link<input name="attachmentUrl" type="url" value="${escapeHtml(record.attachmentUrl || '')}" placeholder="https://… or /uploaded-file" /></label><label>Upload attachment<input name="checklistAttachment" type="file" accept="application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,image/png,image/jpeg,image/webp,image/gif" /><small>${record.attachmentUrl ? 'Choose a replacement file, replace the link, or leave both blank to remove the attachment.' : 'Add a link or upload a file. Maximum 45 MB.'}</small></label></fieldset>`;
   if (key === 'apps' || key === 'supportPortals') { const label = key === 'apps' ? 'App icon image' : 'Portal icon image'; return `${fields}<label>${label}<input name="iconImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><small>${record.iconUrl ? `Current image: <b>${escapeHtml(savedFilename(record))}</b> · <a href="${escapeHtml(record.iconUrl)}" target="_blank" rel="noopener">Open image</a>. Choose a new image to replace it.` : 'Optional PNG, JPEG, WebP, or GIF. Maximum 2 MB.'}</small></label>`; }
+  if (key === 'newMembers') return `${fields}<label>Original profile photo<input name="memberProfilePhoto" type="file" accept="image/png,image/jpeg,image/webp" /><small>${record.profilePhotoUrl ? `Current original: <b>${escapeHtml(savedFilename({ iconUrl:record.profilePhotoUrl }))}</b> · <a href="${escapeHtml(record.profilePhotoUrl)}" target="_blank" rel="noopener">Open image</a>. Choose a replacement to update it.` : 'Upload the original JPEG, PNG, or WebP to enable a sharp full-photo view. Minimum 600 × 600 pixels; maximum 10 MB. Google Workspace thumbnails remain unchanged.'}</small></label>`;
   if (key === 'policies') { const documentUrl = String(record.canonicalUrl || ''); const uploadedPdf = /^\/uploads\/.*\.pdf(?:$|\?)/i.test(documentUrl); return `${fields}<label>Policy document URL<input name="canonicalUrl" type="text" inputmode="url" value="${escapeHtml(documentUrl)}" placeholder="https://… or /uploads/policy.pdf" /><small>Paste the approved policy link, or upload a PDF below. An uploaded PDF takes priority over this URL.</small></label><label>Upload policy PDF<input name="policyDocument" type="file" accept=".pdf,application/pdf" /><small data-policy-document-status>${uploadedPdf ? `Current PDF: <b>${escapeHtml(savedFilename({ iconUrl:documentUrl }))}</b> · <a href="${escapeHtml(documentUrl)}" target="_blank" rel="noopener">Open</a> · <button class="tool-button danger-link" type="button" data-remove-policy-document>Remove current PDF</button>. Choose a new file to replace it.` : documentUrl ? `Current linked policy: <a href="${escapeHtml(documentUrl)}" target="_blank" rel="noopener">Open link</a>. Upload a PDF to replace it.` : 'Optional PDF upload. Maximum 45 MB.'}</small></label>`; }
   if (key !== 'announcements') return fields;
   const attachments = record.attachments || (record.attachmentUrl ? [{ url:record.attachmentUrl, filename:record.attachmentFilename || savedFilename({ iconUrl:record.attachmentUrl }) }] : []);
@@ -320,7 +338,7 @@ const contentPages = [
   { view:'moments', key:'moments', title:'Moments', description:'Curate the team moments and milestones shown in the employee gallery.' },
   { view:'knowledge', key:'sessions', title:'Knowledge Hub', description:'Maintain the sessions, learning resources, and practical know-how employees can explore.' },
   { view:'events', key:'events', title:'Events & key dates', description:'Publish company events, deadlines, and important dates.' },
-  { view:'whistleblower', key:'whistleblowerConfig', title:'Whistleblower', description:'Maintain employee reporting guidance and the protected Employee Voice destination.' },
+  { view:'whistleblower', key:'whistleblowerConfig', title:'Whistleblower', description:'Manage the Employee Voice and Google Form reporting routes, including which route employees can access.' },
   { view:'people', key:'newMembers', title:'Our Team', description:'Manage the employee directory and profile cards for all colleagues.' },
   { view:'newsi', key:'policies', title:'New Si-Warians', description:'Manage the onboarding, policies, and acknowledgement content for new colleagues.' }
 ];
@@ -355,6 +373,26 @@ function enableWhistleblowerPreviewEditing(frame) {
     const doc = frame.contentDocument, form = $('#whistleblower-config-form'); if (!doc || !form || doc.querySelector('#admin-preview-edit-style')) return;
     const style = doc.createElement('style'); style.id = 'admin-preview-edit-style'; style.textContent = '[data-admin-preview-editable]{outline:2px dashed transparent;outline-offset:6px;cursor:text;transition:outline-color .16s ease,background .16s ease}[data-admin-preview-editable]:hover{outline-color:#0b7aa7;background:rgb(204 244 248 / 45%)}[data-admin-preview-editable]:focus{outline:3px solid #0b7aa7;background:rgb(204 244 248 / 62%)}'; doc.head.append(style);
     Object.entries(whistlePreviewTargets).forEach(([key, selector]) => { const element = doc.querySelector(selector); if (!element) return; let input = form.elements.namedItem(key); if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) { input = document.createElement('input'); input.type = 'hidden'; input.name = key; input.value = dashboard.whistleblowerConfig?.[key] || element.innerText.trim(); form.append(input); } element.contentEditable = 'true'; element.dataset.adminPreviewEditable = key; element.setAttribute('aria-label', `Edit ${key.replace(/([A-Z])/g, ' $1').toLowerCase()}`); element.addEventListener('input', () => { input.value = element.innerText.trim(); form.dataset.previewDirty = 'true'; fitEmployeePagePreview(frame); }); });
+  } catch (_) {}
+}
+const whistleblower2PreviewTargets = { heroTitle:'[data-whistle2="heroTitle"]', heroText:'[data-whistle2="heroText"]', safetyTitle:'[data-whistle2="safetyTitle"]', safetyText:'[data-whistle2="safetyText"]', formTitle:'[data-whistle2="formTitle"]', formText:'[data-whistle2="formText"]' };
+function enableWhistleblower2PreviewEditing(frame) {
+  if (frame.dataset.previewBase !== '/whistleblower-2.html') return;
+  try {
+    const doc = frame.contentDocument, form = $('#whistleblower2-config-form'); if (!doc || !form || doc.querySelector('#admin-preview-whistleblower2-style')) return;
+    const style = doc.createElement('style'); style.id = 'admin-preview-whistleblower2-style'; style.textContent = '[data-admin-preview-editable]{outline:2px dashed transparent;outline-offset:6px;cursor:text;transition:outline-color .16s ease,background .16s ease}[data-admin-preview-editable]:hover{outline-color:#0b7aa7;background:rgb(204 244 248 / 45%)}[data-admin-preview-editable]:focus{outline:3px solid #0b7aa7;background:rgb(204 244 248 / 62%)}.admin-preview-route-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;margin:16px 0;padding:12px;border:1px solid #9fc2ec;border-radius:9px;background:#edf7ff;color:#143d6c;font-family:Manrope,Arial,sans-serif}.admin-preview-route-control label{display:grid;gap:5px;font-size:11px;font-weight:800}.admin-preview-route-control input{box-sizing:border-box;width:100%;min-height:36px;border:1px solid #9fc2ec;border-radius:7px;background:#fff;color:#102c52;padding:8px 9px;font:600 12px inherit}.admin-preview-route-control button{min-height:36px;border:1px solid #1458b6;border-radius:7px;background:#1458b6;color:#fff;padding:8px 10px;font:800 11px inherit;cursor:pointer}.admin-preview-route-control small{grid-column:1/-1;color:#426486;font-size:10px;line-height:1.4}@media(max-width:620px){.admin-preview-route-control{grid-template-columns:1fr}.admin-preview-route-control button{justify-self:start}}'; doc.head.append(style);
+    Object.entries(whistleblower2PreviewTargets).forEach(([key, selector]) => { const element = doc.querySelector(selector), input = form.elements.namedItem(key); if (!element || !(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return; element.contentEditable = 'true'; element.dataset.adminPreviewEditable = key; element.setAttribute('aria-label', `Edit ${key.replace(/([A-Z])/g, ' $1').toLowerCase()}`); element.title = 'Click to edit this text'; element.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); }); element.addEventListener('input', () => { input.value = element.innerText.replace(/\s+/g, ' ').trim(); form.dataset.previewDirty = 'true'; fitEmployeePagePreview(frame); }); });
+    const formUrl = form.elements.namedItem('formUrl'), report = doc.querySelector('#report');
+    if (report && formUrl instanceof HTMLInputElement && !doc.querySelector('.admin-preview-route-control')) {
+      const control = doc.createElement('section');
+      control.className = 'admin-preview-route-control';
+      control.innerHTML = '<label>Google Form link<input type="url" inputmode="url" aria-label="Google Form link" /></label><button type="button">Save form link</button><small>This secure link is used for the embedded form and the Open in Google Forms action.</small>';
+      const input = control.querySelector('input'), save = control.querySelector('button');
+      input.value = formUrl.value;
+      input.addEventListener('input', () => { formUrl.value = input.value.trim(); form.dataset.previewDirty = 'true'; });
+      save.addEventListener('click', () => form.requestSubmit());
+      report.querySelector('.whistleblower-form-heading')?.insertAdjacentElement('afterend', control);
+    }
   } catch (_) {}
 }
 function enableMomentsPageCopyEditing(frame) {
@@ -999,7 +1037,7 @@ function enableHomePreviewEditing(frame, attempts = 0) {
     if (attempts < 3) window.setTimeout(() => enableHomePreviewEditing(frame, attempts + 1), 220);
   } catch (_) {}
 }
-document.addEventListener('load', event => { const frame = event.target; if (frame instanceof HTMLIFrameElement && frame.matches('[data-preview-auto-height]')) { focusEmployeePagePreview(frame); fitEmployeePagePreview(frame); enableHomePreviewEditing(frame); enableWhistleblowerPreviewEditing(frame); enableMomentsPageCopyEditing(frame); enableKnowledgePageCopyEditing(frame); enableRecentlyJoinedPageCopyEditing(frame); enableSocialCardPreviewEditing(frame); enableNewSiPageCopyEditing(frame); enableNewSiPreviewTools(frame); frame.contentDocument?.addEventListener('first-week-checklist:rendered', () => enableNewSiPageCopyEditing(frame)); frame.contentDocument?.addEventListener('policy-acknowledgement:rendered', () => enableNewSiAcknowledgementPreviewEditing(frame)); enableNewSiAcknowledgementPreviewEditing(frame); Object.keys(previewCollectionTargets).forEach(key => enableCollectionPreviewEditing(frame, key)); } }, true);
+document.addEventListener('load', event => { const frame = event.target; if (frame instanceof HTMLIFrameElement && frame.matches('[data-preview-auto-height]')) { focusEmployeePagePreview(frame); fitEmployeePagePreview(frame); enableHomePreviewEditing(frame); enableWhistleblowerPreviewEditing(frame); enableWhistleblower2PreviewEditing(frame); enableMomentsPageCopyEditing(frame); enableKnowledgePageCopyEditing(frame); enableRecentlyJoinedPageCopyEditing(frame); enableSocialCardPreviewEditing(frame); enableNewSiPageCopyEditing(frame); enableNewSiPreviewTools(frame); frame.contentDocument?.addEventListener('first-week-checklist:rendered', () => enableNewSiPageCopyEditing(frame)); frame.contentDocument?.addEventListener('policy-acknowledgement:rendered', () => enableNewSiAcknowledgementPreviewEditing(frame)); enableNewSiAcknowledgementPreviewEditing(frame); Object.keys(previewCollectionTargets).forEach(key => enableCollectionPreviewEditing(frame, key)); } }, true);
 const socialCardDefaults = links => [
   { id:'linkedin', title:'LinkedIn', url:links.linkedinUrl || 'https://www.linkedin.com/company/si-ware-systems/?locale=en_US', icon:'linkedin', actionLabel:'Visit channel' },
   { id:'facebook', title:'Facebook', url:links.facebookUrl || 'https://www.facebook.com/SiWareSystems/', icon:'facebook', actionLabel:'Visit channel' },
@@ -1077,7 +1115,7 @@ function renderSocial() {
   const editor = form.closest('.panel'), workspace = document.createElement('div');
   workspace.className = 'admin-editor-preview-layout'; editor.before(workspace); workspace.append(editor); workspace.insertAdjacentHTML('beforeend', employeePagePreview('Social Media', '/social-media.html', [], 'social-links-form'));
 }
-function renderWhistleblower() {
+function renderWhistleblowerLegacy() {
   const config = dashboard.whistleblowerConfig || {};
   $('#view-whistleblower').innerHTML = `<p class="view-intro">Maintain the employee guidance and approved reporting destination. This area never displays, exports, or changes confidential reports.</p><article class="panel"><div class="collection-heading"><div><h2>Employee Voice guidance</h2><p>Keep this content clear and review it with the appropriate policy owner before publishing.</p></div><a class="action-button secondary" href="/whistleblower.html" target="_blank" rel="noopener">View employee page ↗</a></div><form id="whistleblower-config-form" class="settings-form"><div class="form-grid"><label>Page title<input name="heroTitle" required maxlength="120" value="${escapeHtml(config.heroTitle || '')}" /></label><label>Safety note title<input name="safetyTitle" required maxlength="120" value="${escapeHtml(config.safetyTitle || '')}" /></label><label class="form-grid-full">Introduction<textarea name="heroText" required rows="4" maxlength="1200">${escapeHtml(config.heroText || '')}</textarea></label><label class="form-grid-full">Safety note<textarea name="safetyText" required rows="3" maxlength="800">${escapeHtml(config.safetyText || '')}</textarea></label><label class="form-grid-full">Employee Voice destination<input name="voiceUrl" type="text" required maxlength="500" value="${escapeHtml(config.voiceUrl || '')}" placeholder="/employee-voice.html or https://…" /><small>Use an intranet HTML path or an approved HTTPS route. This opens when an employee starts a confidential report.</small></label></div><p class="notice">Submitted reports remain outside Administration and are never available here.</p><div class="form-actions"><button class="action-button primary">Save guidance</button></div></form></article>`;
   const editor = $('#whistleblower-config-form').closest('.panel'), workspace = document.createElement('div');
@@ -1085,6 +1123,39 @@ function renderWhistleblower() {
   const voiceLabel = $('#whistleblower-config-form [name="voiceUrl"]')?.closest('label'); if (voiceLabel?.firstChild) voiceLabel.firstChild.textContent = 'Employee Voice URL';
   $('#whistleblower-config-form').addEventListener('submit', async event => { event.preventDefault(); dashboard.whistleblowerConfig = { ...dashboard.whistleblowerConfig, ...Object.fromEntries(new FormData(event.currentTarget)) }; await saveDashboard('Whistleblower guidance saved and published.'); });
 }
+function renderWhistleblower() {
+  const voice = dashboard.whistleblowerConfig || {}, form = dashboard.whistleblower2Config || {};
+  const activeGoogleFormRoute = form.enabled === true;
+  const activeKey = activeGoogleFormRoute ? 'whistleblower2Config' : 'whistleblowerConfig';
+  const activeRoute = activeGoogleFormRoute ? form : voice;
+  const inactiveKey = activeGoogleFormRoute ? 'whistleblowerConfig' : 'whistleblower2Config';
+  const inactiveRoute = activeGoogleFormRoute ? voice : form;
+  const activeTitle = activeGoogleFormRoute ? 'Google Form' : 'Si-Bot Employee Voice Agent';
+  const switchTitle = activeGoogleFormRoute ? 'Si-Bot Employee Voice Agent' : 'Google Form';
+  const routePath = activeGoogleFormRoute ? '/whistleblower-2.html' : '/whistleblower.html';
+  const hiddenFields = (config, fields) => fields.map(name => `<input type="hidden" name="${name}" value="${escapeHtml(config[name] || '')}" />`).join('');
+  const voiceFields = ['heroTitle','heroText','safetyTitle','safetyText','voiceUrl'];
+  const formFields = ['heroTitle','heroText','safetyTitle','safetyText','formTitle','formText','formUrl'];
+  $('#view-whistleblower').innerHTML = `<p class="view-intro">Manage the active employee reporting route from its page preview. The route switch is exclusive: when one route is published, the other is unavailable to employees.</p><article class="panel whistleblower-route-switcher"><div class="collection-heading"><div><h2>${activeTitle} is live</h2><p>${activeGoogleFormRoute ? 'Employees use the embedded Google Form route.' : 'Employees use the confidential Employee Voice route.'}</p></div><div class="row-actions"><span class="record-tag">Published to employees</span><button type="button" class="action-button secondary" data-switch-whistleblower-route>Switch to ${switchTitle}</button><a class="action-button secondary" href="${routePath}" target="_blank" rel="noopener">View page</a></div></div></article><form id="whistleblower-config-form" hidden>${hiddenFields(voice, voiceFields)}</form><form id="whistleblower2-config-form" hidden>${hiddenFields(form, formFields)}</form><div class="whistleblower-route-preview">${employeePagePreview(`Whistleblower: ${activeTitle}`, routePath, [], activeGoogleFormRoute ? 'whistleblower2-config-form' : 'whistleblower-config-form')}</div>`;
+  const activeForm = $(`#${activeGoogleFormRoute ? 'whistleblower2-config-form' : 'whistleblower-config-form'}`);
+  activeForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(activeForm));
+    if (activeGoogleFormRoute) {
+      try { const url = new URL(String(values.formUrl || '').trim()); if (url.protocol !== 'https:' || url.hostname !== 'docs.google.com' || !/^\/forms\/d\//.test(url.pathname)) throw new Error(); }
+      catch { flash('Enter a shareable HTTPS Google Forms URL from docs.google.com/forms.'); return; }
+    }
+    dashboard[activeKey] = { ...activeRoute, ...values, enabled:true };
+    dashboard[inactiveKey] = { ...inactiveRoute, enabled:false };
+    await saveDashboard(`${activeTitle} reporting route updated and published.`);
+  });
+  $('[data-switch-whistleblower-route]').addEventListener('click', async () => {
+    dashboard[activeKey] = { ...activeRoute, enabled:false };
+    dashboard[inactiveKey] = { ...inactiveRoute, enabled:true };
+    await saveDashboard(`Employees now access the ${switchTitle} reporting route.`);
+  });
+}
+
 function mountPreviewOnlyCollection(root, key, title, href) {
   const editor = root.querySelector('.collection-panel'); if (!editor) return;
   const workspace = document.createElement('div'); workspace.className = 'admin-editor-preview-layout'; editor.before(workspace); workspace.append(editor); editor.hidden = true;
@@ -1377,13 +1448,21 @@ async function stepHomeHistory(direction) {
   finally { pageToolBusy = false; }
 }
 async function resetHomeToDefaults() {
-  if (!confirm('Reset the Home page layout and hero copy to the standard defaults? You can undo this change.')) return;
+  if (!confirm('Reset the Home page layout and hero copy to the saved default baseline? You can undo this change.')) return;
   const before = homeSnapshot();
   const response = await api('/api/admin/defaults');
-  dashboard.homePageContent = structuredClone(response.defaults?.homePageContent || {});
-  dashboard.settings = { ...dashboard.settings, layout:[...defaultHomeLayout], hiddenWidgets:[], widgetSizes:{}, removedWidgets:[], layoutSizingVersion:'home-grid-v3' };
+  const defaults = response.defaults || {}, defaultSettings = defaults.settings || {};
+  dashboard.homePageContent = structuredClone(defaults.homePageContent || {});
+  dashboard.settings = {
+    ...dashboard.settings,
+    layout:structuredClone(defaultSettings.layout || defaultHomeLayout),
+    hiddenWidgets:structuredClone(defaultSettings.hiddenWidgets || []),
+    widgetSizes:structuredClone(defaultSettings.widgetSizes || {}),
+    removedWidgets:structuredClone(defaultSettings.removedWidgets || []),
+    layoutSizingVersion:defaultSettings.layoutSizingVersion || 'home-grid-v3'
+  };
   recordHomeChange(before);
-  try { await saveDashboard('Home page restored to the standard defaults. Use Undo to restore your previous layout.', true, false, 'reset'); }
+  try { await saveDashboard('Home page restored to the saved default baseline. Use Undo to restore your previous layout.', true, false, 'reset'); }
   catch (error) { applyHomeSnapshot(before); homeHistory.undo.pop(); throw error; }
 }
 function homeWidgetSize(key) { return dashboard.settings?.widgetSizes?.[key] || defaultHomeWidgetSizes[key] || 'standard'; }
@@ -1723,7 +1802,7 @@ function openPageResetDialog(view) {
     ? 'This replaces the saved Knowledge Hub content with the 17 sessions from your latest upload. Export a backup first if needed. You can undo the reset in this browser tab.'
     : view === 'settings'
       ? 'This restores the approved Google Workspace sync configuration: selected organisational units and calendars, daily directory sync at 08:00, and hourly calendar sync. You can undo the reset in this browser tab.'
-    : 'This replaces the saved content on this page with its built-in starter content. Export a backup first if needed. You can undo the reset in this browser tab.';
+    : 'This replaces the saved content on this page with the saved default baseline. Export a backup first if needed. You can undo the reset in this browser tab.';
   dialog.querySelector('[name="confirmation"]').value = '';
   dialog.querySelector('[role="alert"]').textContent = '';
   dialog.showModal();
@@ -1885,12 +1964,12 @@ document.addEventListener('submit', async event => {
   const form = event.target.closest('[data-editor]');
   if (form) {
     event.preventDefault();
-    const key = form.dataset.editor, id = editingRecord[key], record = id && dashboard[key].find(item => item.id === id), formData = new FormData(form), values = Object.fromEntries(formData), iconImage = formData.get('iconImage'), policyDocument = formData.get('policyDocument'), checklistAttachment = formData.get('checklistAttachment'), announcementMedia = formData.get('announcementMedia'), announcementAttachments = formData.getAll('announcementAttachment').filter(file => file?.name), attachmentInput = form.querySelector('input[name="announcementAttachment"]'), policyDocumentInput = form.querySelector('input[name="policyDocument"]'), richEditor = form.querySelector('[data-rich-editor]');
+    const key = form.dataset.editor, id = editingRecord[key], record = id && dashboard[key].find(item => item.id === id), formData = new FormData(form), values = Object.fromEntries(formData), iconImage = formData.get('iconImage'), memberProfilePhoto = formData.get('memberProfilePhoto'), policyDocument = formData.get('policyDocument'), checklistAttachment = formData.get('checklistAttachment'), announcementMedia = formData.get('announcementMedia'), announcementAttachments = formData.getAll('announcementAttachment').filter(file => file?.name), attachmentInput = form.querySelector('input[name="announcementAttachment"]'), policyDocumentInput = form.querySelector('input[name="policyDocument"]'), richEditor = form.querySelector('[data-rich-editor]');
     const editedTemplateId = form.dataset.editAnnouncementTemplate || '', deliveryMode = form.dataset.saveAsTemplate === 'true' || editedTemplateId ? 'template' : values.deliveryMode, schedule = { frequency:values.repeatAnnouncement === 'true' ? values.scheduleFrequency : 'once', scheduledDate:values.scheduleDate, time:values.scheduleTime, dayOfWeek:Number(values.scheduleDayOfWeek), dayOfMonth:Number(values.scheduleDayOfMonth) };
     delete form.dataset.saveAsTemplate;
     delete form.dataset.editAnnouncementTemplate;
     form.noValidate = false;
-    delete values.iconImage; delete values.policyDocument; delete values.checklistAttachment; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
+    delete values.iconImage; delete values.memberProfilePhoto; delete values.policyDocument; delete values.checklistAttachment; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
     const capturedEmailHtml = String(values.legacyEmailHtml || form.dataset.emailClipboardHtml || ''); delete values.legacyEmailHtml; delete form.dataset.emailClipboardHtml;
     if (key === 'firstWeekChecklist' && values.requiresResourceLinkClick === 'true' && !String(values.resourceUrl || '').trim()) { flash('Add a resource link before requiring employees to open it.'); return; }
     if (key === 'announcements' && capturedEmailHtml) { values.bodyHtml = capturedEmailHtml; values.body = new DOMParser().parseFromString(capturedEmailHtml, 'text/html').body.innerText.trim(); }
@@ -1905,11 +1984,13 @@ document.addEventListener('submit', async event => {
     }
     try {
       const iconUrl = ['apps','supportPortals'].includes(key) ? await uploadAppIcon(iconImage) : '';
+      const memberProfilePhotoUrl = key === 'newMembers' ? await uploadEmployeeProfilePhoto(memberProfilePhoto) : '';
       const policyDocumentUrl = key === 'policies' ? await uploadAnnouncementFile(policyDocument, ['application/pdf'], 'policy document') : '';
       const checklistAttachmentUrl = key === 'firstWeekChecklist' && checklistAttachment?.name ? await uploadAnnouncementFile(checklistAttachment, knowledgeMaterialTypes, 'checklist attachment') : '';
       const mediaUrl = key === 'announcements' ? await uploadAnnouncementFile(announcementMedia, announcementMediaTypes, 'photo or video') : '';
       const uploadedAttachments = key === 'announcements' ? await Promise.all(announcementAttachments.map(async file => ({ url:await uploadAnnouncementFile(file, announcementAttachmentTypes, 'attachment'), filename:file.name }))) : [];
       const iconData = iconUrl ? { iconUrl, iconFilename:iconImage.name } : {};
+      const memberProfilePhotoData = memberProfilePhotoUrl ? { profilePhotoUrl:memberProfilePhotoUrl, profilePhotoFilename:memberProfilePhoto.name } : {};
       const templateSource = key === 'announcements' ? form._announcementTemplate : null;
       const existingAttachments = record?.attachments || templateSource?.attachments || (record?.attachmentUrl ? [{ url:record.attachmentUrl, filename:record.attachmentFilename || savedFilename({ iconUrl:record.attachmentUrl }) }] : []);
       const removedAttachmentUrls = attachmentInput?._removedAttachmentUrls || new Set();
@@ -1927,9 +2008,9 @@ document.addEventListener('submit', async event => {
       const checklistData = checklistAttachmentUrl ? { attachmentUrl:checklistAttachmentUrl } : {};
       if (key === 'announcements' && deliveryMode === 'scheduled') { dashboard.announcementSchedules ||= []; dashboard.announcementSchedules.push({ id:`announcement-schedule-${Date.now()}`, ...values, ...schedule, ...announcementData, enabled:true }); }
       else if (key === 'announcements' && deliveryMode === 'template') { dashboard.announcementTemplates ||= []; const template = editedTemplateId && dashboard.announcementTemplates.find(item => item.id === editedTemplateId), templatePublication = { deliveryMode:values.deliveryMode === 'scheduled' ? 'scheduled' : 'now', ...schedule }; if (template) Object.assign(template, values, announcementData, { templatePublication }); else dashboard.announcementTemplates.push({ id:`announcement-template-${Date.now()}`, ...values, ...announcementData, templatePublication }); }
-      else if (record) Object.assign(record, values, iconData, announcementData, policyData, checklistData); else { const created = createRecord(key, form); Object.assign(created, values, iconData, announcementData, policyData, checklistData); dashboard[key].push(created); }
+      else if (record) Object.assign(record, values, iconData, memberProfilePhotoData, announcementData, policyData, checklistData); else { const created = createRecord(key, form); Object.assign(created, values, iconData, memberProfilePhotoData, announcementData, policyData, checklistData); dashboard[key].push(created); }
       editingRecord[key] = '';
-      await saveDashboard(deliveryMode === 'scheduled' ? 'Announcement scheduled. It will publish automatically in Cairo time.' : deliveryMode === 'template' ? editedTemplateId ? 'Announcement template updated.' : 'Announcement template saved. Use it any time from this list.' : iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and changes published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : policyDocumentInput?._removeCurrentDocument ? 'Policy PDF removed from the employee page.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : mediaUrl || uploadedAttachments.length || removedAttachmentUrls.size ? 'Announcement attachments updated and published.' : 'Changes saved and published to the intranet.');
+      await saveDashboard(deliveryMode === 'scheduled' ? 'Announcement scheduled. It will publish automatically in Cairo time.' : deliveryMode === 'template' ? editedTemplateId ? 'Announcement template updated.' : 'Announcement template saved. Use it any time from this list.' : memberProfilePhotoUrl ? 'Original employee photo uploaded and published.' : iconUrl ? `${key === 'supportPortals' ? 'Portal' : 'App'} icon uploaded and changes published.` : policyDocumentUrl ? 'Policy PDF uploaded and published.' : policyDocumentInput?._removeCurrentDocument ? 'Policy PDF removed from the employee page.' : key === 'policies' && policyUrl ? 'Policy link saved and published.' : mediaUrl || uploadedAttachments.length || removedAttachmentUrls.size ? 'Announcement attachments updated and published.' : 'Changes saved and published to the intranet.');
     } catch (error) { flash(error.message); }
     return;
   }
@@ -2025,7 +2106,10 @@ async function start() {
     summary = await api('/api/admin/summary');
     $('#admin-user').textContent = me.name;
     $('#admin-role').textContent = me.role.replace('_', ' ');
-    $('#admin-avatar').textContent = me.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'AD';
+    const avatar = $('#admin-avatar');
+    avatar.textContent = me.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'AD';
+    avatar.classList.toggle('has-photo', Boolean(me.avatarUrl));
+    avatar.style.backgroundImage = me.avatarUrl ? `url(${JSON.stringify(me.avatarUrl)})` : '';
     $('#admin-account-toggle').setAttribute('aria-label', `${me.name}, ${me.role.replace('_', ' ')}. Account menu`);
     $$('.admin-sidebar button[data-view]').forEach(button => { button.hidden = !canAccessAdminView(button.dataset.view); });
     document.body.dataset.canDelete = String(hasAdminPermission('action.delete'));

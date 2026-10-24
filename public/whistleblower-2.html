@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Si-Ware confidential Google Form reporting route" />
+    <title>Whistleblower 2 | Si-Ware Intranet</title>
+    <link rel="icon" type="image/png" href="/Icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/search-and-policies.css" />
+    <link rel="stylesheet" href="/portal-refresh.css" />
+    <link rel="stylesheet" href="/brand-assets.css" />
+    <link rel="stylesheet" href="/accessibility-pass.css" />
+    <link rel="stylesheet" href="/resilience.css" />
+    <link rel="stylesheet" href="/professional-polish.css" />
+    <link rel="stylesheet" href="/professional-corrections.css" />
+    <link rel="stylesheet" href="/formal-refinement.css" />
+    <link rel="stylesheet" href="/motion-finish.css" />
+    <link rel="stylesheet" href="/whistleblower.css?v=20261024-our-team-style" />
+    <link rel="stylesheet" href="/whistleblower-2.css?v=20261024-google-form-light-mode" />
+    <link rel="stylesheet" href="/theme-toggle.css" />
+    <link rel="stylesheet" href="/destination-pages.css" />
+    <script src="/theme.js" defer></script>
+  </head>
+  <body class="policy-page whistleblower-page whistleblower-form-page">
+    <main class="policy-shell">
+      <header class="policy-topbar">
+        <a class="brand" href="/" aria-label="Si-Ware intranet home"><img class="brand-logo" src="/siware-logo.png" alt="Si-Ware Systems" /></a>
+        <div class="policy-topbar-actions"><button class="theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Enable dark mode" title="Enable dark mode"><svg class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="theme-moon" d="M20 15.4A8.4 8.4 0 0 1 8.6 4 8.4 8.4 0 1 0 20 15.4Z" /><circle class="theme-sun" cx="12" cy="12" r="3.5" /><path class="theme-rays" d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" /></svg><span class="theme-toggle-label">Dark mode</span></button><a class="back-link" href="/">Back to intranet</a></div>
+      </header>
+      <section class="policy-hero">
+        <div><h1 data-whistle2="heroTitle">Raise a concern securely.</h1><p data-whistle2="heroText">Use this confidential form to share a concern, complaint or suggestion about workplace conduct, safety, financial integrity or another serious matter.</p></div>
+        <aside class="policy-hero-aside"><span aria-hidden="true"></span><b data-whistle2="safetyTitle">Your safety comes first.</b><p data-whistle2="safetyText">For an immediate safety or security risk, follow local emergency and site-security procedures.</p></aside>
+      </section>
+      <section class="policy-layout">
+        <nav class="policy-nav" aria-label="Whistleblower 2 page sections"><p>On this page</p><a href="#report">Confidential form</a><a href="#privacy">Privacy and protection</a></nav>
+        <div class="policy-content">
+          <article class="policy-card whistleblower-form-card" id="report">
+            <div class="whistleblower-form-heading"><div><h2 data-whistle2="formTitle">Confidential reporting form</h2><p data-whistle2="formText">Complete the form in your own words. Provide only information that is relevant to the concern you are raising.</p></div><a class="whistleblower-form-open" id="whistleblower-form-open" target="_blank" rel="noopener noreferrer">Open form in Google Forms</a></div>
+            <p class="whistleblower-form-status" id="whistleblower-form-status" role="status" hidden></p>
+            <iframe class="whistleblower-form-frame" id="whistleblower-form-frame" title="Si-Ware confidential reporting form" loading="eager" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          </article>
+          <article class="policy-card" id="privacy"><h2>Privacy and protection</h2><p>Use this approved form only for the concern you want to raise. Do not share sensitive details through personal messaging, shared inboxes or other unapproved channels.</p><p>If you have an immediate safety or security concern, follow the applicable local emergency and site-security procedures.</p></article>
+        </div>
+      </section>
+    </main>
+    <script>
+      const configKeys=['heroTitle','heroText','formTitle','formText','safetyTitle','safetyText'];
+      const configTarget=key=>document.querySelector(`[data-whistle2="${key}"]`);
+      const setFormUrl=value=>{try{const source=new URL(value);const match=source.pathname.match(/^\/forms\/d\/([^/]+)/);if(source.protocol!=='https:'||source.hostname!=='docs.google.com'||!match)throw new Error();const base=`https://docs.google.com/forms/d/${match[1]}/viewform`;document.getElementById('whistleblower-form-frame').src=`${base}?embedded=true`;document.getElementById('whistleblower-form-open').href=base}catch(_){const status=document.getElementById('whistleblower-form-status');status.hidden=false;status.textContent='The reporting form is not available right now. Please contact the appropriate internal support route.';document.getElementById('whistleblower-form-frame').hidden=true;document.getElementById('whistleblower-form-open').hidden=true}};
+      fetch('/api/dashboard').then(response=>response.ok?response.json():null).then(data=>{const config=data?.whistleblower2Config||{};configKeys.forEach(key=>{const target=configTarget(key);if(target&&config[key])target.textContent=config[key]});setFormUrl(config.formUrl||'https://docs.google.com/forms/d/13J59Zkobl4EqEYM3IvYanYj6gkDV-CptvznSJYid2ro/viewform')}).catch(()=>setFormUrl(''));
+    </script>
+    <script type="module" src="/destination-nav.js"></script>
+  </body>
+</html>

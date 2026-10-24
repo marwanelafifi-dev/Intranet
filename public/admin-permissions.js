@@ -24,7 +24,7 @@ export const adminContentKeyPages = Object.freeze({
   announcementSchedules:['page.announcements'], announcementTemplates:['page.announcements'],
   socialLinks:['page.social'], moments:['page.moments'], momentsPageContent:['page.moments'],
   sessions:['page.knowledge'], knowledgePageContent:['page.knowledge'], events:['page.events'], eventsPageContent:['page.events'],
-  whistleblowerConfig:['page.whistleblower'], newMembers:['page.people'],
+  whistleblowerConfig:['page.whistleblower'], whistleblower2Config:['page.whistleblower'], newMembers:['page.people'],
   recentlyJoinedPageContent:['page.people'], policies:['page.newsi'],
   firstWeekChecklist:['page.newsi'], supportPortals:['page.newsi'],
   policyAcknowledgementContent:['page.newsi'], newSiPageContent:['page.newsi'],

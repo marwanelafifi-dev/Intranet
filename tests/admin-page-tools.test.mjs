@@ -19,8 +19,8 @@ const defaults = JSON.parse(readFileSync(new URL('../data/admin-defaults.json', 
 assert.deepEqual(defaults.announcements, []);
 assert.deepEqual(defaults.announcementSchedules, []);
 assert.ok(defaults.announcementTemplates.length >= 1);
-assert.equal(defaults.sessions.length, 4);
+assert.equal(defaults.sessions.length, 17);
 assert.ok(defaults.sessions.every(session => typeof session.id === 'string' && session.id.length > 0));
-assert.equal(new Set(defaults.sessions.map(session => session.title.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase())).size, 4);
-assert.equal(defaults.newSiPageContent.heroLead, 'Your first days,');
+assert.equal(new Set(defaults.sessions.map(session => session.title.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase())).size, 17);
+assert.equal(defaults.newSiPageContent.heroLead, 'Start strong,');
 process.stdout.write('Admin page tool tests passed.\n');

@@ -41,16 +41,25 @@ test('adds every active account in the exact OU and retains the Google creation 
   assert.equal(mergeDirectoryMembers(data, [user()], config, now).created, 0);
 });
 
-test('matches an existing card by email and respects manual corrections', () => {
+test('matches an existing card by email and refreshes Google-sourced fields', () => {
   const data = { newMembers:[{ id:'manual-1', companyEmail:'new.person@si-ware.com', name:'Preferred Name', role:'Senior Engineer', department:'To be confirmed' }] };
   mergeDirectoryMembers(data, [user()], config, now);
   assert.equal(data.newMembers.length, 1);
   assert.equal(data.newMembers[0].id, 'manual-1');
   assert.equal(data.newMembers[0].googleUserId, 'google-123');
-  assert.equal(data.newMembers[0].name, 'Preferred Name');
-  assert.equal(data.newMembers[0].role, 'Senior Engineer');
+  assert.equal(data.newMembers[0].name, 'New Person');
+  assert.equal(data.newMembers[0].role, 'Engineer');
   assert.equal(data.newMembers[0].department, 'R&D');
   assert.equal(data.newMembers[0].joined, 'October 2026');
+});
+
+test('keeps intranet-owned division, LinkedIn details, and original photos through future directory syncs', () => {
+  const data = { newMembers:[{ id:'manual-2', googleUserId:'google-123', companyEmail:'new.person@si-ware.com', division:'Product', linkedinUrl:'https://www.linkedin.com/in/new-person', profilePhotoUrl:'/uploads/new-person-original.jpg', intranetOverrides:{ division:true, linkedinUrl:true }, googleImportedFields:{ division:'Solutions' } }] };
+  mergeDirectoryMembers(data, [user({ customSchemas:{ Employment:{ hireDate:'2026-10-20', division:'Platform' } } })], config, now);
+  assert.equal(data.newMembers[0].division, 'Product');
+  assert.equal(data.newMembers[0].linkedinUrl, 'https://www.linkedin.com/in/new-person');
+  assert.equal(data.newMembers[0].profilePhotoUrl, '/uploads/new-person-original.jpg');
+  assert.equal(data.newMembers[0].googleImportedFields.division, 'Platform');
 });
 
 test('unknown hire date falls back to the Google Workspace account creation date', () => {

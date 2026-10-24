@@ -14,6 +14,8 @@ html.dark .topbar,html.dark .app-dock{border-color:#294467}html.dark .app-dock{b
 html.dark .nav a,html.dark .section-kicker,html.dark .section-kicker h2,html.dark .profile-copy small,html.dark .app-link small{color:#b8c8dd}html.dark .nav a.active,html.dark .nav a:hover{color:#9ac4ff;border-color:#76d9e0}
 html.dark .app-link{color:#edf4ff}html.dark .app-link b{color:#edf4ff}html.dark .app-link:hover{background:#142c4a;border-color:#35597f}
 html.dark .app-icon{background:color-mix(in srgb,var(--app-color) 18%,#10243e);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--app-color) 34%,transparent)}
+html.dark .app-icon:has(img[src*="/mohr.ico"]){background:#f7fbff;box-shadow:inset 0 0 0 1px #b9d8fb}html.dark .app-icon:has(img[src*="/mohr.ico"]) img{object-fit:contain}
+html.dark .app-directory-icon:has(img[src*="/mohr.ico"]){background:#f7fbff;color:#173967}
 html.dark .global-search,html.dark .search-control,html.dark .global-search kbd{background:#10243e;border-color:#365779;color:#edf4ff}
 html.dark .global-search input,html.dark .search-control input{color:#edf4ff}html.dark .global-search input::placeholder{color:#a8bad1}
 html.dark .widget{background:#10243e;border-color:#294967;box-shadow:0 14px 30px rgb(0 0 0 / 18%)}html.dark .widget:hover{border-color:#41698f}

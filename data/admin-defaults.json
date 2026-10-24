@@ -11,24 +11,14 @@
       "iconFilename": "gmail.ico"
     },
     {
-      "id": "clickup",
-      "name": "Company Portal",
-      "caption": "Employee self-service",
-      "url": "https://adminhelpdesk.si-wareapps.com/",
-      "icon": "check",
-      "color": "#7b68ee",
-      "iconUrl": "/uploads/app-icons/company-portal.ico",
-      "iconFilename": "company-portal.ico"
-    },
-    {
-      "id": "clickup-work",
-      "name": "ClickUp",
-      "caption": "Projects & tasks",
-      "url": "https://clickup.com/",
-      "icon": "check",
-      "color": "#7b68ee",
-      "iconUrl": "/uploads/app-icons/clickup.ico",
-      "iconFilename": "clickup.ico"
+      "id": "google-drive",
+      "name": "Google Drive",
+      "caption": "Cloud storage & collaboration",
+      "url": "https://drive.google.com/",
+      "icon": "folder",
+      "color": "#2f80ed",
+      "iconUrl": "/uploads/app-icons/google-drive.png",
+      "iconFilename": "google-drive.png"
     },
     {
       "id": "drive",
@@ -41,14 +31,14 @@
       "iconFilename": "dms.ico"
     },
     {
-      "id": "google-drive",
-      "name": "Google Drive",
-      "caption": "Cloud storage & collaboration",
-      "url": "https://drive.google.com/",
-      "icon": "folder",
-      "color": "#2f80ed",
-      "iconUrl": "/uploads/app-icons/google-drive.png",
-      "iconFilename": "google-drive.png"
+      "id": "clickup",
+      "name": "Company Portal",
+      "caption": "Submit and track Administration, Finance & People Team requests",
+      "url": "https://adminhelpdesk.si-wareapps.com/",
+      "icon": "check",
+      "color": "#7b68ee",
+      "iconUrl": "/uploads/app-icons/company-portal.ico",
+      "iconFilename": "company-portal.ico"
     },
     {
       "id": "support",
@@ -71,6 +61,16 @@
       "iconFilename": "mohr.ico"
     },
     {
+      "id": "our-team",
+      "name": "Our Team",
+      "caption": "Employee directory and colleague connections",
+      "url": "/recently-joined.html",
+      "icon": "people",
+      "color": "#1458b6",
+      "iconUrl": "/assets/team-directory.svg",
+      "iconFilename": "team-directory.svg"
+    },
+    {
       "id": "org",
       "name": "Org Chart",
       "caption": "Team structure",
@@ -79,6 +79,36 @@
       "color": "#6fcf97",
       "iconUrl": "/uploads/app-icons/org-chart.ico",
       "iconFilename": "org-chart.ico"
+    },
+    {
+      "id": "sibrain",
+      "name": "Si-Brain",
+      "caption": "Si-Ware’s main AI platform—company knowledge with ClickUp, Drive, Gmail & Calendar.",
+      "url": "https://si-brain.si-wareapps.com/",
+      "icon": "spark",
+      "color": "#5b67d9",
+      "iconUrl": "/uploads/app-icons/si-brain.ico",
+      "iconFilename": "si-brain.ico"
+    },
+    {
+      "id": "sibot",
+      "name": "Si-Bot",
+      "caption": "AI chat & specialist agents for questions, guidance and lightweight files",
+      "url": "https://si-bot-dev.si-wareapps.com/c/dac9408f-6ab3-4f5a-9a54-15cd4fcaccb6",
+      "icon": "bot",
+      "color": "#00a6a6",
+      "iconUrl": "/uploads/app-icons/si-bot.ico",
+      "iconFilename": "si-bot.ico"
+    },
+    {
+      "id": "clickup-work",
+      "name": "ClickUp",
+      "caption": "Projects & tasks",
+      "url": "https://clickup.com/",
+      "icon": "check",
+      "color": "#7b68ee",
+      "iconUrl": "/uploads/app-icons/clickup.ico",
+      "iconFilename": "clickup.ico"
     },
     {
       "id": "time",
@@ -109,53 +139,23 @@
       "color": "#1b9aaa",
       "iconUrl": "/uploads/app-icons/netsuite.ico",
       "iconFilename": "netsuite.ico"
-    },
-    {
-      "id": "sibrain",
-      "name": "Si-Brain",
-      "caption": "Connect your Google Drive, ClickUp, and tools or files to create AI agents that support your daily work.",
-      "url": "https://si-brain.si-wareapps.com/",
-      "icon": "spark",
-      "color": "#5b67d9",
-      "iconUrl": "/uploads/app-icons/si-brain.ico",
-      "iconFilename": "si-brain.ico"
-    },
-    {
-      "id": "sibot",
-      "name": "Si-Bot",
-      "caption": "Automated workflows",
-      "url": "https://si-bot-dev.si-wareapps.com/c/dac9408f-6ab3-4f5a-9a54-15cd4fcaccb6",
-      "icon": "bot",
-      "color": "#00a6a6",
-      "iconUrl": "/uploads/app-icons/si-bot.ico",
-      "iconFilename": "si-bot.ico"
-    },
-    {
-      "id": "our-team",
-      "name": "Our Team",
-      "caption": "Employee directory and colleague connections",
-      "url": "/recently-joined.html",
-      "icon": "people",
-      "color": "#1458b6",
-      "iconUrl": "/assets/team-directory.svg",
-      "iconFilename": "team-directory.svg"
     }
   ],
   "appsOrder": [
     "gmail",
-    "clickup",
-    "clickup-work",
-    "drive",
     "google-drive",
+    "drive",
+    "clickup",
     "support",
     "mohr",
+    "our-team",
     "org",
-    "time",
-    "arena",
-    "netsuite",
     "sibrain",
     "sibot",
-    "our-team"
+    "clickup-work",
+    "time",
+    "arena",
+    "netsuite"
   ],
   "announcements": [],
   "announcementSchedules": [],
@@ -243,56 +243,293 @@
   ],
   "sessions": [
     {
-      "id": "skh-001",
-      "title": "Fundamentals of Patenting & Si-Ware Patents Portfolio",
+      "id": "session-1792271614033-0",
+      "title": "Si-ware Knowledge Hub Intro",
+      "presenter": {
+        "name": "Tarek Zeinah",
+        "initials": "TZ"
+      },
+      "category": "General",
+      "date": "2025-02-26",
+      "outline": "Overview on the training programm objectives",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Si-Ware knowledge Hub (SKH) Overview_2025-02-26_V1.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250226-081430_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-1",
+      "title": "Photonics West & CRA-W Visit Highlights",
+      "presenter": {
+        "name": "Dr. Mazen Erfan",
+        "initials": "DM"
+      },
+      "category": "General",
+      "date": "2025-02-26",
+      "outline": "- Photonics West Events Introduction: An overview of the key events at Photonics West.\n\n- Photonics West Industrial Exhibition Overview: A look at the innovative solutions showcased at the exhibition.\n\n- Snaps from Photonics West Conferences Oral Talks & Poster Session: Highlights from the conference sessions.\n\n- CRA-W Visit Highlights: Insights from our CRA-W visit, focusing on the Milk Integration use case.- \"",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Photonics West & CRA-W Visit Highlights_2025-02-26_V3.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250226-082053_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-2",
+      "title": "Fundamentals of Patenting & Si-Ware Patents Portfolio | Part 1",
       "presenter": {
         "name": "Bassem Mortada",
         "initials": "BM"
       },
+      "category": "General",
       "date": "2025-03-12",
-      "category": "Patents",
-      "outline": "Introduction to patents and patentability, application process and structure.",
-      "presentationDeckUrl": "/docs/patents_part1.pdf",
-      "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      "outline": "Introduction to Patents & Patentability\nPatent Application Process\nPatent Structure & Components\nPatent Enforcement & Litigation\nSi-Ware Patents Portfolio Overview",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Fundamentals of Patenting & Si-Ware Patents Portfolio.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "PART 1.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
     },
     {
-      "id": "skh-002",
-      "title": "Beyond the Spectrum: NIR for a more sustainable food chain",
+      "id": "session-1792271614033-3",
+      "title": "Fundamentals of Patenting & Si-Ware Patents Portfolio | Part 2",
       "presenter": {
-        "name": "Nada El Dardiry",
-        "initials": "ND"
+        "name": "Bassem Mortada",
+        "initials": "BM"
       },
-      "date": "2025-05-27",
-      "category": "Photonics",
-      "outline": "How material intelligence makes measurement faster, simpler and more useful.",
-      "presentationDeckUrl": "/docs/nir-food.pdf",
-      "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      "category": "General",
+      "date": "2025-04-16",
+      "outline": "Si-Ware Patents Portfolio Overview (Contd.)\nHands on Excercise",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Fundamentals of Patenting & Si-Ware Patents Portfolio.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "PART 2.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
     },
     {
-      "id": "skh-003",
-      "title": "MEMS foundations: turning tiny motion into valuable data",
+      "id": "session-1792271614033-4",
+      "title": "GSA Overview and Research Trends in Optical Spectrometers\nPart 1",
       "presenter": {
-        "name": "Omar Magdy",
-        "initials": "OM"
+        "name": "Dr. Yasser Sabry",
+        "initials": "DY"
       },
-      "date": "2025-07-09",
-      "category": "MEMS",
-      "outline": "Sensor physics, product constraints and the road from prototype to scale.",
-      "presentationDeckUrl": "/docs/mems-foundations.pdf",
-      "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      "category": "General",
+      "date": "2025-05-21",
+      "outline": "Part 1: GSA\nThis segment provides an overview of the GSA organization, its mission, and recent activities in Egypt. Attendees will gain insights into the role GSA plays in fostering collaboration and innovation within the field, with a particular focus on its impact on the Egyptian research landscape.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "GSA Overview and Research Trends in Optical Spectrometers",
+      "recordingUrl": "",
+      "recordingFilename": "Part1: GSA Overview.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "GSA"
     },
     {
-      "id": "skh-004",
-      "title": "Practical AI copilots for engineering teams",
+      "id": "session-1792271614033-5",
+      "title": "GSA Overview and Research Trends in Optical Spectrometers\nPart 2",
       "presenter": {
-        "name": "Yasmine Atef",
-        "initials": "YA"
+        "name": "Dr. Yasser Sabry",
+        "initials": "DY"
       },
-      "date": "2025-09-18",
-      "category": "AI",
-      "outline": "A responsible, high-leverage guide to internal assistants and retrieval.",
-      "presentationDeckUrl": "/docs/ai-copilots.pdf",
-      "recordingUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      "category": "General",
+      "date": "2025-05-21",
+      "outline": "Part 2: Optical Spectrometers\nThe second half of the session delves into the optical spectrometers, covering:\n\n- Overview of typical architectures of optical spectrometers\n- Research trends in compact and chip-scale devices\n- A forward-looking vision for future developments and applications in the field.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "GSA Overview and Research Trends in Optical Spectrometers",
+      "recordingUrl": "",
+      "recordingFilename": "Part2: Research Trends in Optical Spectrometers.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-6",
+      "title": "Dr. Amr Osama's PhD Defense Presentation on Lithium Niobate Microsystems",
+      "presenter": {
+        "name": "Dr. Amr Osama",
+        "initials": "DA"
+      },
+      "category": "General",
+      "date": "2025-05-25",
+      "outline": "Lithium niobate (LiNbO₃) is a key ferroelectric material with remarkable optical and acoustic properties, making it essential for applications in telecommunications, sensing, and quantum technologies. The emergence of thin film lithium niobate (TFLN) has enhanced its integration potential, allowing the development of high-performance photonic and acoustic devices.\n\nIn microwave photonics, ultra-compact electro-optic modulators (EOMs) on Z-cut LN utilize spiral waveguides and top-bottom electrode configurations, achieving efficient modulation within a tiny footprint. In the RF acoustic domain, monolithically integrated wireless sensors incorporate high-Q Lamb wave resonators with meander dipole antennas, representing the first suspended LN Lamb wave devices for wireless sensing. These advancements leverage simple lithography steps for fabrication, enabling innovative solutions in photonics and acoustics.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "PhD research presentation.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250525-065510_Recording_3840x2400.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-7",
+      "title": "Project Management Essentials – Knowledge Areas and Processes - Part 1",
+      "presenter": {
+        "name": "Mohamed Shoaib, Omar Farouk & Moataz Samir",
+        "initials": "MS"
+      },
+      "category": "General",
+      "date": "2025-06-18",
+      "outline": "This comprehensive session provides a structured overview of the key knowledge areas and processes that underpin effective project management. It is designed to equip team members with practical insights to successfully contribute to project execution from start to finish.\nSession Outline:\n- Introduction to Project Management\n- Integration Management – Part 1\n- Scope Management\n- Time Management\n- Cost Management\n- Procurement Management",
+      "presentationDeckUrl": "",
+      "presentationFilename": "(SKH) Project Management Essentials – Knowledge Areas and Processes",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250618-065545_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-8",
+      "title": "Project Management Essentials – Knowledge Areas and Processes - Part 2",
+      "presenter": {
+        "name": "Mohamed Shoaib, Omar Farouk & Moataz Samir",
+        "initials": "MS"
+      },
+      "category": "General",
+      "date": "2025-06-25",
+      "outline": "- Resource Management\n- Stakeholder Management\n- Risk Management\n- Quality Management\n- Communications Management\n- Integration Management – Part 2",
+      "presentationDeckUrl": "",
+      "presentationFilename": "",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250625-071407_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-9",
+      "title": "Smarter Workflows with Excel & Google Sheets - Part 1",
+      "presenter": {
+        "name": "Moez Elmasry",
+        "initials": "ME"
+      },
+      "category": "General",
+      "date": "2025-08-27",
+      "outline": "This workshop will focus on practical spreadsheet techniques to improve efficiency, accuracy, and clarity in daily workflow. Whether you're new to spreadsheets or already using them, this session will offer some valuable tips, live demonstrations, and hands-on activities. \n\nSession Outline: \nWelcome & Objectives \nSpreadsheet Basics \nFunctions & Productivity Tricks",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Smarter Workflows With Excel & Google Sheets Part 1.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250827-065952_Recording_1920x1200.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Solved Examples During Session\nWorkshop Practice Material"
+    },
+    {
+      "id": "session-1792271614033-10",
+      "title": "Smarter Workflows with Excel & Google Sheets - Part 2",
+      "presenter": {
+        "name": "Presenter not specified",
+        "initials": "PN"
+      },
+      "category": "General",
+      "date": "2025-11-19",
+      "outline": "This workshop will focus on practical spreadsheet techniques to improve efficiency, accuracy, and clarity in daily workflow. Whether you're new to spreadsheets or already using them, this session will offer some valuable tips, live demonstrations, and hands-on activities. \n\nThis is Part 2 of the 1st workshop we took. Please review the material before the workshop. For those who missed the 1st one. Please go through Part 1 material before the workshop because the mini-project would need you to consider both workshops content. \n\nSession Outline: \nQuick Recap on Workshop 1 \n\nFunctions & Productivity Tricks Part 2 \n\nCharts & Visualization \n\nMini Project (Group Work) \n\nWrap-up & Resources",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Smarter Workflows With Excel & Google Sheets.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Supporting material"
+    },
+    {
+      "id": "session-1792271614033-11",
+      "title": "NIR Rome Conference Highlights",
+      "presenter": {
+        "name": "Ahmed Shebl",
+        "initials": "AS"
+      },
+      "category": "General",
+      "date": "2025-09-10",
+      "outline": "This session will provide an in-depth look at key takeaways from the NIR Rome Conference, a leading event in the field of Near-Infrared Spectroscopy, with firsthand insights shared by Ahmed Shebl, who attended the conference. \n\n\nSession Outline \nConference Overview: History, major exhibitors, topics, and main sessions \nEmerging Applications and Technology Tracks \nCompetitor Intelligence: Who’s doing what \nSi-Ware’s Contribution: Products presented, posters, and participation \nNotable Research Highlights and Interesting Papers",
+      "presentationDeckUrl": "",
+      "presentationFilename": "NIR-Rome Highlights 2025.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20250910-071259_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Supporting material"
+    },
+    {
+      "id": "session-1792271614033-12",
+      "title": "Techniques and Sensors for the Detection of Low Concentrations of Hazardous Gases Using Advanced Spectroscopy Techniques",
+      "presenter": {
+        "name": "Dr. Oscar Manrique",
+        "initials": "DO"
+      },
+      "category": "General",
+      "date": "2025-10-16",
+      "outline": "Overview of advanced sensor technologies and spectroscopy methods for detecting hazardous gases",
+      "presentationDeckUrl": "",
+      "presentationFilename": "ERASMUS AUC.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251016-065607_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-13",
+      "title": "InCabin Europe Conference",
+      "presenter": {
+        "name": "Moez Elmasry",
+        "initials": "ME"
+      },
+      "category": "General",
+      "date": "2025-10-29",
+      "outline": "This session will provide a look at key takeaways from the InCabin Europe Conference, it is an automotive related event gathering OEM, Tier 1 and supply chain engineers working on safety, comfort and productivity solutions for current and future in-cabin applications with firsthand insights shared by Moez ElMassry, who attended the conference. \n\nSession Outline \nEvent Overview \nEmerging Applications and Technology Tracks \nSi-Ware’s Demo \nSummary",
+      "presentationDeckUrl": "",
+      "presentationFilename": "InCabin Event Summary.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251029-065629_Recording_3840x2160.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-14",
+      "title": "MEMS Function Orientation",
+      "presenter": {
+        "name": "Yasseen Nada",
+        "initials": "YN"
+      },
+      "category": "General",
+      "date": "2025-12-17",
+      "outline": "This session provides a structured and accessible introduction to MEMS function, going through the MEMS chip as being a core component within Si-Ware different products. It aims to give participants an overview and a clearer understanding of Si-Ware's MEMS chip. \n\nSession Outline: \n\nIntroduction to MEMS: Definition of Micro Electro Mechanical Systems and the typical flow from idea to testing. \nMEMS as a Core Component: Overview of its role in the Full Stack Ownership and its interaction within the Optical Core Module. \nThe MEMS Function Team & Responsibilities: Introduction to team members, main responsibilities (production, yield, supplier management), and specific roles like chip design and foundry qualification. \nKey Tools and Equipment: Details on the software (ANSYS, MATLAB) and hardware used, including the development centers in Paris and Toulouse. \nSi-Ware MEMS Chip Deep Dive: Explanation of the chip components, the Interferometer Ray Path, Critical Optical Interfaces, and the specific process layers and flow.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "MEMS_Function_Session_SKH_17_Dec_2025.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251217-080519_Recording_3840x2160.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
+    },
+    {
+      "id": "session-1792271614033-15",
+      "title": "Smart Robotic solutions for industrial inspection and healthcare monitoring",
+      "presenter": {
+        "name": "Dr. Abdallah Fathy",
+        "initials": "DA"
+      },
+      "category": "General",
+      "date": "2025-12-23",
+      "outline": "Dr. Abdallah Fathy is an Assistant Professor of Electronics and Communications Engineering at ElSewedy University of Technology – Polytechnic of Egypt with over 15 years of combined academic and industrial experience. He earned his B.Sc., M.Sc., and Ph.D. from Ain Shams University and has taught and supervised projects across communications, signal processing, optics, electronics, and robotics at the German University in Cairo and Elsewedy University of Technology.\n\nIntroduction to ElSewedy University of Technology – Polytechnic of Egypt\n\nOverview and demo of previous robotics projects\n\nThis year’s project and potential collaboration with Si-Ware",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Smart Robotic Solutions for Industrial Inspection and Healthcare Monitoring.pdf",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20251223-120832_Recording_1920x1080.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": "Smart Robotic Solutions for Industrial Inspection.pdf"
+    },
+    {
+      "id": "session-1792271614033-16",
+      "title": "Electronics Function Orientation",
+      "presenter": {
+        "name": "Mina Gad",
+        "initials": "MG"
+      },
+      "category": "General",
+      "date": "2026-02-11",
+      "outline": "This session will provide a clear introduction to electronics, their role across Si-Ware’s products, and the responsibilities of the Electronics Function team. Participants will gain insight into key tools, equipment, and critical components that shape our systems.",
+      "presentationDeckUrl": "",
+      "presentationFilename": "Electronics_Function_Session_SKH_11_Feb_2026.pptx",
+      "recordingUrl": "",
+      "recordingFilename": "GMT20260211-081020_Recording_1920x1200.mp4",
+      "supportingMaterialsUrl": "",
+      "supportingMaterialsFilename": ""
     }
   ],
   "events": [
@@ -20601,11 +20838,22 @@
     }
   ],
   "whistleblowerConfig": {
-    "heroTitle": "Raise a concern with care.",
-    "heroText": "Use this confidential channel to raise a concern, complaint or suggestion about workplace conduct, safety, financial integrity or another serious matter. Begin in your own words when you are ready; Si-Ware Employee Voice will guide you through the reporting process.",
-    "safetyTitle": "Your safety matters.",
-    "safetyText": "Use the route that feels appropriate to you. If there is an immediate safety risk, follow the applicable local emergency and site-security procedures.",
-    "voiceUrl": "/employee-voice.html"
+    "heroTitle": "Raise a concern with confidence.",
+    "heroText": "Employee Voice is a confidential route for concerns about workplace conduct, safety, financial integrity or other serious matters. Share what you know, in your own words, when you are ready.",
+    "safetyTitle": "Your safety comes first.",
+    "safetyText": "For an immediate safety or security risk, follow local emergency and site-security procedures. Otherwise, you can begin a report when you are ready.",
+    "voiceUrl": "/employee-voice.html",
+    "enabled": true
+  },
+  "whistleblower2Config": {
+    "enabled": false,
+    "heroTitle": "Raise a concern securely.",
+    "heroText": "Use this confidential form to share a concern, complaint or suggestion about workplace conduct, safety, financial integrity or another serious matter.",
+    "formTitle": "Confidential reporting form",
+    "formText": "Complete the form in your own words. Provide only information that is relevant to the concern you are raising.",
+    "formUrl": "https://docs.google.com/forms/d/13J59Zkobl4EqEYM3IvYanYj6gkDV-CptvznSJYid2ro/viewform",
+    "safetyTitle": "Your safety comes first.",
+    "safetyText": "For an immediate safety or security risk, follow local emergency and site-security procedures."
   },
   "newMembers": [
     {
@@ -27509,7 +27757,7 @@
     },
     {
       "id": "company-portal-login",
-      "text": "Sign in to the Company Portal to complete your onboarding.",
+      "text": "Sign in to the Company Portal and explore Administration, Finance, and People Team services.",
       "resourceLabel": "Open Company Portal",
       "resourceUrl": "http://adminhelpdesk.si-wareapps.com/",
       "requiresResourceLinkClick": true
@@ -27519,7 +27767,7 @@
     {
       "id": "portal-company",
       "name": "Company Portal",
-      "description": "Employee self-service",
+      "description": "Submit and track Administration, Finance & People Team requests",
       "url": "https://adminhelpdesk.si-wareapps.com/",
       "icon": "check",
       "iconUrl": "/uploads/app-icons/company-portal.ico",
@@ -27557,14 +27805,14 @@
   },
   "newSiPageContent": {
     "heroEyebrow": "New Si-Warians!",
-    "heroLead": "Your first days,",
-    "heroAccent": "made clear.",
-    "heroText": "Start with one meaningful action, then build momentum. Your checklist, essential policies, support routes and everyday tools are all in one place.",
-    "heroJourneyLabel": "First-week journey",
-    "heroAction": "Start your checklist",
-    "asideTitle": "One step at a time",
-    "asideText": "Choose the next task that unlocks your workday. Your progress stays visible while you explore.",
-    "asideAction": "Find the right support route",
+    "heroLead": "Start strong,",
+    "heroAccent": "from day one.",
+    "heroText": "Everything you need to begin with confidence—your essential actions, company policies, support channels and everyday tools—in one focused workspace.",
+    "heroJourneyLabel": "First-week essentials",
+    "heroAction": "Begin your checklist",
+    "asideTitle": "Move forward with confidence",
+    "asideText": "Choose the next action that unlocks your workday. Your progress stays visible, so you always know what to do next.",
+    "asideAction": "Find the right support",
     "navTitle": "On this page",
     "navChecklist": "First-week checklist",
     "navPolicies": "Essential policies",
@@ -27582,14 +27830,14 @@
     "knowledgeTitle": "Knowledge Hub",
     "knowledgeText": "Sessions and practical know-how from the team.",
     "knowledgeAction": "Explore sessions",
-    "helpTitle": "Need help?",
-    "helpText": "Start with the route that best matches your request. If you are unsure where to go, your manager or the People Team can help you find the right owner.",
-    "itTitle": "IT Support",
-    "peopleTitle": "People & HR",
-    "administrationTitle": "Administration",
-    "financeTitle": "Finance",
-    "portalsTitle": "Company portals",
-    "portalsText": "Quick routes to the teams and services you will use most often.",
+    "helpTitle": "Support directory",
+    "helpText": "Choose the team that best matches your request. If you need guidance, your manager or the People Team can direct you to the appropriate owner.",
+    "itTitle": "IT Team",
+    "peopleTitle": "People Team",
+    "administrationTitle": "Administration Team",
+    "financeTitle": "Finance Team",
+    "portalsTitle": "Service portals",
+    "portalsText": "One place to submit and track Administration, Finance, and People Team requests.",
     "footerLeft": "Si-Ware Systems · New Si-Warians!",
     "footerRight": "Owner: People Operations · Review quarterly",
     "navTraining": "Training videos",
@@ -27605,10 +27853,9 @@
   "settings": {
     "theme": "light",
     "layout": [
-      "apps",
       "announcements",
       "new-members",
-      "company-news",
+      "new-warians",
       "social",
       "news",
       "moments",
@@ -27617,10 +27864,7 @@
       "whistleblower"
     ],
     "layoutVersion": "structured-v5",
-    "hiddenWidgets": [],
-    "widgetSizes": {},
-    "removedWidgets": [],
-    "layoutSizingVersion": "home-grid-v3"
+    "hiddenWidgets": []
   },
   "homePageContent": {},
   "adminSettings": {
@@ -27671,33 +27915,7 @@
     },
     "auditRetentionDays": 90,
     "activityRetentionDays": 90,
-    "lastArchiveDate": "2026-10-23",
-    "layoutHistory": [
-      {
-        "at": "2026-10-23T16:11:47.519Z",
-        "by": "admin@siware.local",
-        "settings": {
-          "theme": "light",
-          "layout": [
-            "apps",
-            "announcements",
-            "new-members",
-            "company-news",
-            "social",
-            "news",
-            "moments",
-            "knowledge",
-            "events",
-            "whistleblower"
-          ],
-          "layoutVersion": "structured-v5",
-          "hiddenWidgets": [],
-          "widgetSizes": {},
-          "removedWidgets": [],
-          "layoutSizingVersion": "home-grid-v3"
-        }
-      }
-    ]
+    "lastArchiveDate": "2026-10-24"
   },
   "eventsPageContent": {
     "title": "Events & key dates",

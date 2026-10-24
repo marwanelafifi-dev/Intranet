@@ -45,7 +45,7 @@ const dashboardLayoutVersion = 'company-news-v1';
 const defaultHomeWidgetSizes = { apps:'full', announcements:'wide', 'new-members':'compact', 'company-news':'full' };
 const memberEmploymentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
 const supportPortalDefaults = [
-  { id: 'portal-company', name: 'Company Portal', description: 'Administration, Finance & People Team', url: '', icon: 'building' },
+  { id: 'portal-company', name: 'Company Portal', description: 'Submit and track Administration, Finance & People Team requests', url: '', icon: 'building' },
   { id: 'portal-service-desk', name: 'SolarWinds Service Desk', description: 'IT Support', url: '', icon: 'support' },
   { id: 'portal-mohr', name: 'MOHR', description: 'Payslips & HR topics', url: '', icon: 'payroll' }
 ];
@@ -53,7 +53,7 @@ const displayTimestamp = value => value ? new Intl.DateTimeFormat('en', { year:'
 function normalizeState(data) {
   data.homePageContent = { heroTitle:'Make room for what’s next.', heroDescription:'One place to find your people, sharpen your craft, and keep the work moving with purpose.', heroAction:'Explore what’s happening', heroActionUrl:'#knowledge', ...(data.homePageContent || {}) };
   data.newMembers ??= [];
-  data.newMembers = data.newMembers.map(member => ({ ...member, employmentType: memberEmploymentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time', department: member.department || member.team || 'To be confirmed', division: member.division || member.team || 'To be confirmed' }));
+  data.newMembers = data.newMembers.map(member => ({ ...member, employmentType: memberEmploymentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time', department: member.department || member.team || 'To be confirmed', division: member.division || 'To be confirmed' }));
   data.policies ??= policyIndex.map((policy, index) => ({ id: `fallback-policy-${index}`, summary: policy.detail, canonicalUrl: policy.href, ...policy }));
   data.policyAcknowledgementContent = { version:1, actionTitle:'Action required: acknowledge Si-Ware Policies', instructionText:'Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.', beforeHeading:'Why this matters', beforeText:'Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.', confirmationLabel:'I confirm that I have read and accepted Si-Ware Policies.', confirmationHelp:'This records the current policy versions and confirmation time.', acceptedTitle:'Policies acknowledged', afterText:'Your acknowledgement has been recorded for the current policy versions.', ...(data.policyAcknowledgementContent || {}) };
   data.firstWeekChecklist ??= [
@@ -501,7 +501,7 @@ function renderNewMembers() {
   $('.new-members-widget .widget-intro').textContent = 'Meet the newest colleagues who recently joined our company.';
   $('.new-members-widget .plain-button').setAttribute('href', '/recently-joined.html');
   const members = latestDirectoryMembers();
-  $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.photoUrl ? `<img class="new-member-avatar new-member-photo" data-member-photo="${escapeHtml(member.id)}" src="${escapeHtml(member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div class="new-member-summary"><div class="member-name-line"><b>${escapeHtml(member.name)}</b>${compactMemberContacts(member)}</div><small class="member-title">${escapeHtml(member.role || 'Title to be confirmed')}</small><span class="member-department">Department: ${escapeHtml(member.department || member.team || 'To be confirmed')}</span><span class="direct-manager">Direct manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span><span class="member-tenure">${escapeHtml(member.employmentType || 'Employment type to be confirmed')} · Joined ${escapeHtml(member.joined || 'date to be confirmed')}</span></div><button class="member-row-open" type="button" data-member-profile="${escapeHtml(member.id)}" aria-label="View all details for ${escapeHtml(member.name)}"></button></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
+  $('#new-member-list').innerHTML = members.length ? members.map(member => `<article class="new-member">${member.profilePhotoUrl || member.photoUrl ? `<img class="new-member-avatar new-member-photo" data-member-photo="${escapeHtml(member.id)}" src="${escapeHtml(member.profilePhotoUrl || member.photoUrl)}" alt="Photo of ${escapeHtml(member.name)}" />` : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}">${escapeHtml(member.initials || member.name.split(' ').map(part => part[0]).join('').slice(0, 2))}</span>`}<div class="new-member-summary"><div class="member-name-line"><b>${escapeHtml(member.name)}</b>${compactMemberContacts(member)}</div><small class="member-title">${escapeHtml(member.role || 'Title to be confirmed')}</small><span class="member-department">Department: ${escapeHtml(member.department || member.team || 'To be confirmed')}</span><span class="direct-manager">Direct manager: ${escapeHtml(member.directManager || 'To be confirmed')}</span><span class="member-tenure">${escapeHtml(member.employmentType || 'Employment type to be confirmed')} · Joined ${escapeHtml(member.joined || 'date to be confirmed')}</span></div><button class="member-row-open" type="button" data-member-profile="${escapeHtml(member.id)}" aria-label="View all details for ${escapeHtml(member.name)}"></button></article>`).join('') : '<p class="empty-state">No new member announcements are available right now.</p>';
   const memberById = new Map(members.map(member => [String(member.id), member]));
   $$('#new-member-list .new-member-photo').forEach(photo => photo.addEventListener('error', () => {
     const member = memberById.get(photo.dataset.memberPhoto);
@@ -540,10 +540,17 @@ function applyLayout() {
   const defaultLayout = dashboardLayout.join(',');
   const dashboard = $('.dashboard');
   dashboard.classList.toggle('layout-custom', state.settings.layout.join(',') !== defaultLayout);
+  const employeeVoiceAvailable = state.whistleblowerConfig?.enabled !== false;
+  const googleFormAvailable = state.whistleblower2Config?.enabled === true;
+  const whistleblowerLink = $('.whistleblower-link');
+  if (whistleblowerLink && googleFormAvailable) {
+    whistleblowerLink.href = '/whistleblower-2.html';
+    whistleblowerLink.textContent = 'Open reporting form';
+  }
   const widgetPermissions = { apps:'intranet.apps', announcements:'intranet.announcements', 'new-members':'intranet.people', 'company-news':'intranet.news', knowledge:'intranet.knowledge', whistleblower:'intranet.whistleblower', moments:'intranet.moments', social:'intranet.social', events:'intranet.events' };
   $$('[data-widget]').forEach(widget => {
     const position = state.settings.layout.indexOf(widget.dataset.widget);
-    widget.hidden = state.settings.hiddenWidgets.includes(widget.dataset.widget) || Boolean(widgetPermissions[widget.dataset.widget] && !state.user.permissions?.includes(widgetPermissions[widget.dataset.widget]));
+    widget.hidden = state.settings.hiddenWidgets.includes(widget.dataset.widget) || Boolean(widgetPermissions[widget.dataset.widget] && !state.user.permissions?.includes(widgetPermissions[widget.dataset.widget])) || (widget.dataset.widget === 'whistleblower' && !employeeVoiceAvailable && !googleFormAvailable);
     widget.style.display = widget.hidden ? 'none' : '';
     widget.style.order = position < 0 ? 99 : position;
   });
