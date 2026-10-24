@@ -103,6 +103,16 @@ docker compose up --build
 
 Open `http://localhost:8081`. Host port `8081` maps to container port `8080` because port `8080` was reserved on the development machine.
 
+## Ubuntu deployment and Cloudflare cutover
+
+- The production deployment target is the Ubuntu server at `192.168.1.185`. The checked-out application lives at `/opt/Si-Ware-Intranet` and runs as the `intranet` Docker Compose service. Do not treat the development laptop as the production host.
+- Persistent deployment data is the host-mounted `data/` directory. Before rebuilding or migrating the Ubuntu server, back up `data/intranet.json`, `data/uploads/`, and `data/audit trail archive/` when present. The committed `data/seed.json` and `data/admin-defaults.json` contain the approved content baseline, but do not replace live uploads or current runtime data.
+- Production secrets stay outside Git: Ubuntu `.env` holds runtime environment values and `secrets/google-workspace.json` holds the Google delegated service-account key. The key is mounted read-only at `/run/secrets/google-workspace.json`; keep the host files mode `0600` and the `secrets/` directory mode `0700`. Never display, commit, or copy their contents into application data.
+- For the temporary LAN-only validation phase, bind the application to the Ubuntu LAN address as `192.168.1.185:8081:8080` and map `192.168.1.185 intranet.siwareapps` in an approved internal DNS service or an individual Windows hosts file. The temporary URL is `http://intranet.siwareapps:8081/login.html`. This is for local-network testing only; use local administrator sign-in rather than Google OAuth on the HTTP hostname.
+- The Cloudflare Tunnel is not configured yet. Until it is, do not publish the Ubuntu host directly to the Internet and do not expose port `8081` beyond the intended LAN. After the tunnel is configured, restore the app binding to `127.0.0.1:8081:8080`, map the Cloudflare public hostname to the Compose service `http://intranet:8080`, set `APP_ORIGIN=https://<approved-public-hostname>`, and set `SECURE_COOKIES=true`.
+- At Cloudflare cutover, add the exact `https://<approved-public-hostname>/auth/google/callback` redirect URI to the Google OAuth web client before enabling employee Google sign-in. Google OAuth redirect URIs for DNS names must use HTTPS; the temporary internal HTTP hostname is not an approved production callback.
+- Verify each deployment with `docker compose ps`, `docker compose logs --tail 30 intranet`, and a local HTTP request before switching the employee-facing hostname. Container recreation signs users out because sessions are memory-backed.
+
 ## Architecture
 
 - `audit-archive.mjs` handles 90-day audit/activity retention and one compressed archive file per calendar quarter under `data/audit trail archive/`.
@@ -198,6 +208,7 @@ The Facebook and LinkedIn cards now use intranet-owned, English social summaries
 ## Current portal destinations and live content
 
 - The shared destination navigation (`public/destination-nav.js`) exposes Home, Main Apps, Announcements, Recently Joined, Company news, Social Media, Moments, Knowledge Hub, Events & key dates, Whistleblower, and New Si-Warians on every main employee-facing page.
+- The Home **Industry Pulse** widget is a curated, source-linked internal reading feed, not an uncontrolled browser-side scraper. Preserve its existing source selector and compact social-post treatment. Its approved sources are Nature Optical Spectroscopy (`https://www.nature.com/subjects/optical-spectroscopy`), Semiconductor Digest (`https://www.semiconductor-digest.com/`), Dairyland Laboratories (`https://dairylandlabs.com/`), MDPI Agriculture (`https://www.mdpi.com/journal/agriculture`), and the Journal of Near Infrared Spectroscopy (`https://journals.sagepub.com/home/jns`). Each entry must show its source, date/context, concise factual summary, and an external `noopener` link to the relevant source or article. Do not restore the removed ROHM source or unlinked placeholder headlines. A future automatic refresh requires server-side caching, source-specific review, and failure fallbacks; never fetch third-party content directly from employee browsers.
 - Dedicated pages render live dashboard data through `public/portal-pages.js`: `/apps.html`, `/announcements.html`, `/social-media.html`, `/moments.html`, `/knowledge-hub.html`, and `/events.html`.
 - `/news.html` and the dashboard company-news module use `/api/company-news` to load and cache the latest official Si-Ware news. The news carousel advances automatically while retaining explicit previous/next controls.
 - The Social Media page links to Si-Ware's official LinkedIn, Facebook, YouTube, and website channels; its YouTube entries use `/api/youtube/latest`.

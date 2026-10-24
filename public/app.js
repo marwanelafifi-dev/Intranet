@@ -49,6 +49,47 @@ const supportPortalDefaults = [
   { id: 'portal-service-desk', name: 'SolarWinds Service Desk', description: 'IT Support', url: '', icon: 'support' },
   { id: 'portal-mohr', name: 'MOHR', description: 'Payslips & HR topics', url: '', icon: 'payroll' }
 ];
+const industryFeeds = [
+  {
+    id:'nature-optical-spectroscopy', label:'Nature · Optical spectroscopy', source:'Nature Portfolio', url:'https://www.nature.com/subjects/optical-spectroscopy',
+    items:[
+      { type:'Research', date:'Oct 23, 2026', title:'Machine learning for high-throughput spatially resolved ARPES measurements', summary:'A study of faster spatially resolved spectroscopy while retaining reliable domain classification.', url:'https://www.nature.com/articles/s41598-026-75986-z' },
+      { type:'Research', date:'Oct 16, 2026', title:'Diffuse reflectance spectroscopy for tumour-border detection', summary:'Optical spectroscopy is evaluated for real-time support during colorectal cancer surgery.', url:'https://www.nature.com/subjects/optical-spectroscopy' },
+      { type:'Research', date:'Oct 3, 2026', title:'Hyperspectral reflectance imaging for microalgae phenotyping', summary:'A non-invasive approach uses reflectance data to identify useful physiological and biochemical markers.', url:'https://www.nature.com/subjects/optical-spectroscopy' }
+    ]
+  },
+  {
+    id:'semiconductor-digest', label:'Semiconductor Digest', source:'Semiconductor Digest', url:'https://www.semiconductor-digest.com/',
+    items:[
+      { type:'Industry briefing', date:'Source coverage', title:'Semiconductor, packaging and MEMS coverage', summary:'Follow the publication’s reporting on devices, manufacturing, packaging and MEMS developments.', url:'https://www.semiconductor-digest.com/' },
+      { type:'Technology', date:'Source coverage', title:'Design and manufacturing developments', summary:'Explore current coverage from the Semiconductor Digest newsroom and specialist categories.', url:'https://www.semiconductor-digest.com/' }
+    ]
+  },
+  {
+    id:'dairyland-laboratories', label:'Dairyland Laboratories', source:'Dairyland Laboratories', url:'https://dairylandlabs.com/',
+    items:[
+      { type:'Applied NIR', date:'Field resource', title:'Portable NIR for feed quality and process control', summary:'Dairyland highlights NIR tools for on-site moisture measurement, quality assurance and process decisions.', url:'https://dairylandlabs.com/dairyland-portable-nir' },
+      { type:'Quality assurance', date:'Field resource', title:'Mill quality assurance with NIR calibration', summary:'Explore feed-quality monitoring, trend reporting and laboratory-backed quality assurance practices.', url:'https://dairylandlabs.com/mill-quality-assurance' },
+      { type:'Research & development', date:'Field resource', title:'Testing services for feed, forage, water and mycotoxins', summary:'Dairyland’s laboratory resources cover agricultural analysis and next-generation calibration work.', url:'https://dairylandlabs.com/' }
+    ]
+  },
+  {
+    id:'mdpi-agriculture', label:'MDPI · Agriculture', source:'MDPI Agriculture', url:'https://www.mdpi.com/journal/agriculture',
+    items:[
+      { type:'Research', date:'Oct 22, 2026', title:'Rice seedling leaf-age recognition using imaging and YOLO-PFL', summary:'Research into automated leaf-age recognition for agricultural decision-making and transplant timing.', url:'https://www.mdpi.com/2077-0472/16/21/2311' },
+      { type:'Research', date:'Oct 22, 2026', title:'Soil quality shapes yield gains from improved management', summary:'An analysis of how soil conditions influence yield improvements in cereal production systems.', url:'https://www.mdpi.com/2077-0472/16/21/2309' },
+      { type:'Review', date:'Oct 19, 2026', title:'From crop-row perception to autonomous row following', summary:'A review of perception, navigation and control approaches for agricultural robotics.', url:'https://www.mdpi.com/2077-0472/16/20/2275' }
+    ]
+  },
+  {
+    id:'jnirs', label:'Journal of Near Infrared Spectroscopy', source:'SAGE Journals', url:'https://journals.sagepub.com/home/jns',
+    items:[
+      { type:'Research', date:'Sep 30, 2026', title:'Portable SpectroChip-integrated MEMS spectrometer for silica determination', summary:'A compact MEMS spectroscopy approach for rapid colorimetric measurement in ultrapure water.', url:'https://journals.sagepub.com/toc/JNS/0/0' },
+      { type:'Research', date:'Sep 3, 2026', title:'NIR prediction models for high-throughput Larix phenotyping', summary:'Near-infrared spectroscopy supports rapid phenotyping for tree-breeding programmes.', url:'https://journals.sagepub.com/toc/JNS/0/0' },
+      { type:'Research', date:'Apr 22, 2026', title:'Multimodal near-infrared spectroscopy for biosensing applications', summary:'An overview of NIR sensing approaches for biosensing and related instrumentation.', url:'https://journals.sagepub.com/toc/jns/current' }
+    ]
+  }
+];
 const displayTimestamp = value => value ? new Intl.DateTimeFormat('en', { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'Africa/Cairo' }).format(new Date(value)) : 'No file uploaded';
 function normalizeState(data) {
   data.homePageContent = { heroTitle:'Make room for what’s next.', heroDescription:'One place to find your people, sharpen your craft, and keep the work moving with purpose.', heroAction:'Explore what’s happening', heroActionUrl:'#knowledge', ...(data.homePageContent || {}) };
@@ -251,11 +292,17 @@ function renderVectorIcons() {
 }
 function renderNews() {
   const selector = $('#feed-selector');
-  if (!selector.options.length) selector.innerHTML = state.feeds.map(feed => `<option value="${feed.id}">${escapeHtml(feed.label)}</option>`).join('');
-  const feed = state.feeds.find(item => item.id === selector.value) || state.feeds[0];
+  if (!selector.options.length) selector.innerHTML = industryFeeds.map(feed => `<option value="${feed.id}">${escapeHtml(feed.label)}</option>`).join('');
+  const feed = industryFeeds.find(item => item.id === selector.value) || industryFeeds[0];
   selector.value = feed.id;
-  $('#news-list').innerHTML = feed.items.map(item => `<article class="news-item"><div><small class="news-tag">${escapeHtml(item.type)}</small><small>${escapeHtml(item.age)}</small></div><b>${escapeHtml(item.title)}</b></article>`).join('');
-  $('#feed-link').setAttribute('aria-label', `Open ${feed.source}`);
+  $('#news-list').innerHTML = feed.items.map(item => `<article class="network-post industry-post"><div class="network-post-meta"><span>${escapeHtml(feed.source)}</span><span aria-hidden="true">·</span><span>${escapeHtml(item.date)}</span></div><b>${escapeHtml(item.title)}</b><p>${escapeHtml(item.summary)}</p><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Read from ${escapeHtml(feed.source)} <span aria-hidden="true">↗</span></a></article>`).join('');
+  $('#news-list').classList.add('social-feed-scroll', 'industry-feed-scroll');
+  const sourceLink = $('#feed-link');
+  sourceLink.href = feed.url;
+  sourceLink.target = '_blank';
+  sourceLink.rel = 'noopener noreferrer';
+  sourceLink.innerHTML = `Visit ${escapeHtml(feed.source)} <span aria-hidden="true">↗</span>`;
+  sourceLink.setAttribute('aria-label', `Visit ${feed.source}`);
 }
 function renderCompanyNews() { if (state.user.permissions?.includes('intranet.news')) renderNewsShifter($('#dashboard-news-shifter')); }
 function knowledgeResourceKey(value) { return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
