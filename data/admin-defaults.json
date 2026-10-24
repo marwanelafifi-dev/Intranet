@@ -20843,10 +20843,10 @@
     "safetyTitle": "Your safety comes first.",
     "safetyText": "For an immediate safety or security risk, follow local emergency and site-security procedures. Otherwise, you can begin a report when you are ready.",
     "voiceUrl": "/employee-voice.html",
-    "enabled": true
+    "enabled": false
   },
   "whistleblower2Config": {
-    "enabled": false,
+    "enabled": true,
     "heroTitle": "Raise a concern securely.",
     "heroText": "Use this confidential form to share a concern, complaint or suggestion about workplace conduct, safety, financial integrity or another serious matter.",
     "formTitle": "Confidential reporting form",
