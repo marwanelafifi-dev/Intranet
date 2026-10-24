@@ -29,6 +29,9 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
 const googleWorkspaceDomain = (process.env.GOOGLE_WORKSPACE_DOMAIN || 'si-ware.com').toLowerCase();
 const googleAdminEmails = new Set((process.env.GOOGLE_ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
+const siVoiceApiUrl = String(process.env.SI_VOICE_API_URL || 'https://si-bot-dev.si-wareapps.com/api/agents/v1/chat/completions').trim();
+const siVoiceApiToken = String(process.env.SI_VOICE_API_TOKEN || '').trim();
+const siVoiceModel = String(process.env.SI_VOICE_MODEL || 'agent_p5r89lwIGSl7sYJRu80AH').trim();
 const approvedResourceCalendars = Object.freeze([
   { id:'c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com', label:'3rd Floor Meeting Room', resourceId:'61221782182' },
   { id:'c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com', label:'Recreational Area Space', resourceId:'2913182464' }
@@ -929,6 +932,29 @@ const server = createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/admin/')) {
       const data = await dashboard(), actor = actorFor(req, data);
       if (!can(data, actor, 'admin.access')) return json(res, actor ? 403 : 401, { error:'Admin Panel access is required.' });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/si-voice/chat') {
+      const data = await dashboard(), actor = actorFor(req, data);
+      if (!actor) return json(res, 401, { error:'Sign in is required.' });
+      if (!can(data, actor, 'intranet.whistleblower')) return json(res, 403, { error:'Employee Voice is not available for your account.' });
+      if (data.whistleblowerConfig?.enabled === false) return json(res, 404, { error:'Employee Voice is not currently available.' });
+      if (!siVoiceApiToken) return json(res, 503, { error:'Employee Voice is not configured on this server.' });
+      const body = await readBody(req), message = safeText(body.message);
+      if (!message) return json(res, 422, { error:'Enter a message before sending.' });
+      try {
+        const response = await fetch(siVoiceApiUrl, {
+          method:'POST',
+          headers:{ 'content-type':'application/json', authorization:`Bearer ${siVoiceApiToken}` },
+          body:JSON.stringify({ model:siVoiceModel, messages:[{ role:'user', content:message }], stream:false }),
+          signal:AbortSignal.timeout(20_000)
+        });
+        const responseBody = await response.json().catch(() => null);
+        const reply = String(responseBody?.choices?.[0]?.message?.content || '').trim().slice(0, 8_000);
+        if (!response.ok || !reply) return json(res, 502, { error:'Employee Voice could not respond right now. Please try again later.' });
+        return json(res, 200, { reply });
+      } catch {
+        return json(res, 502, { error:'Employee Voice could not respond right now. Please try again later.' });
+      }
     }
     if (req.method === 'POST' && url.pathname === '/api/activity') {
       const data = await dashboard(), actor = actorFor(req, data), body = await readBody(req);

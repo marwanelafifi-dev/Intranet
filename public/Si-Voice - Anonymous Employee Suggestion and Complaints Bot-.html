@@ -46,21 +46,19 @@
     const loadingId = appendMessage('Thinking...', 'bot');
 
     try {
-      const response = await fetch('https://si-bot-dev.si-wareapps.com/api/agents/v1/chat/completions', {
+      const response = await fetch('/api/si-voice/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer sk-32e330153c02affee364ace2983bb670b62942a521fc73512de9ee4a99d76dc5'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: "agent_p5r89lwIGSl7sYJRu80AH",
-          messages: [{ role: "user", content: text }],
-          stream: false
+          message: text
         })
       });
 
       const data = await response.json();
-      const botReply = data.choices[0].message.content;
+      if (!response.ok) throw new Error(data.error || 'The assistant could not respond.');
+      const botReply = data.reply;
       document.getElementById(loadingId).innerText = botReply;
     } catch (error) {
       document.getElementById(loadingId).innerText = "Error: Could not reach the assistant.";
