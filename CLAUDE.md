@@ -16,6 +16,7 @@
 
 - `/admin.html` is the dedicated **Administration Panel**; do not reintroduce the legacy modal editor. Entry requires `admin.access` plus at least one permitted Administration page and its matching capability. The employee header exposes the restricted **Admin Panel** entry point.
 - Content editors use page previews and focused forms. Save through each page's current action (for example, **Save changes**); do not assume one global save button.
+- Administration navigation renders only the selected view. Preview editors must be ready on the first page selection; never pre-render hidden iframe editors or require an administrator to select a page twice before it becomes editable.
 - Every managed page has JSON export, reset-to-default, undo/redo, and a per-page baseline in `data/admin-defaults.json`. Destructive removal requires an explicit confirmation, including a typed `DELETE` confirmation for collection-level removals.
 - The panel manages Main Apps, Announcements, Social Media, Moments, Knowledge Hub, Events & key dates, Whistleblower, Recently Joined, New Si-Warians, Appearance, Media, users/access, and activity/audit records.
 - Recently Joined supports two controlled deletion paths for roles with `action.delete`: select a colleague card in the preview and use **Delete colleague**, or use **More actions > Delete all colleagues** beside **Reset to default**. Bulk deletion requires typing `DELETE`, affects display cards only (never Google Workspace accounts), is audited, and can be undone in the active browser tab after a successful save.

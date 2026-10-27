@@ -2043,16 +2043,23 @@ async function renderAccess() { const root = $('#view-access'); root.innerHTML =
 async function renderRoles() { const root = $('#view-roles'); root.innerHTML = '<p class="view-intro">Loading roles…</p>'; try { if (!accessDirectory) await loadAccessDirectory(); const roles = accessDirectory.roles || [], users = accessDirectory.users || [], permissions = [...new Set(roles.flatMap(role => role.permissions))]; root.innerHTML = `<div class="access-page-heading"><div><h1>Roles</h1><p>Review the permissions that each intranet role grants.</p></div></div><div class="roles-summary"><article><b>${roles.length}</b><span>Configured roles</span></article><article><b>${permissions.length}</b><span>Permission types</span></article><article><b>${users.length}</b><span>Assigned users</span></article></div><article class="roles-workspace"><div class="roles-workspace-head"><h2>Role permissions</h2><p>Roles are fixed safeguards in this local prototype. Assign them from the Users page.</p></div><div class="roles-table-wrap"><table class="roles-table"><thead><tr><th>Permission</th>${roles.map(role => `<th>${escapeHtml(roleLabel(role.id))}<small>${users.filter(user => user.role === role.id).length} users</small></th>`).join('')}</tr></thead><tbody>${permissions.map(permission => `<tr><th>${escapeHtml(permissionLabel(permission))}<small>${escapeHtml(permission)}</small></th>${roles.map(role => `<td>${role.permissions.includes(permission) ? '<span class="permission-granted" aria-label="Granted">✓</span>' : '<span class="permission-none" aria-label="Not granted">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></article>`; } catch (error) { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message)}</p>`; } }
 function renderActivity() { return renderAuditTrail($('#view-activity'), hasAdminPermission('audit.export')); }
 function renderSettings() { $('#view-settings').innerHTML = `<p class="view-intro">Manage Google content sources and review the environment safeguards for this intranet.</p><div id="google-sync-settings"></div><div class="section-grid"><article class="panel"><h2>Audit archive</h2><p>Audit and browser activity older than 90 days are archived automatically at the next daily run, then removed from the active trail.</p><p class="notice">Archive files are saved on the Docker host under <code>data/audit trail archive/</code>. They are not included in Audit Trail search or CSV export and are not deleted automatically. Include this folder in your backups.</p></article><article class="panel"><h2>Environment security</h2><p>Google Workspace SSO and administrator-created local accounts are supported. Local account passwords are stored as salted hashes. Configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>APP_ORIGIN</code>, <code>GOOGLE_WORKSPACE_DOMAIN</code>, <code>GOOGLE_ADMIN_EMAILS</code>, and <code>SECURE_COOKIES=true</code> outside this UI.</p><p class="notice warning">This local prototype uses JSON storage and memory-backed sessions. Use a transactional database and shared session store before production deployment.</p></article></div>`; renderGoogleSyncSettings($('#google-sync-settings'), api); }
+function renderAdminView(name) {
+  if (name === 'overview') return renderOverview();
+  if (name === 'content') return renderContent();
+  if (contentPages.some(page => page.view === name)) return renderContentPage(name);
+  if (name === 'appearance') return renderAppearance();
+  if (name === 'home') return renderHomeEditor();
+  if (name === 'global') return renderGlobalPages();
+  if (name === 'media') return renderMedia();
+  if (name === 'access') return renderAccess();
+  if (name === 'roles') return renderRolesCards();
+  if (name === 'activity') return renderActivity();
+  if (name === 'compliance') return renderComplianceAcknowledgements();
+  if (name === 'settings') return renderSettings();
+}
 function renderAllowedAdminViews() {
-  if (canAccessAdminView('overview')) renderOverview();
-  if (canAccessAdminView('content')) renderContent();
-  contentPages.filter(page => canAccessAdminView(page.view)).forEach(page => renderContentPage(page.view));
-  if (canAccessAdminView('people')) renderPeople();
-  if (canAccessAdminView('appearance')) renderAppearance();
-  if (canAccessAdminView('home')) renderHomeEditor();
-  if (canAccessAdminView('global')) renderGlobalPages();
-  if (canAccessAdminView('settings')) renderSettings();
-  if (canAccessAdminView('compliance')) renderComplianceAcknowledgements();
+  const activeView = activeAdminView();
+  if (canAccessAdminView(activeView)) renderAdminView(activeView);
 }
 async function refreshAdminPermissions() {
   const me = await api('/api/auth/me');
@@ -2080,14 +2087,7 @@ function showView(name) {
   const titles = { home:'Home', global:'Global pages content', apps:'Apps', access:'Users', roles:'Roles', activity:'Audit Trail', compliance:'Compliance acknowledgements', newsi:'New Si-Warians', announcements:'Announcements', social:'Social Media', whistleblower:'Whistleblower', moments:'Moments' };
   $('#page-title').textContent = titles[name] || name[0].toUpperCase() + name.slice(1);
   window.dispatchEvent(new CustomEvent('siware:page-view', { detail:{ title:`Administration · ${$('#page-title').textContent}` } }));
-  if (contentPages.some(page => page.view === name)) renderContentPage(name);
-  if (name === 'home') renderHomeEditor();
-  if (name === 'global') renderGlobalPages();
-  if (name === 'media') renderMedia();
-  if (name === 'access') renderAccess();
-  if (name === 'roles') renderRolesCards();
-  if (name === 'activity') renderActivity();
-  if (name === 'compliance') renderComplianceAcknowledgements();
+  renderAdminView(name);
   updatePageTools();
 }
 function updateIntranetExitLinks() {
