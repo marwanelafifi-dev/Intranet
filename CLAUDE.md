@@ -63,7 +63,7 @@
 - The Essential Policies section renders its live data from `/api/dashboard`.
 - Each policy card contains its summary, owner, audience, version, update status, and PDF actions; there is no separate policy register.
 - Mandatory acknowledgements are recorded server-side in `policyAcknowledgements`, including the employee identity, policy versions, review timestamps, exact acceptance statement, and acceptance timestamp. An acknowledgement is invalidated automatically when a policy ID, version, or document URL changes.
-- Google Workspace SSO uses `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_ORIGIN`, `GOOGLE_WORKSPACE_DOMAIN`, `GOOGLE_ADMIN_EMAILS`, and `SECURE_COOKIES=true`. Local administrator sign-in uses `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD`. The demo employee identity applies only when neither sign-in method is configured.
+- Google Workspace SSO uses `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_ORIGIN`, `GOOGLE_WORKSPACE_DOMAIN`, `GOOGLE_ADMIN_EMAILS`, and `SECURE_COOKIES=true`. Local administrator sign-in uses `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD`. The Users page may deactivate or reactivate any local or Google intranet account, including the environment local administrator; its role and password remain server-managed. When no local account remains active, the local-login option is removed from the login page and `/auth/local` is disabled. The demo employee identity applies only when neither sign-in method is configured.
 
 ## Theme and interaction behavior
 

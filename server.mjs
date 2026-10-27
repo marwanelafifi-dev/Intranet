@@ -98,6 +98,8 @@ const sessionFor = req => {
 const isGoogleConfigured = () => Boolean(googleClientId && googleClientSecret);
 const isLocalAdminConfigured = () => Boolean(localAdminEmail && localAdminPassword);
 const isAuthenticationConfigured = () => isGoogleConfigured() || isLocalAdminConfigured() || localAccountsConfigured;
+const environmentLocalAdminActive = data => isLocalAdminConfigured() && storedUserFor(data, localAdminEmail)?.active !== false;
+const localSignInAvailable = data => environmentLocalAdminActive(data) || data.accessUsers.some(user => user.authType === 'local' && user.passwordHash && user.active !== false && String(user.email || '').toLowerCase() !== localAdminEmail);
 const googleProfilePhotoUrl = value => {
   try {
     const url = new URL(String(value || ''));
@@ -222,9 +224,10 @@ function directoryAccessUsers(data) {
     users.set(email, { ...users.get(email), ...user, email });
   }
   if (isLocalAdminConfigured()) {
+    const override = storedUserFor(data, localAdminEmail);
     users.set(localAdminEmail, {
       id:'local-admin', email:localAdminEmail, name:localAdminName || 'Local Administrator',
-      role:'ADMIN', authType:'local', source:'environment', active:true
+      role:'ADMIN', authType:'local', source:'environment', active:override?.active !== false
     });
   }
   return [...users.values()].map(user => publicAccessUser({ ...user, avatarUrl:directoryProfilePhotoFor(data, user.email) || user.avatarUrl || '' }, activeSessionForEmail(user.email))).sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email)));
@@ -232,7 +235,7 @@ function directoryAccessUsers(data) {
 const actorFor = (req, data) => {
   const session = sessionFor(req);
   if (session) {
-    if (session.id === 'local-admin') return configuredRoles(data).ADMIN ? session : null;
+    if (session.id === 'local-admin') return environmentLocalAdminActive(data) && configuredRoles(data).ADMIN ? session : null;
     const account = storedUserFor(data, String(session.email || '').toLowerCase());
     if (account?.active === false || (account && (account.authType === 'local') !== Boolean(session.local))) return null;
     if (session.local) {
@@ -800,23 +803,23 @@ const server = createServer(async (req, res) => {
       const whistleblowerRouteDisabled = (documentRoute === '/whistleblower.html' && data.whistleblowerConfig?.enabled === false) || (documentRoute === '/whistleblower-2.html' && data.whistleblower2Config?.enabled === false);
       if (whistleblowerRouteDisabled) return json(res, 404, { error:'This reporting route is not currently available.' });
     }
-    if (req.method === 'GET' && url.pathname === '/api/auth/options') return json(res, 200, { google:isGoogleConfigured(), local:isLocalAdminConfigured() || localAccountsConfigured });
+    if (req.method === 'GET' && url.pathname === '/api/auth/options') { const data = await dashboard(); return json(res, 200, { google:isGoogleConfigured(), local:localSignInAvailable(data) }); }
     if (req.method === 'GET' && url.pathname === '/api/global-page-content') {
       res.setHeader('cache-control', 'no-store, max-age=0');
       const data = await dashboard();
       return json(res, 200, normaliseGlobalPageContent(data.globalPageContent));
     }
     if (req.method === 'POST' && url.pathname === '/auth/local') {
-      if (!isLocalAdminConfigured() && !localAccountsConfigured) return json(res, 503, { error:'Local sign-in is not configured for this environment.' });
+      const current = await dashboard();
+      if (!localSignInAvailable(current)) return json(res, 503, { error:'Local sign-in is disabled for this intranet.' });
       const attemptKey = req.socket.remoteAddress || 'unknown', now = Date.now();
       const prior = localLoginAttempts.get(attemptKey);
       const attempts = prior && now - prior.startedAt < loginWindowMs ? prior : { startedAt:now, count:0 };
       if (attempts.count >= maxLocalAttempts) return json(res, 429, { error:'Too many sign-in attempts. Try again in 15 minutes.' });
       const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), returnTo = safeReturnTo(body.returnTo);
       if (typeof body.password !== 'string' || Buffer.byteLength(body.password, 'utf8') > 512) return json(res, 401, { error:'The email or password is incorrect.' });
-      const current = await dashboard();
       const localUser = storedUserFor(current, email);
-      const environmentAdmin = isLocalAdminConfigured() && email === localAdminEmail;
+      const environmentAdmin = environmentLocalAdminActive(current) && email === localAdminEmail;
       const valid = environmentAdmin ? isValidLocalAdminPassword(body.password) : localUser?.authType === 'local' && localUser.active !== false && await verifyLocalPassword(body.password, localUser.passwordHash);
       if (!valid) {
         attempts.count += 1; localLoginAttempts.set(attemptKey, attempts);
@@ -1031,35 +1034,37 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'PATCH' && url.pathname === '/api/admin/access') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['access.manage','page.users']); if (!actor) return;
-      const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), role = String(body.role || '');
+      const body = await readBody(req), email = String(body.email || '').trim().toLowerCase(), role = String(body.role || ''), environmentAdmin = isLocalAdminConfigured() && email === localAdminEmail;
       if (body.operation === 'import' && !can(data, actor, 'action.import')) return json(res, 403, { error:'Import permission is required to import users.' });
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !configuredRoles(data)[role]) return json(res, 422, { error:'Provide a valid email address and supported role.' });
-      const current = storedUserFor(data, email), authType = current?.authType === 'local' ? 'local' : current ? 'google' : body.authType === 'local' ? 'local' : 'google';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (!environmentAdmin && !configuredRoles(data)[role])) return json(res, 422, { error:'Provide a valid email address and supported role.' });
+      const current = storedUserFor(data, email), authType = environmentAdmin ? 'local' : current?.authType === 'local' ? 'local' : current ? 'google' : body.authType === 'local' ? 'local' : 'google';
       if (current && body.authType && body.authType !== authType) return json(res, 422, { error:'Authentication type cannot be changed after the account is created.' });
-      if (isLocalAdminConfigured() && email === localAdminEmail) return json(res, 409, { error:'The local administrator is managed through server environment settings and cannot be edited here.' });
+      if (environmentAdmin && ((body.role && body.role !== 'ADMIN') || (body.authType && body.authType !== 'local'))) return json(res, 409, { error:'The environment local administrator role and authentication are managed through server settings. You can only change its active status here.' });
       const password = typeof body.password === 'string' ? body.password : '';
-      if (authType === 'local' && (!current || password)) {
+      if (environmentAdmin && password) return json(res, 422, { error:'Change the environment local administrator password in the server environment, not here.' });
+      if (!environmentAdmin && authType === 'local' && (!current || password)) {
         const passwordError = passwordPolicyError(password, email);
         if (passwordError) return json(res, 422, { error:passwordError });
         if (body.passwordConfirm !== password) return json(res, 422, { error:'The passwords do not match.' });
       }
-      if (authType === 'google' && password) return json(res, 422, { error:'Google accounts do not use an intranet password.' });
+      if (!environmentAdmin && authType === 'google' && password) return json(res, 422, { error:'Google accounts do not use an intranet password.' });
       const active = body.active !== false && body.active !== 'false';
-      if (!isAuthenticationConfigured() && (!active || authType !== 'local' || role !== 'ADMIN')) return json(res, 422, { error:'The first local account must be an active administrator so access is not lost.' });
+      const effectiveRole = environmentAdmin ? 'ADMIN' : role;
+      if (!isAuthenticationConfigured() && (!active || authType !== 'local' || effectiveRole !== 'ADMIN')) return json(res, 422, { error:'The first local account must be an active administrator so access is not lost.' });
       const accessAdmins = new Set(data.accessUsers.filter(user => user.role === 'ADMIN' && user.active !== false).map(user => user.email));
       googleAdminEmails.forEach(adminEmail => accessAdmins.add(adminEmail));
-      if (isLocalAdminConfigured()) accessAdmins.add(localAdminEmail);
+      if (environmentLocalAdminActive(data)) accessAdmins.add(localAdminEmail);
       const adminCount = accessAdmins.size;
-      if (current?.role === 'ADMIN' && (role !== 'ADMIN' || !active) && adminCount <= 1) return json(res, 422, { error:'The last administrator cannot be removed, demoted, or deactivated.' });
-      const now = new Date().toISOString(), name = safeText(body.name).slice(0, 80) || current?.name || email;
+      if ((environmentAdmin || current?.role === 'ADMIN') && (effectiveRole !== 'ADMIN' || !active) && adminCount <= 1) return json(res, 422, { error:'The last administrator cannot be removed, demoted, or deactivated.' });
+      const now = new Date().toISOString(), name = environmentAdmin ? localAdminName || 'Local Administrator' : safeText(body.name).slice(0, 80) || current?.name || email;
       const record = current || { id:randomUUID(), email, createdAt:now };
-      Object.assign(record, { name, role, authType, active, updatedAt:now });
-      if (authType === 'local' && password) record.passwordHash = await hashLocalPassword(password);
+      Object.assign(record, { name, role:effectiveRole, authType, active, updatedAt:now, ...(environmentAdmin ? { source:'environment' } : {}) });
+      if (!environmentAdmin && authType === 'local' && password) record.passwordHash = await hashLocalPassword(password);
       if (!current) data.accessUsers.push(record);
       if (authType === 'local') localAccountsConfigured = true;
       if (!active || password) for (const [id, session] of sessions) if (String(session.actor?.email || '').toLowerCase() === email) sessions.delete(id);
       data._version += 1;
-      auditEvent(data, actor, { action:current ? 'access.user.updated' : 'access.user.created', resource:email, route:'/admin.html', outcome:'success', changes:{ role, authType, active, passwordChanged:Boolean(password) } });
+      auditEvent(data, actor, { action:current ? 'access.user.updated' : 'access.user.created', resource:email, route:'/admin.html', outcome:'success', changes:{ role:effectiveRole, authType, active, passwordChanged:Boolean(password) } });
       await save(data);
       res.setHeader('cache-control', 'no-store');
       return json(res, 200, { users:directoryAccessUsers(data) });

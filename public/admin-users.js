@@ -30,26 +30,32 @@ export function mountUsersPage(root, directory, { onSave, onImport, onTemplate }
   const dialog = root.querySelector('#access-user-dialog'), form = root.querySelector('#access-form');
   const authType = form.elements.authType, passwordFields = root.querySelector('[data-local-password-fields]');
   const setPasswordVisibility = edit => {
-    const local = authType.value === 'local';
-    passwordFields.hidden = !local;
-    form.elements.password.required = local && !edit;
-    form.elements.passwordConfirm.required = local && !edit;
+    const local = authType.value === 'local', environmentManaged = form.dataset.environmentManaged === 'true';
+    passwordFields.hidden = environmentManaged || !local;
+    form.elements.password.required = !environmentManaged && local && !edit;
+    form.elements.passwordConfirm.required = !environmentManaged && local && !edit;
     form.querySelector('[data-password-label]').firstChild.textContent = edit ? 'New password (optional)' : 'Password';
-    root.querySelector('[data-user-auth-note]').textContent = local
+    root.querySelector('[data-user-auth-note]').textContent = environmentManaged
+      ? 'The server controls this account’s name and password. Clear Active to remove local sign-in from the login page when no other local account remains active.'
+      : local
       ? edit ? 'Leave the password fields empty to keep the current password. Saving a new password signs out existing sessions.' : 'Local accounts sign in with their work email and password. Passwords cannot be viewed after saving.'
       : 'Google Workspace manages this account’s password. The intranet role takes effect at the next sign-in.';
   };
   const openDialog = user => {
+    const environmentManaged = user?.source === 'environment';
     form.reset();
+    form.dataset.environmentManaged = String(environmentManaged);
     form.elements.name.value = user?.name || '';
+    form.elements.name.readOnly = environmentManaged;
     form.elements.email.value = user?.email || '';
     form.elements.email.readOnly = Boolean(user);
     authType.value = user?.authType === 'local' ? 'local' : user ? 'google' : 'local';
     authType.disabled = Boolean(user);
     form.elements.role.value = user?.role || (roles.find(role => role.id === 'EMPLOYEE')?.id || roles[0]?.id || '');
+    form.elements.role.disabled = environmentManaged;
     form.elements.active.checked = user?.active !== false;
     form.querySelector('h2').textContent = user ? 'Edit user' : 'Add user';
-    form.querySelector('[data-user-dialog-description]').textContent = user ? 'Update access or reset a local account password.' : 'Create an account or assign access to a Google Workspace identity.';
+    form.querySelector('[data-user-dialog-description]').textContent = environmentManaged ? 'Control whether this server-managed local administrator can sign in.' : user ? 'Update access or reset a local account password.' : 'Create an account or assign access to a Google Workspace identity.';
     root.querySelector('[data-user-form-error]').textContent = '';
     setPasswordVisibility(Boolean(user));
     dialog.showModal();
@@ -69,7 +75,7 @@ export function mountUsersPage(root, directory, { onSave, onImport, onTemplate }
     const session = root.querySelector('#users-session-filter').value;
     const filtered = users.filter(user => (!role || user.role === role) && (!session || (session === 'active') === Boolean(user.sessionActive && user.active !== false)) && (!search || `${user.name || ''} ${user.email || ''} ${roleLabel(user.role)}`.toLocaleLowerCase().includes(search)));
     const tableBody = root.querySelector('#users-table-body');
-    tableBody.innerHTML = filtered.map(user => { const userInitials = initials(user), avatar = user.avatarUrl ? `<img class="user-avatar user-avatar-photo" src="${escapeHtml(user.avatarUrl)}" alt="" data-user-initials="${escapeHtml(userInitials)}" />` : `<span class="user-avatar" aria-hidden="true">${escapeHtml(userInitials)}</span>`; return `<tr><td><span class="user-identity">${avatar}<span><b>${escapeHtml(user.name || user.email)}</b><small>${escapeHtml(user.email)}</small></span></span></td><td><span class="role-chip role-${escapeHtml(String(user.role || '').toLowerCase())}">${escapeHtml(roleLabel(user.role))}</span></td><td><span class="auth-chip auth-${user.authType === 'local' ? 'local' : 'google'}">${user.source === 'environment' ? 'Local / server' : user.authType === 'local' ? 'Local' : 'Google'}</span></td><td><span class="user-state ${user.active === false ? 'is-inactive' : 'is-active'}"><i></i>${user.active === false ? 'Inactive' : 'Active'}</span></td><td><span class="user-state ${user.sessionActive && user.active !== false ? 'is-active' : 'is-offline'}"><i></i>${user.sessionActive && user.active !== false ? 'Active session' : 'No session'}</span></td><td class="user-joined">${user.source === 'environment' ? 'Server-managed' : user.intranetJoinedAt ? escapeHtml(dateLabel(user.intranetJoinedAt)) : 'Not signed in yet'}</td><td>${user.source === 'environment' ? '<span class="user-readonly" title="Managed through server settings">Server-managed</span>' : `<button class="user-row-action" type="button" data-edit-user="${escapeHtml(user.email)}" aria-label="Edit ${escapeHtml(user.name || user.email)}" title="Edit user">${icon.more}</button>`}</td></tr>`; }).join('') || '<tr><td colspan="7" class="users-empty">No users match these filters. Try another search or filter.</td></tr>';
+    tableBody.innerHTML = filtered.map(user => { const userInitials = initials(user), avatar = user.avatarUrl ? `<img class="user-avatar user-avatar-photo" src="${escapeHtml(user.avatarUrl)}" alt="" data-user-initials="${escapeHtml(userInitials)}" />` : `<span class="user-avatar" aria-hidden="true">${escapeHtml(userInitials)}</span>`, action = `<button class="user-row-action" type="button" data-edit-user="${escapeHtml(user.email)}" aria-label="Edit ${escapeHtml(user.name || user.email)}" title="Edit user">${icon.more}</button>`; return `<tr><td><span class="user-identity">${avatar}<span><b>${escapeHtml(user.name || user.email)}</b><small>${escapeHtml(user.email)}</small></span></span></td><td><span class="role-chip role-${escapeHtml(String(user.role || '').toLowerCase())}">${escapeHtml(roleLabel(user.role))}</span></td><td><span class="auth-chip auth-${user.authType === 'local' ? 'local' : 'google'}">${user.source === 'environment' ? 'Local / server' : user.authType === 'local' ? 'Local' : 'Google'}</span></td><td><span class="user-state ${user.active === false ? 'is-inactive' : 'is-active'}"><i></i>${user.active === false ? 'Inactive' : 'Active'}</span></td><td><span class="user-state ${user.sessionActive && user.active !== false ? 'is-active' : 'is-offline'}"><i></i>${user.sessionActive && user.active !== false ? 'Active session' : 'No session'}</span></td><td class="user-joined">${user.source === 'environment' ? 'Server-managed' : user.intranetJoinedAt ? escapeHtml(dateLabel(user.intranetJoinedAt)) : 'Not signed in yet'}</td><td>${action}</td></tr>`; }).join('') || '<tr><td colspan="7" class="users-empty">No users match these filters. Try another search or filter.</td></tr>';
     tableBody.querySelectorAll('.user-avatar-photo').forEach(photo => photo.addEventListener('error', () => { const fallback = document.createElement('span'); fallback.className = 'user-avatar'; fallback.setAttribute('aria-hidden', 'true'); fallback.textContent = photo.dataset.userInitials || 'U'; photo.replaceWith(fallback); }, { once:true }));
   };
   paint();
