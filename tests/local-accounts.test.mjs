@@ -20,6 +20,7 @@ test('local passwords are validated and stored only as salted hashes', async () 
   assert.equal(await verifyLocalPassword('A long original passphrase 2026', first), true);
   assert.equal(await verifyLocalPassword('another long passphrase', first), false);
   assert.equal(publicAccessUser({ email:'member@example.test', passwordHash:first }).passwordHash, undefined);
+  assert.equal(publicAccessUser({ email:'member@example.test', avatarUrl:'/uploads/profile.jpg' }).avatarUrl, '/uploads/profile.jpg');
 });
 
 async function availablePort() {

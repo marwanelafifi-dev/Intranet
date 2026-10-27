@@ -36,6 +36,7 @@ export function publicAccessUser(user, sessionActive = false) {
     authType:user.authType === 'local' ? 'local' : 'google',
     source:user.source === 'environment' ? 'environment' : 'directory',
     active:user.active !== false, sessionActive,
+    avatarUrl:String(user.avatarUrl || ''),
     createdAt:user.createdAt || '', intranetJoinedAt:user.firstSignedInAt || '',
     updatedAt:user.updatedAt || '', lastLoginAt:user.lastLoginAt || ''
   };

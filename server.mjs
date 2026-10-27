@@ -206,7 +206,10 @@ const configuredRoles = data => {
 };
 const storedUserFor = (data, email) => data.accessUsers.find(user => String(user.email || '').toLowerCase() === email);
 const activeSessionForEmail = email => [...sessions.values()].some(session => session.expiresAt > Date.now() && String(session.actor?.email || '').toLowerCase() === email);
-const directoryProfilePhotoFor = (data, email) => String(data.newMembers?.find(member => String(member.companyEmail || '').trim().toLowerCase() === String(email || '').trim().toLowerCase())?.profilePhotoUrl || '').trim();
+const directoryProfilePhotoFor = (data, email) => {
+  const member = data.newMembers?.find(item => String(item.companyEmail || '').trim().toLowerCase() === String(email || '').trim().toLowerCase());
+  return String(member?.profilePhotoUrl || member?.photoUrl || '').trim();
+};
 function directoryAccessUsers(data) {
   const users = new Map();
   for (const member of data.newMembers || []) {
@@ -224,7 +227,7 @@ function directoryAccessUsers(data) {
       role:'ADMIN', authType:'local', source:'environment', active:true
     });
   }
-  return [...users.values()].map(user => publicAccessUser(user, activeSessionForEmail(user.email))).sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email)));
+  return [...users.values()].map(user => publicAccessUser({ ...user, avatarUrl:directoryProfilePhotoFor(data, user.email) || user.avatarUrl || '' }, activeSessionForEmail(user.email))).sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email)));
 }
 const actorFor = (req, data) => {
   const session = sessionFor(req);

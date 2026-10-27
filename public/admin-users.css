@@ -31,6 +31,7 @@
 #view-access .users-table td{padding:13px 12px;font-size:12px}
 #view-access .users-table tr:last-child td{border-bottom:0}
 #view-access .user-avatar{flex:none;width:36px;height:36px;background:#e4efff;font-size:11px}
+#view-access .user-avatar-photo{display:block;object-fit:cover}
 #view-access .user-identity{min-width:200px}
 #view-access .user-identity b{font-size:12px;line-height:1.35}
 #view-access .user-identity small{font-size:11px;line-height:1.4;overflow-wrap:anywhere}
