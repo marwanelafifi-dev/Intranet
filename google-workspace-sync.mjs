@@ -114,7 +114,7 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
     const phone = user.phones?.find(item => item.primary || item.type === 'work' || item.type === 'mobile' || item.type === 'home')?.value || '';
     const fullName = text(user.name?.fullName || [user.name?.givenName, user.name?.familyName].filter(Boolean).join(' ')) || email;
     const memberId = existing?.id || stableId('google-member', [String(user.id)]);
-    const photoUrl = user.thumbnailPhotoUrl ? `/api/directory-photo/${encodeURIComponent(memberId)}` : '';
+    const googlePhotoUrl = user.thumbnailPhotoUrl ? `/api/directory-photo/${encodeURIComponent(memberId)}` : '';
     const employmentType = text(organization.description, 80) || (/\/Full-Time Employees$/i.test(user.orgUnitPath) ? 'Full Time' : /\/Part-time Employees$/i.test(user.orgUnitPath) ? 'Part Time' : /\/Graduate Interns$/i.test(user.orgUnitPath) ? 'Graduate Intern' : /\/Summer Interns$/i.test(user.orgUnitPath) ? 'Summer Intern' : placeholder);
     const imported = {
       name:fullName, role:text(organization.title) || placeholder,
@@ -122,7 +122,7 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
       division:customField(user, config.divisionField) || placeholder,
       directManager:text(manager) || placeholder,
       joined:joinedLabel(customField(user, config.hireDateField)) || accountCreationLabel(user.creationTime) || placeholder,
-      companyEmail:email, phone:text(phone, 40), photoUrl, employeeId:employeeId(user), organizationUnit:text(user.orgUnitPath, 240), employmentType,
+      companyEmail:email, phone:text(phone, 40), employeeId:employeeId(user), organizationUnit:text(user.orgUnitPath, 240), employmentType,
       googleCreatedAt:Number.isFinite(createdAt) ? new Date(createdAt).toISOString() : ''
     };
     if (existing) {
@@ -133,14 +133,20 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
         if (existing[key] !== value) { existing[key] = value; dirty = true; }
       }
       if (intranetOverrides.team !== true && existing.team !== imported.department) { existing.team = imported.department; dirty = true; }
+      // Photos are fill-only. A later Google photo can complete an empty card,
+      // but sync never clears or replaces an existing Google or intranet photo.
+      if (googlePhotoUrl && !existing.profilePhotoUrl && !existing.photoUrl && intranetOverrides.photoUrl !== true) {
+        existing.photoUrl = googlePhotoUrl;
+        dirty = true;
+      }
       if (existing.googleUserId !== String(user.id)) { existing.googleUserId = String(user.id); dirty = true; }
-      existing.googleImportedFields = imported;
+      existing.googleImportedFields = { ...imported, photoUrl:googlePhotoUrl };
       if (dirty) updated += 1;
       continue;
     }
     const member = {
       id:memberId, googleUserId:String(user.id), source:'google-directory',
-      ...imported, googleImportedFields:imported, team:imported.department,
+      ...imported, photoUrl:googlePhotoUrl, googleImportedFields:{ ...imported, photoUrl:googlePhotoUrl }, team:imported.department,
       initials:fullName.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
       color:'#dceeff', message:''
     };
@@ -151,6 +157,25 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
   }
   data.newMembers = current;
   return { created, updated };
+}
+
+// Directory sync is authoritative only for Google-managed cards that still belong
+// to one of the OUs currently being synced.  That narrow scope means a card is
+// removed when its Google account is moved out of a selected OU or suspended,
+// while manually managed cards (and cards from an OU an admin later deselects)
+// remain untouched.
+export function pruneDirectoryMembers(data, users, config) {
+  if (!config.ous?.length || !Array.isArray(data.newMembers)) return { removed:0 };
+  const activeUserIds = new Set(users
+    .filter(user => user?.id && config.ous.includes(user.orgUnitPath) && !user.suspended && !user.archived && !user.isGuestUser)
+    .map(user => String(user.id)));
+  const before = data.newMembers.length;
+  data.newMembers = data.newMembers.filter(member => {
+    if (member?.source !== 'google-directory' || !member.googleUserId) return true;
+    if (!config.ous.includes(member.organizationUnit)) return true;
+    return activeUserIds.has(String(member.googleUserId));
+  });
+  return { removed:before - data.newMembers.length };
 }
 
 export function mergeCalendarEvents(data, calendar, events) {
@@ -247,14 +272,25 @@ export async function createWorkspaceClient(config, { fetchImpl = fetch, now = (
 }
 
 export async function syncWorkspaceContent(data, config, client, now = new Date()) {
-  const result = { members:{ created:0, updated:0 }, calendars:[], errors:[], changed:false };
+  const result = { members:{ created:0, updated:0, removed:0 }, calendars:[], errors:[], changed:false };
+  const directoryUsers = [];
+  let directoryReadFailed = false;
   for (const ou of config.ous) {
     try {
-      const merged = mergeDirectoryMembers(data, await client.users(ou), config, now);
+      const users = await client.users(ou);
+      directoryUsers.push(...users);
+      const merged = mergeDirectoryMembers(data, users, config, now);
       result.members.created += merged.created;
       result.members.updated += merged.updated;
       result.changed ||= merged.created > 0 || merged.updated > 0;
-    } catch (error) { result.errors.push(`Directory ${ou}: ${error.message}`); }
+    } catch (error) { directoryReadFailed = true; result.errors.push(`Directory ${ou}: ${error.message}`); }
+  }
+  // Do not prune from a partial Google response. A failed OU read must never
+  // turn a temporary Google/API error into removed employee directory cards.
+  if (config.ous.length && !directoryReadFailed) {
+    const pruned = pruneDirectoryMembers(data, directoryUsers, config);
+    result.members.removed = pruned.removed;
+    result.changed ||= pruned.removed > 0;
   }
   const from = new Date(now.getTime() - 7 * 86400000), until = new Date(now.getTime() + 90 * 86400000);
   for (const calendar of config.calendars) {

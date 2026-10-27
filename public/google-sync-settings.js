@@ -4,7 +4,7 @@ const cairoTime = value => value ? new Intl.DateTimeFormat('en', { dateStyle:'me
 function statusText(status = {}) {
   if (status.lastError) return `Last check: ${cairoTime(status.lastAttemptAt)} · ${status.lastError}`;
   if (!status.lastSuccessAt) return 'No successful sync yet.';
-  return `Last successful check: ${cairoTime(status.lastSuccessAt)} · ${status.membersCreated || 0} new colleagues · ${status.membersUpdated || 0} updated users · ${status.calendarEvents || 0} calendar events`;
+  return `Last successful check: ${cairoTime(status.lastSuccessAt)} · ${status.membersCreated || 0} new colleagues · ${status.membersUpdated || 0} updated users · ${status.membersRemoved || 0} removed users · ${status.calendarEvents || 0} calendar events`;
 }
 const schedule = (value, enabled) => ({ enabled:value?.enabled ?? Boolean(enabled), frequency:['hourly','daily','weekly'].includes(value?.frequency) ? value.frequency : 'daily', time:/^\d\d:\d\d$/.test(value?.time || '') ? value.time : '08:00', day:Number.isInteger(value?.day) ? value.day : 1 });
 const minuteOptions = selected => Array.from({ length:60 }, (_, minute) => String(minute).padStart(2, '0')).map(minute => `<option value="${minute}" ${Number(selected) === Number(minute) ? 'selected' : ''}>:${minute}</option>`).join('');

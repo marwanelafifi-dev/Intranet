@@ -10,6 +10,10 @@ docker compose up --build
 
 Open `http://localhost:8081/login.html`. Admin changes are written to `data/intranet.json`, which is mounted from the host so data survives container recreation. Starter content lives in `data/seed.json`.
 
+## Safe Ubuntu updates
+
+The published intranet keeps its live content outside the container in `data/`. Before updating the application on Ubuntu, back up `data/intranet.json`, `data/uploads/`, and `data/audit trail archive/` (when present). Then update only the application source and rebuild the service; do not delete, replace, or copy `data/` from a development machine. The `data/intranet.json` file contains all admin-edited text and links, while `data/uploads/` contains uploaded PDFs and other media. Both survive `docker compose up -d --build` because they are host-mounted.
+
 Audit and browser-activity records remain in the active trail for 90 days from server receipt. On the first data load each UTC day, older records are added to one compressed JSON Lines archive per calendar quarter, named `audit-trail-YYYY-QN.jsonl.gz`, before they are removed from `intranet.json`. Each quarter combines audit and browser-activity events. Docker mounts the entire `./data` folder, so on Ubuntu the archives persist beside `intranet.json` at `<compose-directory>/data/audit trail archive/`. Back up this folder with the data file; archived events are not included in the active Audit Trail search or CSV export. Archive files are not automatically deleted. The current JSON storage is still a prototype and needs transactional storage before a 1,000-user production deployment.
 
 ## Sign-in

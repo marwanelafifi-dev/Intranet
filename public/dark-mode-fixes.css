@@ -99,6 +99,18 @@ html.dark .moment-kind { color: #a9c8ec; }
 .moments-gallery .moment { min-height: 150px; }
 .moments-gallery .moment:first-child { grid-row: auto; }
 @media (max-width: 650px) { .moments-gallery { grid-template-columns: 1fr; } .moments-gallery .moment { min-height: 180px; } }
+
+/* Dashboard highlights are photographs first: give them a useful frame and
+   keep the full title in the caption instead of a browser hover tooltip. */
+#moments-grid { gap: 16px 12px; }
+#moments-grid .moment-entry .moment { min-height: 0; aspect-ratio: 16 / 10; }
+#moments-grid .moment.has-media::before,
+#moments-grid .moment.has-media::after { display: none; }
+#moments-grid .moment-photo,
+#moments-grid .moment-video { object-position: center center; }
+#moments-grid .moment-caption { gap: 3px; padding-inline: 1px; }
+#moments-grid .moment-title { display: -webkit-box; overflow: hidden; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+@media (max-width: 650px) { #moments-grid .moment-entry .moment { aspect-ratio: 4 / 3; } }
 .modal-image { background: #071629; display: block; height: auto; margin: 0 auto; max-height: 68vh; max-width: 100%; object-fit: contain; width: auto; }
 .modal-document { color: var(--muted); padding: 28px; text-align: center; }
 .modal-document p { margin: 0 auto 18px; max-width: 42ch; }

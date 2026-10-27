@@ -1,4 +1,4 @@
-.notification{position:relative;display:grid;place-items:center;flex:none;width:38px;height:38px;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}
+.notification{position:relative;display:grid;place-items:center;flex:none;width:38px;height:38px;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}.notification::after{content:none!important}.notification .notification-icon{display:block;width:19px;height:19px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
 .notification svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.8}
 .notification:hover,.notification[aria-expanded='true']{border-color:var(--line);background:var(--card)}
 .notification-badge{position:absolute;top:-3px;right:-4px;display:grid;min-width:17px;height:17px;place-items:center;padding:0 4px;border:2px solid var(--paper);border-radius:999px;background:#d84e5f;color:#fff;font-size:9px;font-weight:800;line-height:1}

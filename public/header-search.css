@@ -466,3 +466,126 @@ html.dark .intranet-search-results { box-shadow: 0 14px 32px rgb(0 0 0 / 30%); }
     align-self:center;
   }
 }
+
+/* One mobile header system: identity and essential account actions first, with
+   the full destination navigation in its own touch-scrollable row. */
+@media (max-width:650px) {
+  body:has(.app-dock) .topbar,
+  .destination-page-header,
+  .news-page-topbar,
+  .policy-topbar {
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
+    grid-template-rows:58px 44px !important;
+    column-gap:6px !important;
+    min-height:102px !important;
+    height:102px !important;
+    padding:0 !important;
+    background:var(--paper);
+  }
+
+  body:has(.app-dock) .topbar > .shared-brand,
+  .destination-page-header > .shared-brand,
+  .news-page-topbar > .shared-brand,
+  .policy-topbar > .brand {
+    grid-column:1;
+    grid-row:1;
+    min-width:0;
+    overflow:hidden;
+  }
+
+  body:has(.app-dock) .shared-brand .brand-logo,
+  .destination-page-header > .shared-brand img,
+  .news-page-topbar > .shared-brand img,
+  .policy-topbar > .brand .brand-logo {
+    width:auto !important;
+    height:30px !important;
+    max-width:112px !important;
+  }
+
+  body:has(.app-dock) .shared-brand span,
+  .destination-page-header > .shared-brand span,
+  .news-page-topbar > .shared-brand span,
+  .policy-topbar > .brand span { display:none !important; }
+
+  body:has(.app-dock) .dashboard-header-tools,
+  .standard-header-tools {
+    grid-column:2;
+    grid-row:1;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    min-width:0;
+    margin:0;
+  }
+
+  .dashboard-header-tools .header-search-toggle,
+  .standard-header-tools .header-search-toggle { display:none; }
+
+  .dashboard-header-tools .theme-toggle,
+  .standard-header-tools .theme-toggle,
+  .dashboard-header-tools .notification {
+    display:grid;
+    width:32px;
+    height:32px;
+    min-width:32px;
+    padding:0;
+    place-items:center;
+  }
+
+  .dashboard-header-tools .header-cms-link,
+  .standard-header-tools .header-cms-link {
+    min-height:32px;
+    padding:0 9px;
+    border-radius:8px;
+    font-size:10px;
+  }
+
+  .dashboard-header-tools .profile,
+  .standard-header-tools .header-profile { gap:0; }
+  .dashboard-header-tools .profile > [aria-hidden],
+  .standard-header-tools .header-profile > svg { display:none; }
+  .dashboard-header-tools .avatar,
+  .standard-header-tools .header-profile .avatar { width:32px; height:32px; }
+  .dashboard-header-tools .profile-copy,
+  .standard-header-tools .header-profile .profile-copy { display:none !important; }
+
+  body:has(.app-dock) .topbar > .nav.destination-nav-inline,
+  .destination-page-header .destination-nav-inline,
+  .news-page-topbar .destination-nav-inline,
+  .policy-topbar .destination-nav-inline {
+    grid-column:1 / -1;
+    grid-row:2;
+    align-self:stretch;
+    display:flex;
+    gap:5px;
+    min-width:0;
+    margin:0 !important;
+    padding:6px 0 7px !important;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scroll-snap-type:x proximity;
+    scrollbar-width:none;
+    border:0 !important;
+    border-top:1px solid var(--line) !important;
+    border-radius:0 !important;
+    background:transparent !important;
+  }
+
+  body:has(.app-dock) .topbar > .nav.destination-nav-inline::-webkit-scrollbar,
+  .destination-page-header .destination-nav-inline::-webkit-scrollbar,
+  .news-page-topbar .destination-nav-inline::-webkit-scrollbar,
+  .policy-topbar .destination-nav-inline::-webkit-scrollbar { display:none; }
+
+  body:has(.app-dock) .topbar > .nav.destination-nav-inline a,
+  .destination-page-header .destination-nav-inline a,
+  .news-page-topbar .destination-nav-inline a,
+  .policy-topbar .destination-nav-inline a {
+    flex:0 0 auto;
+    scroll-snap-align:start;
+    padding:8px 10px !important;
+    border-radius:8px;
+    font-size:11px !important;
+    line-height:1;
+  }
+}

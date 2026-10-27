@@ -50,7 +50,7 @@ const configuredCalendars = settings => {
 };
 const defaultSyncSchedule = () => ({ enabled:false, frequency:'daily', time:'08:00', day:1 });
 const defaultGoogleSyncSettings = () => ({ enabled:false, ouPaths:[], calendarIds:approvedResourceCalendars.map(calendar => calendar.id), calendarSources:approvedResourceCalendars, memberSchedule:defaultSyncSchedule(), calendarSchedule:defaultSyncSchedule() });
-const googleSyncStatus = { lastAttemptAt:null, lastSuccessAt:null, lastError:'', membersCreated:0, membersUpdated:0, calendarEvents:0 };
+const googleSyncStatus = { lastAttemptAt:null, lastSuccessAt:null, lastError:'', membersCreated:0, membersUpdated:0, membersRemoved:0, calendarEvents:0 };
 let runGoogleSync = async () => googleSyncStatus;
 const scheduledSyncSlots = new Set();
 const normalizedSchedule = value => {
@@ -1395,11 +1395,12 @@ runGoogleSync = async ({ members = true, calendars = true } = {}) => {
     }
     googleSyncStatus.membersCreated = result.members.created;
     googleSyncStatus.membersUpdated = result.members.updated;
+    googleSyncStatus.membersRemoved = result.members.removed;
     googleSyncStatus.calendarEvents = result.calendars.reduce((sum, calendar) => sum + calendar.count, 0);
     googleSyncStatus.lastError = result.errors.join('; ');
     if (!result.errors.length) googleSyncStatus.lastSuccessAt = new Date().toISOString();
     if (result.errors.length) console.error('Google Workspace sync completed with errors:', googleSyncStatus.lastError);
-    else console.info(`Google Workspace sync completed: ${result.members.created} new members, ${result.members.updated} updated members, ${googleSyncStatus.calendarEvents} calendar events.`);
+    else console.info(`Google Workspace sync completed: ${result.members.created} new members, ${result.members.updated} updated members, ${result.members.removed} removed members, ${googleSyncStatus.calendarEvents} calendar events.`);
   } catch (error) {
     googleSyncStatus.lastError = error.message;
     console.error('Google Workspace sync failed:', error.message);

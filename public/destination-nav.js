@@ -37,7 +37,7 @@ if (currentPath !== '/' && !document.querySelector('link[href^="/dedicated-stand
 
   const searchStyles = document.createElement('link');
   searchStyles.rel = 'stylesheet';
-  searchStyles.href = '/header-search.css?v=20261017-white-brand';
+  searchStyles.href = '/header-search.css?v=20261027-mobile-header';
   searchStylesReady = new Promise(resolve => {
     searchStyles.addEventListener('load', resolve, { once:true });
     searchStyles.addEventListener('error', resolve, { once:true });
