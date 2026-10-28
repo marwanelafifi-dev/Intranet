@@ -211,16 +211,18 @@ test('group-targeted announcements fail closed when Google membership cannot be 
   } finally { await stopIsolatedServer(server); }
 });
 
-test('only a current Google Group member receives its announcement and bell', async () => {
+test('group members and explicitly copied users receive the announcement and bell', async () => {
   for (const [email, expectedIds] of [
     ['member@si-ware.com', ['private-group']],
+    ['copied@si-ware.com', ['private-group']],
+    ['blind@si-ware.com', ['private-group']],
     ['outsider@si-ware.com', []]
   ]) {
     const server = await startIsolatedServer({ demoRole:'EMPLOYEE', permissions:['intranet.announcements'], fakeGroupMembers:{ 'everyone@si-ware.com':['member@si-ware.com'] }, seedTransform:data => {
       data.user.email = email;
       data.adminSettings ||= {};
       data.adminSettings.notificationSettings = { approvedGroups:['everyone@si-ware.com'], defaultGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false };
-      data.announcements = [{ id:'private-group', title:'Private group update', notification:{ audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false } }];
+      data.announcements = [{ id:'private-group', title:'Private group update', notification:{ audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false, cc:['copied@si-ware.com'], bcc:['blind@si-ware.com'] } }];
     } });
     try {
       const response = await fetch(`${server.origin}/api/dashboard`);
@@ -232,7 +234,7 @@ test('only a current Google Group member receives its announcement and bell', as
   }
 });
 
-test('email recipients outside the selected Google Group are rejected before publication', async () => {
+test('CC and BCC outside the group are accepted while To stays on the group', async () => {
   const permissions = ['admin.access', 'content.edit', 'content.publish', 'page.announcements'];
   const server = await startIsolatedServer({ demoRole:'GROUP_EDITOR', permissions, fakeGroupMembers:{ 'everyone@si-ware.com':['member@si-ware.com'] }, seedTransform:data => {
     data.adminSettings ||= {};
@@ -240,12 +242,13 @@ test('email recipients outside the selected Google Group are rejected before pub
   } });
   try {
     const before = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
-    const notification = { audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:true, to:['everyone@si-ware.com'], cc:['outsider@si-ware.com'], bcc:[] };
-    const publish = async value => fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:before._version, data:{ ...before, announcements:[{ id:'private-email', title:'Private email', notification:value }] } }) });
-    assert.equal((await publish(notification)).status, 422);
-    assert.equal((await publish({ ...notification, to:['outsider@si-ware.com'], cc:[] })).status, 422);
+    const notification = { audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:true, emailDeliveryState:'sent', to:['everyone@si-ware.com'], cc:['outsider@si-ware.com'], bcc:['blind@si-ware.com'] };
+    const publish = (state, value, id) => fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:state._version, data:{ ...state, announcements:[{ id, title:'Private email', notification:value }, ...(state.announcements || [])] } }) });
+    assert.equal((await publish(before, notification, 'private-email')).status, 200);
     const after = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
-    assert.equal(after.announcements.some(item => item.id === 'private-email'), false);
+    assert.deepEqual(after.announcements.find(item => item.id === 'private-email').notification.cc, ['outsider@si-ware.com']);
+    assert.deepEqual(after.announcements.find(item => item.id === 'private-email').notification.bcc, ['blind@si-ware.com']);
+    assert.equal((await publish(after, { ...notification, to:['outsider@si-ware.com'] }, 'wrong-to')).status, 422);
   } finally { await stopIsolatedServer(server); }
 });
 

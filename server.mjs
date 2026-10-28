@@ -279,12 +279,9 @@ async function deliverAnnouncementEmail(data, announcement) {
   }
   try {
     await audienceGroupMember(group, String(process.env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase());
-    for (const recipient of [...notification.cc, ...notification.bcc]) {
-      if (!await audienceGroupMember(group, recipient)) throw new Error('A CC or BCC recipient is outside the selected Google Group.');
-    }
   } catch (error) {
     console.warn('Announcement group email was withheld:', error.message);
-    announcement.notification = { ...notification, emailDeliveryState:'skipped', emailError:'The selected Google Group or CC/BCC membership could not be verified.' };
+    announcement.notification = { ...notification, emailDeliveryState:'skipped', emailError:'The selected Google Group could not be verified.' };
     return true;
   }
   const secrets = await notificationSecrets();
@@ -515,7 +512,9 @@ async function dashboardResponse(data, actor, admin = false) {
       const group = notification.audienceGroup;
       const email = emailAddress(actor?.email);
       if (!group && (notification.to.length || notification.inAppRecipients.length)) return null;
-      if (group && (!settings.approvedGroups?.includes(group) || !email.endsWith(`@${googleWorkspaceDomain}`) || !await membership(group, email))) return null;
+      if (group && (!settings.approvedGroups?.includes(group) || !email.endsWith(`@${googleWorkspaceDomain}`))) return null;
+      const copiedRecipient = notification.cc.includes(email) || notification.bcc.includes(email);
+      if (group && !copiedRecipient && !await membership(group, email)) return null;
       return { ...announcement, notification:publicAnnouncementNotification(announcement.notification, data, Boolean(group)) };
     }))).filter(Boolean);
   }
@@ -1339,11 +1338,6 @@ const server = createServer(async (req, res) => {
           if (group && !allowedGroups.includes(group)) return json(res, 422, { error:'Choose an approved Google Group in Notifications before publishing this announcement.' });
           if (notification.emailEnabled && group && notificationSettings(data).emailEnabled) {
             if (notification.to.length !== 1 || notification.to[0] !== group) return json(res, 422, { error:'The email To recipient must be the selected Google Group only.' });
-            try {
-              for (const recipient of [...notification.cc, ...notification.bcc]) {
-                if (!await audienceGroupMember(group, recipient)) return json(res, 422, { error:'CC and BCC recipients must be members of the selected Google Group.' });
-              }
-            } catch { return json(res, 422, { error:'Google Group membership could not be verified. The announcement was not published.' }); }
           }
         }
       }

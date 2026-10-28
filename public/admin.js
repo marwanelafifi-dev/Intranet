@@ -1246,8 +1246,9 @@ function announcementNotificationFields(record = {}) {
     ${emailAvailable ? `<div class="announcement-delivery__channel"><strong>Email from intranet@si-ware.com</strong><span>Enabled in Notifications</span></div>
     <div class="announcement-delivery__email-fields">
       <label class="announcement-delivery__field">To<input name="notificationEmailTo" type="email" readonly value="${escapeHtml(selectedGroup)}" placeholder="Choose an audience group above" /></label>
-      <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="email" multiple value="${escapeHtml(emails('cc'))}" placeholder="Members of this group only" /></label>
-      <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="email" multiple value="${escapeHtml(emails('bcc'))}" placeholder="Members of this group only" /></label>
+      <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="email" multiple value="${escapeHtml(emails('cc'))}" placeholder="name@example.com" /></label>
+      <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="email" multiple value="${escapeHtml(emails('bcc'))}" placeholder="name@example.com" /></label>
+      <p class="announcement-delivery__email-note">CC and BCC can be outside the group. They receive email and, if signed in with their Si-Ware account, the in-app announcement.</p>
     </div>` : `<p class="announcement-delivery__notice" role="note">${inAppAvailable ? 'This announcement can use in-app notifications only. ' : ''}Contact the system admin to enable email notifications.</p>`}
   </fieldset>`;
 }
