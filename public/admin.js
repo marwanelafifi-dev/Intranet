@@ -1235,18 +1235,26 @@ function mountPreviewOnlyCollection(root, key, title, href) {
 function announcementNotificationFields(record = {}) {
   const notification = record.notification || {};
   const defaults = dashboard?.notificationDefaults || {};
+  const inAppAvailable = defaults.inAppEnabled !== false;
+  const emailAvailable = defaults.emailEnabled === true;
   const inAppEnabled = notification.inAppEnabled ?? (defaults.inAppEnabled !== false && defaults.inAppDefaultEnabled !== false);
   const emailEnabled = notification.emailEnabled ?? (defaults.emailEnabled === true && defaults.emailDefaultEnabled === true);
   const recipientText = Array.isArray(notification.inAppRecipients) ? notification.inAppRecipients.join(', ') : '';
   const emails = name => Array.isArray(notification[name]) ? notification[name].join(', ') : '';
   return `<fieldset class="announcement-delivery"><legend>Notification delivery</legend>
-    <label class="announcement-delivery__toggle"><input type="checkbox" name="notificationInAppEnabled" value="true" ${inAppEnabled ? 'checked' : ''} /><span>Show an in-app notification</span></label>
-    <label class="announcement-delivery__field">In-app recipients <span class="announcement-delivery__optional">optional</span><input name="notificationInAppRecipients" type="text" value="${escapeHtml(recipientText)}" placeholder="All users, or enter email addresses separated by commas" /><small>Leave blank to notify all signed-in users.</small></label>
-    <label class="announcement-delivery__toggle"><input type="checkbox" name="notificationEmailEnabled" value="true" ${emailEnabled ? 'checked' : ''} /><span>Send an email from intranet@si-ware.com</span></label>
-    <label class="announcement-delivery__field">To<input name="notificationEmailTo" type="text" value="${escapeHtml(emails('to'))}" placeholder="name@si-ware.com" /></label>
-    <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="text" value="${escapeHtml(emails('cc'))}" placeholder="name@si-ware.com" /></label>
-    <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="text" value="${escapeHtml(emails('bcc'))}" placeholder="name@si-ware.com" /></label>
+    ${inAppAvailable ? `<label class="announcement-delivery__toggle"><input type="checkbox" name="notificationInAppEnabled" value="true" ${inAppEnabled ? 'checked' : ''} /><span>Show an in-app notification</span></label>
+    <label class="announcement-delivery__field">In-app recipients <span class="announcement-delivery__optional">optional</span><input name="notificationInAppRecipients" type="text" value="${escapeHtml(recipientText)}" placeholder="All users, or enter email addresses separated by commas" /><small>Leave blank to notify all signed-in users.</small></label>` : '<p class="announcement-delivery__notice" role="note">In-app notifications are disabled. Contact the system admin to enable them.</p>'}
+    ${emailAvailable ? `<label class="announcement-delivery__toggle"><input type="checkbox" name="notificationEmailEnabled" value="true" ${emailEnabled ? 'checked' : ''} /><span>Send an email from intranet@si-ware.com</span></label>
+    <div class="announcement-delivery__email-fields" data-announcement-email-fields ${emailEnabled ? '' : 'hidden'}>
+      <label class="announcement-delivery__field">To<input name="notificationEmailTo" type="text" value="${escapeHtml(emails('to'))}" placeholder="name@si-ware.com" /></label>
+      <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="text" value="${escapeHtml(emails('cc'))}" placeholder="name@si-ware.com" /></label>
+      <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="text" value="${escapeHtml(emails('bcc'))}" placeholder="name@si-ware.com" /></label>
+    </div>` : `<p class="announcement-delivery__notice" role="note">${inAppAvailable ? 'This announcement can use in-app notifications only. ' : ''}Contact the system admin to enable email notifications.</p>`}
   </fieldset>`;
+}
+function syncAnnouncementDeliveryFields(form) {
+  const fields = form?.querySelector('[data-announcement-email-fields]');
+  if (fields) fields.hidden = !form.elements.namedItem('notificationEmailEnabled')?.checked;
 }
 function renderContentPage(view) {
   const page = contentPages.find(entry => entry.view === view);
@@ -1417,7 +1425,8 @@ function renderNotificationsSettings() {
       error.hidden = true; submit.disabled = true; submit.textContent = 'Saving…';
       try {
         const values = new FormData(form);
-        await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppDefaultEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailDefaultEnabled') === 'true', appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
+        const saved = await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppDefaultEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailDefaultEnabled') === 'true', appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
+        dashboard.notificationDefaults = { inAppEnabled:saved.inAppEnabled, inAppDefaultEnabled:saved.inAppDefaultEnabled, emailEnabled:saved.emailEnabled, emailDefaultEnabled:saved.emailDefaultEnabled };
         flash('Notification settings saved.'); renderNotificationsSettings();
       } catch (reason) { error.textContent = reason.message || 'Notification settings could not be saved.'; error.hidden = false; submit.disabled = false; submit.textContent = 'Save notification settings'; }
     });
@@ -2016,6 +2025,7 @@ function applyAnnouncementNotificationFields(form, notification = {}) {
   setValue('notificationInAppRecipients', notification.inAppRecipients);
   setChecked('notificationEmailEnabled', notification.emailEnabled ?? (defaults.emailEnabled === true && defaults.emailDefaultEnabled === true));
   setValue('notificationEmailTo', notification.to); setValue('notificationEmailCc', notification.cc); setValue('notificationEmailBcc', notification.bcc);
+  syncAnnouncementDeliveryFields(form);
 }
 document.addEventListener('click', event => {
   const action = event.target.closest('[data-use-announcement-template], [data-edit-announcement-template]');
@@ -2026,7 +2036,7 @@ document.addEventListener('click', event => {
   if (!template || !form) return;
   window.setTimeout(() => applyTemplatePublicationSettings(form, template), 0);
 }, true);
-document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; syncAnnouncementRepeatOptions(form); });
+document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; if (event.target.matches('[name="notificationEmailEnabled"]')) syncAnnouncementDeliveryFields(form); syncAnnouncementRepeatOptions(form); });
 document.addEventListener('click', async event => { const action = event.target.closest('[data-toggle-announcement-schedule], [data-remove-announcement-schedule]'); if (!action) return; const id = action.dataset.toggleAnnouncementSchedule || action.dataset.removeAnnouncementSchedule, schedule = dashboard.announcementSchedules?.find(item => item.id === id); if (!schedule) return; if (action.dataset.removeAnnouncementSchedule) { dashboard.announcementSchedules = dashboard.announcementSchedules.filter(item => item.id !== id); await saveDashboard('Announcement schedule removed.'); } else { schedule.enabled = !schedule.enabled; await saveDashboard(`Announcement schedule ${schedule.enabled ? 'resumed' : 'paused'}.`); } });
 document.addEventListener('click', async event => { const use = event.target.closest('[data-use-announcement-template]'), remove = event.target.closest('[data-remove-announcement-template]'); if (!use && !remove) return; const id = (use || remove).dataset.useAnnouncementTemplate || (use || remove).dataset.removeAnnouncementTemplate, template = dashboard.announcementTemplates?.find(item => item.id === id); if (!template) return; if (remove) { dashboard.announcementTemplates = dashboard.announcementTemplates.filter(item => item.id !== id); await saveDashboard('Announcement template removed.'); return; } const form = document.querySelector('[data-editor="announcements"]'); if (!form) return; delete form.dataset.editAnnouncementTemplate; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); applyAnnouncementNotificationFields(form, template.notification); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''), missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>This template keeps its original email layout. Select Edit email to change its text.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; flash(`Template “${template.title}” loaded. Choose Send now, Schedule, or save an updated template.`); });
 document.addEventListener('click', event => { const action = event.target.closest('[data-edit-announcement-template]'); if (!action) return; const template = dashboard.announcementTemplates?.find(item => item.id === action.dataset.editAnnouncementTemplate), form = document.querySelector('[data-editor="announcements"]'); if (!template || !form) return; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); applyAnnouncementNotificationFields(form, template.notification); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email template</h4><p>Edit the original email layout, then select Save changes to update this template.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Editable announcement email template" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" /></section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; form.dataset.editAnnouncementTemplate = template.id; form.querySelector('.form-actions .action-button.primary')?.replaceChildren(document.createTextNode('Update template')); flash(`Editing template “${template.title}”. Save changes updates this template only.`); });
@@ -2042,14 +2052,16 @@ document.addEventListener('submit', async event => {
     form.noValidate = false;
     delete values.iconImage; delete values.memberProfilePhoto; delete values.policyDocument; delete values.checklistAttachment; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
     if (key === 'announcements') {
-      const existingNotification = record?.notification || {};
+      const existingNotification = record?.notification || form._announcementTemplate?.notification || {};
+      const inAppAvailable = dashboard?.notificationDefaults?.inAppEnabled !== false;
+      const emailAvailable = dashboard?.notificationDefaults?.emailEnabled === true;
       values.notification = {
-        inAppEnabled:values.notificationInAppEnabled === 'true',
-        inAppRecipients:values.notificationInAppRecipients,
-        emailEnabled:values.notificationEmailEnabled === 'true',
-        to:values.notificationEmailTo,
-        cc:values.notificationEmailCc,
-        bcc:values.notificationEmailBcc,
+        inAppEnabled:inAppAvailable ? values.notificationInAppEnabled === 'true' : (record || form._announcementTemplate ? existingNotification.inAppEnabled !== false : false),
+        inAppRecipients:inAppAvailable ? values.notificationInAppRecipients : existingNotification.inAppRecipients || [],
+        emailEnabled:emailAvailable ? values.notificationEmailEnabled === 'true' : existingNotification.emailEnabled === true,
+        to:emailAvailable ? values.notificationEmailTo : existingNotification.to || [],
+        cc:emailAvailable ? values.notificationEmailCc : existingNotification.cc || [],
+        bcc:emailAvailable ? values.notificationEmailBcc : existingNotification.bcc || [],
         emailDeliveryState:existingNotification.emailDeliveryState || '',
         emailSentAt:existingNotification.emailSentAt || '',
         emailError:existingNotification.emailError || ''
