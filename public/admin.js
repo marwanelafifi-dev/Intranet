@@ -1237,24 +1237,24 @@ function announcementNotificationFields(record = {}) {
   const defaults = dashboard?.notificationDefaults || {};
   const inAppAvailable = defaults.inAppEnabled !== false;
   const emailAvailable = defaults.emailEnabled === true;
-  const inAppEnabled = notification.inAppEnabled ?? (defaults.inAppEnabled !== false && defaults.inAppDefaultEnabled !== false);
-  const emailEnabled = notification.emailEnabled ?? (defaults.emailEnabled === true && defaults.emailDefaultEnabled === true);
-  const recipientText = Array.isArray(notification.inAppRecipients) ? notification.inAppRecipients.join(', ') : '';
+  const groups = Array.isArray(defaults.approvedGroups) ? defaults.approvedGroups : [];
+  const selectedGroup = groups.includes(notification.audienceGroup) ? notification.audienceGroup : groups.includes(notification.to?.[0]) ? notification.to[0] : record.id ? '' : defaults.defaultGroup || '';
   const emails = name => Array.isArray(notification[name]) ? notification[name].join(', ') : '';
   return `<fieldset class="announcement-delivery"><legend>Notification delivery</legend>
-    ${inAppAvailable ? `<label class="announcement-delivery__toggle"><input type="checkbox" name="notificationInAppEnabled" value="true" ${inAppEnabled ? 'checked' : ''} /><span>Show an in-app notification</span></label>
-    <label class="announcement-delivery__field">In-app recipients <span class="announcement-delivery__optional">optional</span><input name="notificationInAppRecipients" type="text" value="${escapeHtml(recipientText)}" placeholder="All users, or enter email addresses separated by commas" /><small>Leave blank to notify all signed-in users.</small></label>` : '<p class="announcement-delivery__notice" role="note">In-app notifications are disabled. Contact the system admin to enable them.</p>'}
-    ${emailAvailable ? `<label class="announcement-delivery__toggle"><input type="checkbox" name="notificationEmailEnabled" value="true" ${emailEnabled ? 'checked' : ''} /><span>Send an email from intranet@si-ware.com</span></label>
-    <div class="announcement-delivery__email-fields" data-announcement-email-fields ${emailEnabled ? '' : 'hidden'}>
-      <label class="announcement-delivery__field">To<input name="notificationEmailTo" type="text" value="${escapeHtml(emails('to'))}" placeholder="name@si-ware.com" /></label>
-      <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="text" value="${escapeHtml(emails('cc'))}" placeholder="name@si-ware.com" /></label>
-      <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="text" value="${escapeHtml(emails('bcc'))}" placeholder="name@si-ware.com" /></label>
+    ${inAppAvailable ? '<div class="announcement-delivery__channel"><strong>In-app notification</strong><span>Enabled in Notifications</span></div>' : '<p class="announcement-delivery__notice" role="note">In-app notifications are disabled. Contact the system admin to enable them.</p>'}
+    <label class="announcement-delivery__field">Audience Google Group<select name="notificationAudienceGroup" ${inAppAvailable || emailAvailable ? 'required' : ''}><option value="">Choose a Google Group</option>${groups.map(group => `<option value="${escapeHtml(group)}" ${group === selectedGroup ? 'selected' : ''}>${escapeHtml(group)}</option>`).join('')}</select><small>Enabled channels reach members of this group only.${groups.length ? '' : ' Ask the system admin to add approved groups in Notifications.'}</small></label>
+    ${emailAvailable ? `<div class="announcement-delivery__channel"><strong>Email from intranet@si-ware.com</strong><span>Enabled in Notifications</span></div>
+    <div class="announcement-delivery__email-fields">
+      <label class="announcement-delivery__field">To<input name="notificationEmailTo" type="email" readonly value="${escapeHtml(selectedGroup)}" placeholder="Choose an audience group above" /></label>
+      <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="email" multiple value="${escapeHtml(emails('cc'))}" placeholder="Members of this group only" /></label>
+      <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="email" multiple value="${escapeHtml(emails('bcc'))}" placeholder="Members of this group only" /></label>
     </div>` : `<p class="announcement-delivery__notice" role="note">${inAppAvailable ? 'This announcement can use in-app notifications only. ' : ''}Contact the system admin to enable email notifications.</p>`}
   </fieldset>`;
 }
-function syncAnnouncementDeliveryFields(form) {
-  const fields = form?.querySelector('[data-announcement-email-fields]');
-  if (fields) fields.hidden = !form.elements.namedItem('notificationEmailEnabled')?.checked;
+function syncAnnouncementGroup(form) {
+  const group = form?.elements.namedItem('notificationAudienceGroup')?.value || '';
+  const to = form?.elements.namedItem('notificationEmailTo');
+  if (to) to.value = group;
 }
 function renderContentPage(view) {
   const page = contentPages.find(entry => entry.view === view);
@@ -1391,18 +1391,23 @@ function renderNotificationsSettings() {
   root.innerHTML = '<p class="view-intro" role="status">Loading notification settings…</p>';
   api('/api/admin/notifications').then(settings => {
     root.innerHTML = `<div class="notification-settings">
-      <header class="notification-settings__intro"><h2>Announcement delivery</h2><p>Set the channels available for all announcements and what starts selected on new announcements.</p></header>
+      <header class="notification-settings__intro"><h2>Announcement delivery</h2><p>Choose approved Google Groups and which notification channels are available for announcements.</p></header>
       <form id="notification-settings-form" class="notification-settings__form">
+        <section class="notification-settings__section" aria-labelledby="notification-groups-title">
+          <div class="notification-settings__section-heading"><h3 id="notification-groups-title">Google Group audiences</h3></div>
+          <p class="notification-settings__from">Approve the groups editors can send to. A group must be selected before an announcement can notify anyone.</p>
+          <label class="notification-settings__group-field">Approved groups<textarea name="approvedGroups" rows="3" spellcheck="false" placeholder="eg.team@si-ware.com&#10;everyone@si-ware.com">${escapeHtml((settings.approvedGroups || []).join('\n'))}</textarea><small>One group email per line. Google membership is checked before saving.</small></label>
+          <label class="notification-settings__group-field">Default group<input name="defaultGroup" type="email" list="notification-approved-groups" value="${escapeHtml(settings.defaultGroup || '')}" placeholder="Choose one of the approved groups" /><small>New announcements start with this group. Editors can choose another approved group.</small></label>
+          <datalist id="notification-approved-groups">${(settings.approvedGroups || []).map(group => `<option value="${escapeHtml(group)}"></option>`).join('')}</datalist>
+        </section>
         <section class="notification-settings__section" aria-labelledby="notification-in-app-title">
           <div class="notification-settings__section-heading"><h3 id="notification-in-app-title">In-app notifications</h3><span class="notification-settings__state ${settings.inAppEnabled === false ? 'is-off' : 'is-on'}">${settings.inAppEnabled === false ? 'Off' : 'On'}</span></div>
-          <label class="notification-settings__choice"><input type="checkbox" name="inAppEnabled" value="true" ${settings.inAppEnabled !== false ? 'checked' : ''} /><span><strong>Enable bell notifications</strong><small>Turn this off to hide announcement alerts for every employee.</small></span></label>
-          <label class="notification-settings__choice is-default"><input type="checkbox" name="inAppDefaultEnabled" value="true" ${settings.inAppDefaultEnabled !== false ? 'checked' : ''} /><span><strong>Selected by default on new announcements</strong><small>Editors can still choose recipients or turn off the bell for an announcement.</small></span></label>
+          <label class="notification-settings__choice"><input type="checkbox" name="inAppEnabled" value="true" ${settings.inAppEnabled !== false ? 'checked' : ''} /><span><strong>Enable bell notifications</strong><small>When enabled, new announcements alert members of their selected Google Group.</small></span></label>
         </section>
         <section class="notification-settings__section" aria-labelledby="notification-email-title">
           <div class="notification-settings__section-heading"><h3 id="notification-email-title">Email delivery</h3><span class="notification-settings__state ${settings.emailEnabled ? 'is-on' : 'is-off'}">${settings.emailEnabled ? 'On' : 'Off'}</span></div>
           <p class="notification-settings__from">From <strong>${escapeHtml(settings.sender)}</strong></p>
-          <label class="notification-settings__choice"><input type="checkbox" name="emailEnabled" value="true" ${settings.emailEnabled ? 'checked' : ''} /><span><strong>Enable announcement email</strong><small>Only announcements marked for email with a To recipient will send.</small></span></label>
-          <label class="notification-settings__choice is-default"><input type="checkbox" name="emailDefaultEnabled" value="true" ${settings.emailDefaultEnabled ? 'checked' : ''} /><span><strong>Selected by default on new announcements</strong><small>Editors enter the To, CC, and BCC recipients before publishing.</small></span></label>
+          <label class="notification-settings__choice"><input type="checkbox" name="emailEnabled" value="true" ${settings.emailEnabled ? 'checked' : ''} /><span><strong>Enable announcement email</strong><small>When enabled, email is sent to the selected Google Group.</small></span></label>
           <div class="notification-settings__credentials"><label for="notification-app-password">Gmail app password</label><div class="notification-settings__password"><input id="notification-app-password" name="appPassword" type="password" autocomplete="new-password" minlength="12" placeholder="${settings.appPasswordConfigured ? 'Leave blank to keep the saved password' : 'Enter the app password for this mailbox'}" ${settings.encryptionReady ? '' : 'disabled'} /><button type="button" data-notification-password-toggle aria-label="Show app password" aria-pressed="false" ${settings.encryptionReady ? '' : 'disabled'}>Show</button></div><p class="notification-settings__credential-status ${settings.encryptionReady ? '' : 'is-warning'}" role="status">${settings.encryptionReady ? (settings.appPasswordConfigured ? 'App password saved. Enter a new one only to replace it.' : 'No app password saved yet.') : 'Set NOTIFICATION_SECRET_KEY on the server to save an app password.'}</p></div>
           ${settings.appPasswordConfigured ? '<label class="notification-settings__choice is-remove"><input type="checkbox" name="clearAppPassword" value="true" /><span><strong>Remove saved app password</strong><small>Future email delivery will stop until you enter a new one.</small></span></label>' : ''}
         </section>
@@ -1425,8 +1430,8 @@ function renderNotificationsSettings() {
       error.hidden = true; submit.disabled = true; submit.textContent = 'Saving…';
       try {
         const values = new FormData(form);
-        const saved = await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppDefaultEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailDefaultEnabled') === 'true', appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
-        dashboard.notificationDefaults = { inAppEnabled:saved.inAppEnabled, inAppDefaultEnabled:saved.inAppDefaultEnabled, emailEnabled:saved.emailEnabled, emailDefaultEnabled:saved.emailDefaultEnabled };
+        const saved = await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailEnabled') === 'true', approvedGroups:String(values.get('approvedGroups') || ''), defaultGroup:String(values.get('defaultGroup') || ''), appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
+        dashboard.notificationDefaults = { inAppEnabled:saved.inAppEnabled, inAppDefaultEnabled:saved.inAppDefaultEnabled, emailEnabled:saved.emailEnabled, emailDefaultEnabled:saved.emailDefaultEnabled, approvedGroups:saved.approvedGroups, defaultGroup:saved.defaultGroup };
         flash('Notification settings saved.'); renderNotificationsSettings();
       } catch (reason) { error.textContent = reason.message || 'Notification settings could not be saved.'; error.hidden = false; submit.disabled = false; submit.textContent = 'Save notification settings'; }
     });
@@ -2018,14 +2023,10 @@ function applyTemplatePublicationSettings(form, template) {
   syncAnnouncementRepeatOptions(form);
 }
 function applyAnnouncementNotificationFields(form, notification = {}) {
-  const defaults = dashboard?.notificationDefaults || {};
   const setValue = (name, value) => { const field = form.elements.namedItem(name); if (field) field.value = Array.isArray(value) ? value.join(', ') : String(value || ''); };
-  const setChecked = (name, checked) => { const field = form.elements.namedItem(name); if (field) field.checked = checked; };
-  setChecked('notificationInAppEnabled', notification.inAppEnabled ?? (defaults.inAppEnabled !== false && defaults.inAppDefaultEnabled !== false));
-  setValue('notificationInAppRecipients', notification.inAppRecipients);
-  setChecked('notificationEmailEnabled', notification.emailEnabled ?? (defaults.emailEnabled === true && defaults.emailDefaultEnabled === true));
-  setValue('notificationEmailTo', notification.to); setValue('notificationEmailCc', notification.cc); setValue('notificationEmailBcc', notification.bcc);
-  syncAnnouncementDeliveryFields(form);
+  if (notification.audienceGroup || notification.to?.[0]) setValue('notificationAudienceGroup', notification.audienceGroup || notification.to[0]);
+  setValue('notificationEmailCc', notification.cc); setValue('notificationEmailBcc', notification.bcc);
+  syncAnnouncementGroup(form);
 }
 document.addEventListener('click', event => {
   const action = event.target.closest('[data-use-announcement-template], [data-edit-announcement-template]');
@@ -2036,7 +2037,7 @@ document.addEventListener('click', event => {
   if (!template || !form) return;
   window.setTimeout(() => applyTemplatePublicationSettings(form, template), 0);
 }, true);
-document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; if (event.target.matches('[name="notificationEmailEnabled"]')) syncAnnouncementDeliveryFields(form); syncAnnouncementRepeatOptions(form); });
+document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; if (event.target.matches('[name="notificationAudienceGroup"]')) syncAnnouncementGroup(form); syncAnnouncementRepeatOptions(form); });
 document.addEventListener('click', async event => { const action = event.target.closest('[data-toggle-announcement-schedule], [data-remove-announcement-schedule]'); if (!action) return; const id = action.dataset.toggleAnnouncementSchedule || action.dataset.removeAnnouncementSchedule, schedule = dashboard.announcementSchedules?.find(item => item.id === id); if (!schedule) return; if (action.dataset.removeAnnouncementSchedule) { dashboard.announcementSchedules = dashboard.announcementSchedules.filter(item => item.id !== id); await saveDashboard('Announcement schedule removed.'); } else { schedule.enabled = !schedule.enabled; await saveDashboard(`Announcement schedule ${schedule.enabled ? 'resumed' : 'paused'}.`); } });
 document.addEventListener('click', async event => { const use = event.target.closest('[data-use-announcement-template]'), remove = event.target.closest('[data-remove-announcement-template]'); if (!use && !remove) return; const id = (use || remove).dataset.useAnnouncementTemplate || (use || remove).dataset.removeAnnouncementTemplate, template = dashboard.announcementTemplates?.find(item => item.id === id); if (!template) return; if (remove) { dashboard.announcementTemplates = dashboard.announcementTemplates.filter(item => item.id !== id); await saveDashboard('Announcement template removed.'); return; } const form = document.querySelector('[data-editor="announcements"]'); if (!form) return; delete form.dataset.editAnnouncementTemplate; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); applyAnnouncementNotificationFields(form, template.notification); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''), missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>This template keeps its original email layout. Select Edit email to change its text.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; flash(`Template “${template.title}” loaded. Choose Send now, Schedule, or save an updated template.`); });
 document.addEventListener('click', event => { const action = event.target.closest('[data-edit-announcement-template]'); if (!action) return; const template = dashboard.announcementTemplates?.find(item => item.id === action.dataset.editAnnouncementTemplate), form = document.querySelector('[data-editor="announcements"]'); if (!template || !form) return; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); applyAnnouncementNotificationFields(form, template.notification); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email template</h4><p>Edit the original email layout, then select Save changes to update this template.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Editable announcement email template" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" /></section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; form.dataset.editAnnouncementTemplate = template.id; form.querySelector('.form-actions .action-button.primary')?.replaceChildren(document.createTextNode('Update template')); flash(`Editing template “${template.title}”. Save changes updates this template only.`); });
@@ -2055,18 +2056,20 @@ document.addEventListener('submit', async event => {
       const existingNotification = record?.notification || form._announcementTemplate?.notification || {};
       const inAppAvailable = dashboard?.notificationDefaults?.inAppEnabled !== false;
       const emailAvailable = dashboard?.notificationDefaults?.emailEnabled === true;
+      const audienceGroup = String(values.notificationAudienceGroup || '').trim().toLowerCase();
       values.notification = {
-        inAppEnabled:inAppAvailable ? values.notificationInAppEnabled === 'true' : (record || form._announcementTemplate ? existingNotification.inAppEnabled !== false : false),
-        inAppRecipients:inAppAvailable ? values.notificationInAppRecipients : existingNotification.inAppRecipients || [],
-        emailEnabled:emailAvailable ? values.notificationEmailEnabled === 'true' : existingNotification.emailEnabled === true,
-        to:emailAvailable ? values.notificationEmailTo : existingNotification.to || [],
+        audienceGroup,
+        inAppEnabled:inAppAvailable ? true : (record || form._announcementTemplate ? existingNotification.inAppEnabled !== false : false),
+        inAppRecipients:[],
+        emailEnabled:emailAvailable ? true : existingNotification.emailEnabled === true,
+        to:emailAvailable ? (audienceGroup ? [audienceGroup] : []) : existingNotification.to || [],
         cc:emailAvailable ? values.notificationEmailCc : existingNotification.cc || [],
         bcc:emailAvailable ? values.notificationEmailBcc : existingNotification.bcc || [],
         emailDeliveryState:existingNotification.emailDeliveryState || '',
         emailSentAt:existingNotification.emailSentAt || '',
         emailError:existingNotification.emailError || ''
       };
-      delete values.notificationInAppEnabled; delete values.notificationInAppRecipients; delete values.notificationEmailEnabled; delete values.notificationEmailTo; delete values.notificationEmailCc; delete values.notificationEmailBcc;
+      delete values.notificationAudienceGroup; delete values.notificationEmailTo; delete values.notificationEmailCc; delete values.notificationEmailBcc;
     }
     const capturedEmailHtml = String(values.legacyEmailHtml || form.dataset.emailClipboardHtml || ''); delete values.legacyEmailHtml; delete form.dataset.emailClipboardHtml;
     if (key === 'firstWeekChecklist' && values.requiresResourceLinkClick === 'true' && !String(values.resourceUrl || '').trim()) { flash('Add a resource link before requiring employees to open it.'); return; }

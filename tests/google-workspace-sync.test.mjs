@@ -171,6 +171,7 @@ test('delegated client uses read-only scopes and paginates the OU and resource c
     calls.push({ url, options });
     if (url.pathname === '/token') return { ok:true, json:async () => ({ access_token:'test-token', expires_in:3600 }) };
     if (url.pathname.endsWith('/users')) return { ok:true, json:async () => url.searchParams.has('pageToken') ? { users:[user({ id:'second' })] } : { users:[user()], nextPageToken:'next' } };
+    if (url.pathname.includes('/hasMember/')) return { ok:true, json:async () => ({ isMember:!url.pathname.includes('outsider%40') }) };
     if (url.pathname.endsWith('/orgunits')) return { ok:true, json:async () => ({ organizationUnits:[{ orgUnitPath:'/Egypt/Full-Time Employees', name:'Full-Time Employees', parentOrgUnitPath:'/Egypt' }, { orgUnitPath:'/Egypt/Consultants', name:'Consultants', parentOrgUnitPath:'/Egypt' }] }) };
     return { ok:true, json:async () => ({ items:[{ id:'event-1', summary:'Workshop', start:{ date:'2026-10-23' } }] }) };
   };
@@ -181,8 +182,14 @@ test('delegated client uses read-only scopes and paginates the OU and resource c
   ]);
   assert.equal((await client.users(config.ous[0])).length, 2);
   await client.photo('google-123');
+  assert.equal(await client.hasGroupMember('everyone@si-ware.com', 'employee@si-ware.com'), true);
+  assert.equal(await client.hasGroupMember('everyone@si-ware.com', 'outsider@si-ware.com'), false);
   assert.equal((await client.events(config.calendars[0].id, now, new Date('2026-11-22T10:00:00Z'))).length, 1);
-  assert.equal(calls.filter(call => call.url.pathname === '/token').length, 3);
+  assert.equal(calls.filter(call => call.url.pathname === '/token').length, 4);
+  const group = calls.find(call => call.url.pathname.includes('/hasMember/'));
+  assert.match(group.url.pathname, /everyone%40si-ware\.com\/hasMember\/employee%40si-ware\.com/);
+  const groupToken = calls.find(call => call.url.pathname === '/token' && JSON.parse(Buffer.from(new URLSearchParams(call.options.body).get('assertion').split('.')[1], 'base64url')).scope.endsWith('/admin.directory.group.member.readonly'));
+  assert.ok(groupToken);
   const directory = calls.find(call => call.url.pathname.endsWith('/users'));
   assert.equal(directory.url.searchParams.get('viewType'), 'admin_view');
   assert.equal(directory.url.searchParams.get('query'), "orgUnitPath='/People/New Hires'");

@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { createServer as createNetServer } from 'node:net';
 import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -86,19 +86,28 @@ async function availablePort() {
   return port;
 }
 
-async function startIsolatedServer({ demoRole = '', permissions = [], legacy = false } = {}) {
+async function startIsolatedServer({ demoRole = '', permissions = [], legacy = false, seedTransform = null, fakeGroupMembers = null } = {}) {
   const tempDir = await mkdtemp(join(tmpdir(), 'siware-internal-content-auth-'));
   const dataFile = join(tempDir, 'intranet.json');
   await copyFile(join(projectRoot, 'data', 'seed.json'), dataFile);
-  if (demoRole) {
+  if (demoRole || seedTransform) {
     const data = JSON.parse(await readFile(dataFile, 'utf8'));
-    data.user.role = demoRole;
-    data.accessRoles = { [demoRole]:permissions };
-    if (!legacy) data.permissionsSchemaVersion = 2;
+    if (demoRole) {
+      data.user.role = demoRole;
+      data.accessRoles = { [demoRole]:permissions };
+      if (!legacy) data.permissionsSchemaVersion = 2;
+    }
+    seedTransform?.(data);
     await writeFile(dataFile, JSON.stringify(data));
   }
   const port = await availablePort();
-  const child = spawn(process.execPath, ['server.mjs'], {
+  let googleKeyFile = '';
+  if (fakeGroupMembers) {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength:2048 });
+    googleKeyFile = join(tempDir, 'google-key.json');
+    await writeFile(googleKeyFile, JSON.stringify({ type:'service_account', client_email:'test@project.iam.gserviceaccount.com', private_key_id:'test-key', private_key:privateKey.export({ type:'pkcs8', format:'pem' }) }));
+  }
+  const child = spawn(process.execPath, [...(fakeGroupMembers ? ['--import', new URL('./fake-google-group-api.mjs', import.meta.url).href] : []), 'server.mjs'], {
     cwd: projectRoot,
     env: {
       ...process.env,
@@ -109,8 +118,9 @@ async function startIsolatedServer({ demoRole = '', permissions = [], legacy = f
       LOCAL_ADMIN_PASSWORD: demoRole ? '' : 'test-only-password',
       GOOGLE_CLIENT_ID: '',
       GOOGLE_CLIENT_SECRET: '',
-      GOOGLE_SERVICE_ACCOUNT_KEY_FILE: '',
-      GOOGLE_SYNC_SUBJECT: '',
+      GOOGLE_SERVICE_ACCOUNT_KEY_FILE: googleKeyFile,
+      GOOGLE_SYNC_SUBJECT: fakeGroupMembers ? 'admin@si-ware.com' : '',
+      SIWARE_TEST_GROUP_MEMBERS_JSON:fakeGroupMembers ? JSON.stringify(fakeGroupMembers) : '',
       SECURE_COOKIES: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -147,11 +157,18 @@ test('global announcement bell switch suppresses existing alerts and persists ch
     assert.equal(settings.inAppEnabled, true);
     assert.equal(settings.inAppDefaultEnabled, true);
     assert.equal(settings.emailDefaultEnabled, false);
+    const unverifiedGroup = await fetch(`${server.origin}/api/admin/notifications`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ inAppEnabled:true, emailEnabled:false, approvedGroups:['everyone@si-ware.com'], defaultGroup:'everyone@si-ware.com' }) });
+    assert.equal(unverifiedGroup.status, 422);
 
     const before = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
-    const announcement = { id:'notification-test', title:'Notification test', body:'Published for test', publishedAt:new Date().toISOString(), notification:{ inAppEnabled:true, inAppRecipients:[], emailEnabled:false, to:['private@example.test'], cc:['private-cc@example.test'], bcc:['private-bcc@example.test'] } };
+    const unapprovedAnnouncement = { id:'unapproved-group', title:'Unapproved audience', notification:{ audienceGroup:'outside@si-ware.com', inAppEnabled:true, emailEnabled:false } };
+    const blockedAudience = await fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:before._version, data:{ ...before, announcements:[unapprovedAnnouncement, ...(before.announcements || [])] } }) });
+    assert.equal(blockedAudience.status, 422);
+    const announcement = { id:'notification-test', title:'Notification test', body:'Published for test', publishedAt:new Date().toISOString(), notification:{ inAppEnabled:true, emailEnabled:false } };
     const saved = await fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:before._version, data:{ ...before, announcements:[announcement, ...(before.announcements || [])] } }) });
     assert.equal(saved.status, 200);
+    const beforeSwitch = await (await fetch(`${server.origin}/api/dashboard`)).json();
+    assert.deepEqual(beforeSwitch.announcements.find(item => item.id === announcement.id).notification, { inAppEnabled:false, inAppVisible:false });
 
     const update = await fetch(`${server.origin}/api/admin/notifications`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ inAppEnabled:false, inAppDefaultEnabled:false, emailEnabled:false, emailDefaultEnabled:true }) });
     assert.equal(update.status, 200);
@@ -171,6 +188,76 @@ test('global announcement bell switch suppresses existing alerts and persists ch
   } finally {
     await stopIsolatedServer(server);
   }
+});
+
+test('group-targeted announcements fail closed when Google membership cannot be verified', async () => {
+  const server = await startIsolatedServer({ demoRole:'EMPLOYEE', permissions:['intranet.announcements'], seedTransform:data => {
+    data.user.email = 'member@si-ware.com';
+    data.adminSettings ||= {};
+    data.adminSettings.notificationSettings = { approvedGroups:['everyone@si-ware.com'], defaultGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false };
+    data.announcements = [
+      { id:'private-group', title:'Private group update', notification:{ audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false } },
+      { id:'legacy', title:'Older company update', notification:{ inAppEnabled:true, emailEnabled:false } },
+      { id:'legacy-targeted', title:'Older targeted update', notification:{ inAppEnabled:true, emailEnabled:false, to:['everyone@si-ware.com'] } },
+      { id:'hidden', title:'Hidden company update', hidden:true, notification:{ inAppEnabled:true, emailEnabled:false } }
+    ];
+  } });
+  try {
+    const response = await fetch(`${server.origin}/api/dashboard`);
+    assert.equal(response.status, 200);
+    const dashboard = await response.json();
+    assert.deepEqual(dashboard.announcements.map(item => item.id), ['legacy']);
+    assert.deepEqual(dashboard.announcements[0].notification, { inAppEnabled:false, inAppVisible:false });
+  } finally { await stopIsolatedServer(server); }
+});
+
+test('only a current Google Group member receives its announcement and bell', async () => {
+  for (const [email, expectedIds] of [
+    ['member@si-ware.com', ['private-group']],
+    ['outsider@si-ware.com', []]
+  ]) {
+    const server = await startIsolatedServer({ demoRole:'EMPLOYEE', permissions:['intranet.announcements'], fakeGroupMembers:{ 'everyone@si-ware.com':['member@si-ware.com'] }, seedTransform:data => {
+      data.user.email = email;
+      data.adminSettings ||= {};
+      data.adminSettings.notificationSettings = { approvedGroups:['everyone@si-ware.com'], defaultGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false };
+      data.announcements = [{ id:'private-group', title:'Private group update', notification:{ audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:false } }];
+    } });
+    try {
+      const response = await fetch(`${server.origin}/api/dashboard`);
+      assert.equal(response.status, 200);
+      const dashboard = await response.json();
+      assert.deepEqual(dashboard.announcements.map(item => item.id), expectedIds);
+      if (expectedIds.length) assert.deepEqual(dashboard.announcements[0].notification, { inAppEnabled:true, inAppVisible:true });
+    } finally { await stopIsolatedServer(server); }
+  }
+});
+
+test('email recipients outside the selected Google Group are rejected before publication', async () => {
+  const permissions = ['admin.access', 'content.edit', 'content.publish', 'page.announcements'];
+  const server = await startIsolatedServer({ demoRole:'GROUP_EDITOR', permissions, fakeGroupMembers:{ 'everyone@si-ware.com':['member@si-ware.com'] }, seedTransform:data => {
+    data.adminSettings ||= {};
+    data.adminSettings.notificationSettings = { approvedGroups:['everyone@si-ware.com'], defaultGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:true };
+  } });
+  try {
+    const before = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
+    const notification = { audienceGroup:'everyone@si-ware.com', inAppEnabled:true, emailEnabled:true, to:['everyone@si-ware.com'], cc:['outsider@si-ware.com'], bcc:[] };
+    const publish = async value => fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:before._version, data:{ ...before, announcements:[{ id:'private-email', title:'Private email', notification:value }] } }) });
+    assert.equal((await publish(notification)).status, 422);
+    assert.equal((await publish({ ...notification, to:['outsider@si-ware.com'], cc:[] })).status, 422);
+    const after = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
+    assert.equal(after.announcements.some(item => item.id === 'private-email'), false);
+  } finally { await stopIsolatedServer(server); }
+});
+
+test('notification administrator can approve the two Google Groups and select a default', async () => {
+  const server = await startIsolatedServer({ demoRole:'NOTIFICATION_ADMIN', permissions:['admin.access', 'settings.manage', 'page.notifications'], fakeGroupMembers:{ 'eg.team@si-ware.com':[], 'everyone@si-ware.com':[] } });
+  try {
+    const response = await fetch(`${server.origin}/api/admin/notifications`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ inAppEnabled:true, emailEnabled:false, approvedGroups:['eg.team@si-ware.com','everyone@si-ware.com'], defaultGroup:'eg.team@si-ware.com' }) });
+    assert.equal(response.status, 200);
+    const settings = await response.json();
+    assert.deepEqual(settings.approvedGroups, ['eg.team@si-ware.com','everyone@si-ware.com']);
+    assert.equal(settings.defaultGroup, 'eg.team@si-ware.com');
+  } finally { await stopIsolatedServer(server); }
 });
 
 test('internal search and document routes require a session before returning content', async () => {

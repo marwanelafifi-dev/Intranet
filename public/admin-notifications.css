@@ -102,9 +102,6 @@
   font-size: 12px;
   line-height: 1.5;
 }
-.notification-settings__choice.is-default {
-  margin-left: 32px;
-}
 .notification-settings__choice.is-remove {
   margin-top: 16px;
   border-top: 1px solid var(--line);
@@ -112,6 +109,32 @@
 }
 .notification-settings__choice.is-remove strong {
   color: var(--danger);
+}
+.notification-settings__group-field {
+  display: grid;
+  gap: 7px;
+  max-width: 590px;
+  margin-top: 15px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+.notification-settings__group-field input,
+.notification-settings__group-field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 13px;
+  font-size: 14px;
+}
+.notification-settings__group-field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+.notification-settings__group-field small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 .notification-settings__credentials {
   display: grid;
@@ -207,22 +230,18 @@
   font-size: 13px;
   font-weight: 800;
 }
-#view-announcements .inline-editor .announcement-delivery__toggle {
+#view-announcements .announcement-delivery__channel {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 28px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px 12px;
   color: var(--ink);
   font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
 }
-#view-announcements .announcement-delivery__toggle input[type="checkbox"] {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: #0758a9;
+#view-announcements .announcement-delivery__channel span {
+  color: var(--muted);
+  font-size: 11px;
 }
 #view-announcements .inline-editor .announcement-delivery__field {
   display: block;
@@ -231,12 +250,17 @@
   font-size: 12px;
   font-weight: 800;
 }
-#view-announcements .announcement-delivery__field input {
+#view-announcements .announcement-delivery__field input,
+#view-announcements .announcement-delivery__field select {
   display: block;
   width: 100%;
   min-height: 42px;
   margin-top: 6px;
   font-size: 13px;
+}
+#view-announcements .announcement-delivery__field input[readonly] {
+  background: var(--surface);
+  color: var(--muted);
 }
 #view-announcements .announcement-delivery__field small {
   display: block;
@@ -252,9 +276,6 @@
   display: grid;
   gap: 14px;
   min-width: 0;
-}
-#view-announcements .announcement-delivery__email-fields[hidden] {
-  display: none;
 }
 #view-announcements .announcement-delivery__notice {
   margin: 0;
@@ -293,9 +314,6 @@ html.dark .notification-settings__password button:hover:not(:disabled) {
   }
   .notification-settings__intro {
     margin-bottom: 18px;
-  }
-  .notification-settings__choice.is-default {
-    margin-left: 0;
   }
   .notification-settings__actions {
     padding: 17px 18px 20px;

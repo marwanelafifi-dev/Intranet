@@ -144,11 +144,12 @@ const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ')
 const emailAddress = value => String(value || '').trim().toLowerCase();
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const notificationEmailList = value => [...new Set((Array.isArray(value) ? value : String(value || '').split(/[\n,;]/)).map(emailAddress).filter(isEmailAddress))].slice(0, 250);
-const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, emailEnabled:false, emailDefaultEnabled:false, sender:notificationSender });
+const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, emailEnabled:false, emailDefaultEnabled:false, approvedGroups:[], defaultGroup:'', sender:notificationSender });
 const notificationSettings = data => ({ ...defaultNotificationSettings(), ...(data.adminSettings?.notificationSettings || {}) });
 const normaliseAnnouncementNotification = value => {
   const item = value && typeof value === 'object' ? value : {};
   return {
+    audienceGroup:emailAddress(item.audienceGroup),
     inAppEnabled:item.inAppEnabled !== false && item.inAppEnabled !== 'false',
     inAppRecipients:notificationEmailList(item.inAppRecipients),
     emailEnabled:item.emailEnabled === true || item.emailEnabled === 'true',
@@ -160,13 +161,28 @@ const normaliseAnnouncementNotification = value => {
     emailError:item.emailError ? safeText(item.emailError).slice(0, 240) : ''
   };
 };
-const publicAnnouncementNotification = (value, actor, data) => {
+let notificationGroupClientPromise;
+async function notificationGroupClient() {
+  if (!notificationGroupClientPromise) {
+    const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim();
+    const subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim();
+    if (!keyFile || !isEmailAddress(subject)) throw new Error('Google Workspace group access is not configured.');
+    notificationGroupClientPromise = createWorkspaceClient({ keyFile, subject }).catch(error => { notificationGroupClientPromise = null; throw error; });
+  }
+  return notificationGroupClientPromise;
+}
+async function audienceGroupMember(group, member) {
+  const client = await notificationGroupClient();
+  return client.hasGroupMember(group, member);
+}
+function publicAnnouncementNotification(value, data, audienceMember) {
   const notification = normaliseAnnouncementNotification(value);
-  const enabled = notificationSettings(data).inAppEnabled !== false && notification.inAppEnabled;
-  const email = emailAddress(actor?.email);
+  const settings = notificationSettings(data);
+  const group = notification.audienceGroup;
+  const enabled = settings.inAppEnabled !== false && notification.inAppEnabled && Array.isArray(settings.approvedGroups) && settings.approvedGroups.includes(group);
   return {
     inAppEnabled:enabled,
-    inAppVisible:enabled && (!notification.inAppRecipients.length || notification.inAppRecipients.includes(email))
+    inAppVisible:enabled && audienceMember
   };
 };
 async function notificationSecrets() {
@@ -253,9 +269,24 @@ async function sendGmailMessage({ password, to, cc, bcc, subject, text, html }) 
 }
 async function deliverAnnouncementEmail(data, announcement) {
   const notification = normaliseAnnouncementNotification(announcement.notification);
-  if (announcement.hidden === true || announcement.hidden === 'true' || !notification.emailEnabled || notification.emailDeliveryState || !notification.to.length) return false;
+  if (announcement.hidden === true || announcement.hidden === 'true' || !notification.emailEnabled || notification.emailDeliveryState) return false;
   const settings = notificationSettings(data);
   if (!settings.emailEnabled) { announcement.notification = { ...notification, emailDeliveryState:'skipped', emailError:'Email delivery was disabled when this announcement published.' }; return true; }
+  const group = notification.audienceGroup;
+  if (!group || !settings.approvedGroups?.includes(group) || notification.to.length !== 1 || notification.to[0] !== group) {
+    announcement.notification = { ...notification, emailDeliveryState:'skipped', emailError:'Email delivery requires an approved Google Group as the sole To recipient.' };
+    return true;
+  }
+  try {
+    await audienceGroupMember(group, String(process.env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase());
+    for (const recipient of [...notification.cc, ...notification.bcc]) {
+      if (!await audienceGroupMember(group, recipient)) throw new Error('A CC or BCC recipient is outside the selected Google Group.');
+    }
+  } catch (error) {
+    console.warn('Announcement group email was withheld:', error.message);
+    announcement.notification = { ...notification, emailDeliveryState:'skipped', emailError:'The selected Google Group or CC/BCC membership could not be verified.' };
+    return true;
+  }
   const secrets = await notificationSecrets();
   let password = '';
   try { password = decryptNotificationSecret(secrets.gmailAppPassword); }
@@ -458,7 +489,7 @@ function eventPrivateDetails(data, actor, eventId) {
     organizer, invitees
   };
 }
-function dashboardResponse(data, actor, admin = false) {
+async function dashboardResponse(data, actor, admin = false) {
   // An Administration response must contain only the content this role can edit.
   // Employee dashboard data (notably redacted calendar events) is not a safe
   // round-trip payload for a limited editor: it can differ from stored data and
@@ -470,8 +501,25 @@ function dashboardResponse(data, actor, admin = false) {
     return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
   }));
   if (Object.hasOwn(visible, 'events') && (!admin || !can(data, actor, 'page.events'))) visible.events = publicEvents(visible.events);
-  if (!admin && Array.isArray(visible.announcements)) visible.announcements = visible.announcements.map(announcement => ({ ...announcement, notification:publicAnnouncementNotification(announcement.notification, actor, data) }));
-  const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled }; })() : undefined;
+  if (!admin && Array.isArray(visible.announcements)) {
+    const checks = new Map();
+    const membership = (group, email) => {
+      const key = `${group}\0${email}`;
+      if (!checks.has(key)) checks.set(key, audienceGroupMember(group, email).catch(error => { console.warn('Google Group notification lookup failed:', error.message); return false; }));
+      return checks.get(key);
+    };
+    const settings = notificationSettings(data);
+    visible.announcements = (await Promise.all(visible.announcements.map(async announcement => {
+      if (announcement.hidden === true || announcement.hidden === 'true') return null;
+      const notification = normaliseAnnouncementNotification(announcement.notification);
+      const group = notification.audienceGroup;
+      const email = emailAddress(actor?.email);
+      if (!group && (notification.to.length || notification.inAppRecipients.length)) return null;
+      if (group && (!settings.approvedGroups?.includes(group) || !email.endsWith(`@${googleWorkspaceDomain}`) || !await membership(group, email))) return null;
+      return { ...announcement, notification:publicAnnouncementNotification(announcement.notification, data, Boolean(group)) };
+    }))).filter(Boolean);
+  }
+  const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled, approvedGroups:settings.approvedGroups, defaultGroup:settings.defaultGroup }; })() : undefined;
   return { ...visible, ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
@@ -1108,15 +1156,27 @@ const server = createServer(async (req, res) => {
       const emailEnabled = body.emailEnabled === true;
       if (emailEnabled && !notificationEncryptionKey) return json(res, 422, { error:'Set NOTIFICATION_SECRET_KEY on the server before enabling email delivery.' });
       if (emailEnabled && !configured) return json(res, 422, { error:'Save a Gmail app password before enabling email delivery.' });
+      const current = notificationSettings(data);
+      const rawGroups = Object.hasOwn(body, 'approvedGroups') ? (Array.isArray(body.approvedGroups) ? body.approvedGroups : String(body.approvedGroups || '').split(/[\n,;]/)) : current.approvedGroups;
+      const approvedGroups = [...new Set(rawGroups.map(value => emailAddress(value)).filter(Boolean))];
+      if (approvedGroups.length > 20 || approvedGroups.some(group => !isEmailAddress(group) || !group.endsWith(`@${googleWorkspaceDomain}`))) return json(res, 422, { error:`Enter up to 20 valid ${googleWorkspaceDomain} Google Group addresses.` });
+      const defaultGroup = Object.hasOwn(body, 'defaultGroup') ? emailAddress(body.defaultGroup) : current.defaultGroup;
+      if (approvedGroups.length && !defaultGroup) return json(res, 422, { error:'Choose a default Google Group for new announcements.' });
+      if (defaultGroup && !approvedGroups.includes(defaultGroup)) return json(res, 422, { error:'The default audience must be one of the approved Google Groups.' });
+      if (approvedGroups.length) {
+        const subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase();
+        if (!isEmailAddress(subject)) return json(res, 422, { error:'Configure the delegated Google Workspace administrator before saving notification groups.' });
+        try { for (const group of approvedGroups) await audienceGroupMember(group, subject); }
+        catch { return json(res, 422, { error:'Google Group access could not be verified. Add the group.member.readonly delegation scope and confirm each group address.' }); }
+      }
       if (body.clearAppPassword === true) { delete secrets.gmailAppPassword; await unlink(notificationSecretsFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
       if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }
-      const current = notificationSettings(data);
       const inAppEnabled = typeof body.inAppEnabled === 'boolean' ? body.inAppEnabled : current.inAppEnabled;
       const inAppDefaultEnabled = typeof body.inAppDefaultEnabled === 'boolean' ? body.inAppDefaultEnabled : current.inAppDefaultEnabled;
       const emailDefaultEnabled = typeof body.emailDefaultEnabled === 'boolean' ? body.emailDefaultEnabled : current.emailDefaultEnabled;
-      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, sender:notificationSender, updatedAt:new Date().toISOString() };
+      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, approvedGroups, defaultGroup, sender:notificationSender, updatedAt:new Date().toISOString() };
       data._version += 1;
-      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
+      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, emailEnabled, approvedGroups, defaultGroup, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
       await save(data);
       return json(res, 200, await notificationStatus(data));
     }
@@ -1161,7 +1221,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/admin/dashboard') {
       const data = await dashboard(), actor = actorFor(req, data);
       if (!canOpenAdmin(configuredRoles(data)[actor?.role])) return json(res, actor ? 403 : 401, { error:actor ? 'Administration access is required.' : 'Sign in is required.' });
-      return json(res, 200, dashboardResponse(data, actor, true));
+      return json(res, 200, await dashboardResponse(data, actor, true));
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['audit.view','page.activity']); if (!actor) return;
@@ -1268,6 +1328,25 @@ const server = createServer(async (req, res) => {
       if (permissionCheck.error) return json(res, permissionCheck.status, { error:permissionCheck.error });
       if (Object.hasOwn(next, 'sessions')) { const duplicate = duplicateKnowledgeSessionName(next.sessions); if (duplicate) return json(res, 422, { error:`Knowledge Hub session title already exists or is invalid: ${duplicate}. Use a unique title.` }); }
       const changedKeys = permissionCheck.changedKeys;
+      const allowedGroups = notificationSettings(data).approvedGroups || [];
+      for (const key of ['announcements', 'announcementSchedules', 'announcementTemplates']) {
+        if (!changedKeys.includes(key)) continue;
+        const previous = new Map((data[key] || []).map(item => [String(item.id), item]));
+        for (const item of next[key] || []) {
+          if (JSON.stringify(item) === JSON.stringify(previous.get(String(item.id)))) continue;
+          const notification = normaliseAnnouncementNotification(item.notification);
+          const group = notification.audienceGroup;
+          if (group && !allowedGroups.includes(group)) return json(res, 422, { error:'Choose an approved Google Group in Notifications before publishing this announcement.' });
+          if (notification.emailEnabled && group && notificationSettings(data).emailEnabled) {
+            if (notification.to.length !== 1 || notification.to[0] !== group) return json(res, 422, { error:'The email To recipient must be the selected Google Group only.' });
+            try {
+              for (const recipient of [...notification.cc, ...notification.bcc]) {
+                if (!await audienceGroupMember(group, recipient)) return json(res, 422, { error:'CC and BCC recipients must be members of the selected Google Group.' });
+              }
+            } catch { return json(res, 422, { error:'Google Group membership could not be verified. The announcement was not published.' }); }
+          }
+        }
+      }
       if (changedKeys.includes('newMembers')) {
         const existingById = new Map(data.newMembers.map(member => [String(member.id), member]));
         next.newMembers.forEach(member => {
@@ -1284,7 +1363,7 @@ const server = createServer(async (req, res) => {
       if (changedKeys.includes('settings')) { data.adminSettings.layoutHistory ||= []; data.adminSettings.layoutHistory.unshift({ at:new Date().toISOString(), by:actor.email, settings:data.settings }); data.adminSettings.layoutHistory = data.adminSettings.layoutHistory.slice(0, 12); }
       const changedContent = changedContentLabels(changedKeys);
       withAnnouncementAudit(data); await deliverQueuedAnnouncementEmails(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent, details:contentDetails.details, truncated:contentDetails.truncated } }); await save(data);
-      return json(res, 200, dashboardResponse(await withPolicyModifiedDates(data), actor, true));
+      return json(res, 200, await dashboardResponse(await withPolicyModifiedDates(data), actor, true));
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/google-sync') {
       const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.settings']); if (!actor) return;
@@ -1432,7 +1511,7 @@ const server = createServer(async (req, res) => {
       res.setHeader('cache-control', 'no-store, max-age=0');
       const data = await dashboard(), actor = actorFor(req, data);
       if (isAuthenticationConfigured() && !actor) return json(res, 401, { error:'Sign in is required.' });
-      return json(res, 200, dashboardResponse(data, actor));
+      return json(res, 200, await dashboardResponse(data, actor));
     }
     if (req.method === 'GET' && /^\/api\/directory-photo\/[a-zA-Z0-9_-]{16,80}$/.test(url.pathname)) {
       const employee = await requireAuthenticatedEmployee(req, res, 'intranet.people'); if (!employee) return;

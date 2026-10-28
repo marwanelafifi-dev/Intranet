@@ -2,6 +2,7 @@ import { createHash, createSign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 const directoryScope = 'https://www.googleapis.com/auth/admin.directory.user.readonly';
+const groupMemberScope = 'https://www.googleapis.com/auth/admin.directory.group.member.readonly';
 const orgUnitScope = 'https://www.googleapis.com/auth/admin.directory.orgunit.readonly';
 const calendarScope = 'https://www.googleapis.com/auth/calendar.events.readonly';
 const placeholder = 'To be confirmed';
@@ -218,18 +219,18 @@ export async function createWorkspaceClient(config, { fetchImpl = fetch, now = (
   const credentials = JSON.parse(await readCredentials(config.keyFile, 'utf8'));
   if (credentials.type !== 'service_account' || !credentials.client_email || !credentials.private_key) throw new Error('The Google key file is not a service-account credential.');
   const tokens = new Map();
-  async function accessToken(scope) {
+  async function accessToken(scope, timeoutMs = 15000) {
     const cached = tokens.get(scope);
     if (cached && cached.expiresAt > now().getTime() + 60000) return cached.value;
     const assertion = signedAssertion(credentials, config.subject, scope, now());
-    const response = await fetchImpl('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }), signal:AbortSignal.timeout(15000) });
+    const response = await fetchImpl('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }), signal:AbortSignal.timeout(timeoutMs) });
     const token = await checkedJson(response, 'Google authorization');
     if (!token.access_token) throw new Error('Google authorization returned no access token.');
     tokens.set(scope, { value:token.access_token, expiresAt:now().getTime() + Math.max(60, Number(token.expires_in) || 3600) * 1000 });
     return token.access_token;
   }
-  async function get(url, scope) {
-    const response = await fetchImpl(url, { headers:{ authorization:`Bearer ${await accessToken(scope)}` }, signal:AbortSignal.timeout(20000) });
+  async function get(url, scope, timeoutMs = 20000) {
+    const response = await fetchImpl(url, { headers:{ authorization:`Bearer ${await accessToken(scope, timeoutMs)}` }, signal:AbortSignal.timeout(timeoutMs) });
     return checkedJson(response, 'Google Workspace request');
   }
   async function pages(url, scope, itemKey) {
@@ -245,6 +246,11 @@ export async function createWorkspaceClient(config, { fetchImpl = fetch, now = (
     throw new Error('Google Workspace result exceeded the 20-page safety limit; no partial data was published.');
   }
   return {
+    async hasGroupMember(groupEmail, memberEmail) {
+      const url = new URL(`https://admin.googleapis.com/admin/directory/v1/groups/${encodeURIComponent(groupEmail)}/hasMember/${encodeURIComponent(memberEmail)}`);
+      const result = await get(url, groupMemberScope, 5000);
+      return result.isMember === true;
+    },
     async orgUnits() {
       const url = new URL('https://admin.googleapis.com/admin/directory/v1/customer/my_customer/orgunits');
       url.searchParams.set('type', 'all');
