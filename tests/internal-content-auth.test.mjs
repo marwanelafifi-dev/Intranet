@@ -139,6 +139,40 @@ async function stopIsolatedServer({ child, tempDir }) {
   await rm(tempDir, { recursive: true, force: true });
 }
 
+test('global announcement bell switch suppresses existing alerts and persists channel defaults', async () => {
+  const permissions = ['intranet.announcements', 'admin.access', 'content.edit', 'content.publish', 'settings.manage', 'page.announcements', 'page.notifications'];
+  const server = await startIsolatedServer({ demoRole:'NOTIFICATION_EDITOR', permissions });
+  try {
+    const settings = await (await fetch(`${server.origin}/api/admin/notifications`)).json();
+    assert.equal(settings.inAppEnabled, true);
+    assert.equal(settings.inAppDefaultEnabled, true);
+    assert.equal(settings.emailDefaultEnabled, false);
+
+    const before = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
+    const announcement = { id:'notification-test', title:'Notification test', body:'Published for test', publishedAt:new Date().toISOString(), notification:{ inAppEnabled:true, inAppRecipients:[], emailEnabled:false, to:['private@example.test'], cc:['private-cc@example.test'], bcc:['private-bcc@example.test'] } };
+    const saved = await fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:before._version, data:{ ...before, announcements:[announcement, ...(before.announcements || [])] } }) });
+    assert.equal(saved.status, 200);
+
+    const update = await fetch(`${server.origin}/api/admin/notifications`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ inAppEnabled:false, inAppDefaultEnabled:false, emailEnabled:false, emailDefaultEnabled:true }) });
+    assert.equal(update.status, 200);
+    const changed = await update.json();
+    assert.equal(changed.inAppEnabled, false);
+    assert.equal(changed.inAppDefaultEnabled, false);
+    assert.equal(changed.emailDefaultEnabled, true);
+
+    const adminDashboard = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
+    assert.equal(adminDashboard.notificationDefaults.inAppEnabled, false);
+    assert.equal(adminDashboard.notificationDefaults.emailDefaultEnabled, true);
+    assert.equal(adminDashboard.announcements.find(item => item.id === announcement.id).notification.inAppEnabled, true);
+
+    const employeeDashboard = await (await fetch(`${server.origin}/api/dashboard`)).json();
+    const publicNotification = employeeDashboard.announcements.find(item => item.id === announcement.id).notification;
+    assert.deepEqual(publicNotification, { inAppEnabled:false, inAppVisible:false });
+  } finally {
+    await stopIsolatedServer(server);
+  }
+});
+
 test('internal search and document routes require a session before returning content', async () => {
   const server = await startIsolatedServer();
   try {

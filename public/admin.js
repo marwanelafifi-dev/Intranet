@@ -1234,9 +1234,19 @@ function mountPreviewOnlyCollection(root, key, title, href) {
 }
 function announcementNotificationFields(record = {}) {
   const notification = record.notification || {};
+  const defaults = dashboard?.notificationDefaults || {};
+  const inAppEnabled = notification.inAppEnabled ?? (defaults.inAppEnabled !== false && defaults.inAppDefaultEnabled !== false);
+  const emailEnabled = notification.emailEnabled ?? (defaults.emailEnabled === true && defaults.emailDefaultEnabled === true);
   const recipientText = Array.isArray(notification.inAppRecipients) ? notification.inAppRecipients.join(', ') : '';
   const emails = name => Array.isArray(notification[name]) ? notification[name].join(', ') : '';
-  return `<fieldset class="announcement-visibility"><legend>Notification delivery</legend><label class="announcement-visibility"><input type="checkbox" name="notificationInAppEnabled" value="true" ${notification.inAppEnabled === false ? '' : 'checked'} /><span><b>Show an in-app notification</b><small>Turn this off when employees should see the announcement page without receiving a bell notification.</small></span></label><label>In-app recipients (optional)<input name="notificationInAppRecipients" type="text" value="${escapeHtml(recipientText)}" placeholder="All signed-in users when left blank; otherwise comma-separated emails" /><small>Use this to ring the bell only for selected colleagues. It does not hide the announcement from the employee announcement page.</small></label><label class="announcement-visibility"><input type="checkbox" name="notificationEmailEnabled" value="true" ${notification.emailEnabled === true || notification.emailEnabled === 'true' ? 'checked' : ''} /><span><b>Send email from intranet@si-ware.com</b><small>Email is delivered when this announcement publishes, after Notifications has been enabled by an administrator.</small></span></label><label>To<input name="notificationEmailTo" type="text" value="${escapeHtml(emails('to'))}" placeholder="person@si-ware.com, team@si-ware.com" /></label><label>CC<input name="notificationEmailCc" type="text" value="${escapeHtml(emails('cc'))}" placeholder="Optional comma-separated addresses" /></label><label>BCC<input name="notificationEmailBcc" type="text" value="${escapeHtml(emails('bcc'))}" placeholder="Optional comma-separated addresses" /></label><small>For Send now, email is sent immediately after the announcement is saved. For Schedule, the same recipients are used when it publishes.</small></fieldset>`;
+  return `<fieldset class="announcement-delivery"><legend>Notification delivery</legend>
+    <label class="announcement-delivery__toggle"><input type="checkbox" name="notificationInAppEnabled" value="true" ${inAppEnabled ? 'checked' : ''} /><span>Show an in-app notification</span></label>
+    <label class="announcement-delivery__field">In-app recipients <span class="announcement-delivery__optional">optional</span><input name="notificationInAppRecipients" type="text" value="${escapeHtml(recipientText)}" placeholder="All users, or enter email addresses separated by commas" /><small>Leave blank to notify all signed-in users.</small></label>
+    <label class="announcement-delivery__toggle"><input type="checkbox" name="notificationEmailEnabled" value="true" ${emailEnabled ? 'checked' : ''} /><span>Send an email from intranet@si-ware.com</span></label>
+    <label class="announcement-delivery__field">To<input name="notificationEmailTo" type="text" value="${escapeHtml(emails('to'))}" placeholder="name@si-ware.com" /></label>
+    <label class="announcement-delivery__field">CC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailCc" type="text" value="${escapeHtml(emails('cc'))}" placeholder="name@si-ware.com" /></label>
+    <label class="announcement-delivery__field">BCC <span class="announcement-delivery__optional">optional</span><input name="notificationEmailBcc" type="text" value="${escapeHtml(emails('bcc'))}" placeholder="name@si-ware.com" /></label>
+  </fieldset>`;
 }
 function renderContentPage(view) {
   const page = contentPages.find(entry => entry.view === view);
@@ -1252,6 +1262,8 @@ function renderContentPage(view) {
     root.querySelector('.collection-layout > .list')?.insertAdjacentHTML('beforeend', `${announcementScheduleRows()}${announcementTemplateRows()}`);
     root.querySelector('.form-actions')?.insertAdjacentHTML('beforebegin', `<fieldset class="announcement-visibility"><legend>Publication</legend><label><input type="radio" name="deliveryMode" value="now" checked /> Send now</label><label><input type="radio" name="deliveryMode" value="scheduled" /> Schedule</label><div data-announcement-schedule-options hidden><label>Publish date<input name="scheduleDate" type="date" /></label><label>Publish time<input name="scheduleTime" type="time" value="11:00" /></label><label><input name="repeatAnnouncement" type="checkbox" value="true" /> Repeat this announcement</label><div data-announcement-repeat-options hidden><label>Repeat<select name="scheduleFrequency"><option value="weekly" selected>Every week</option><option value="monthly">Every month</option></select></label><label data-schedule-weekday>Day of week<select name="scheduleDayOfWeek">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => `<option value="${index}" ${index === 2 ? 'selected' : ''}>${day}</option>`).join('')}</select></label><label data-schedule-monthday hidden>Day of month<input name="scheduleDayOfMonth" type="number" min="1" max="31" value="1" /></label></div><small>Choose a date from the calendar. Turn on repeat for a weekly or monthly announcement in Cairo time.</small></div></fieldset>${announcementNotificationFields(record)}<label class="announcement-visibility"><input type="hidden" name="hidden" value="false" /><input type="checkbox" name="hidden" value="true" ${record.hidden === true || record.hidden === 'true' ? 'checked' : ''} /><span><b>Hide from employees</b><small>Keep this announcement in Administration, but remove it from employee pages until you make it visible again.</small></span></label>`);
     root.querySelector('.form-actions')?.insertAdjacentHTML('afterbegin', '<button class="action-button secondary" type="button" data-save-announcement-template>Save as template</button>');
+    const delivery = root.querySelector('.announcement-delivery');
+    if (delivery) root.querySelector('[data-editor="announcements"] h3')?.after(delivery);
     root.querySelectorAll('.list-row').forEach((row, index) => { if (dashboard.announcements[index]?.hidden === true || dashboard.announcements[index]?.hidden === 'true') row.querySelector('span')?.insertAdjacentHTML('beforeend', '<small class="hidden-announcement-status">Hidden from employees</small>'); });
   }
   if (page.key === 'sessions') enhanceKnowledgeSessionEditor(root);
@@ -1368,18 +1380,46 @@ function renderPeople() { renderContentPage('people'); }
 function renderApps() { renderContentPage('apps'); }
 function renderNotificationsSettings() {
   const root = $('#view-notifications');
-  root.innerHTML = '<p class="view-intro">Loading email delivery settings…</p>';
+  root.innerHTML = '<p class="view-intro" role="status">Loading notification settings…</p>';
   api('/api/admin/notifications').then(settings => {
-    root.innerHTML = `<div class="access-page-heading"><div><h1>Notifications</h1><p>Control announcement email delivery from <b>${escapeHtml(settings.sender)}</b>. The Gmail app password is encrypted on the server and is never shown here.</p></div></div><article class="panel"><form id="notification-settings-form"><h2>Email delivery</h2><p class="notice ${settings.encryptionReady ? '' : 'warning'}">${settings.encryptionReady ? (settings.appPasswordConfigured ? 'A Gmail app password is securely configured.' : 'No Gmail app password is configured yet.') : 'The server is missing NOTIFICATION_SECRET_KEY. Add it on Ubuntu before saving an app password.'}</p><label class="announcement-visibility"><input type="checkbox" name="emailEnabled" value="true" ${settings.emailEnabled ? 'checked' : ''} ${settings.encryptionReady ? '' : 'disabled'} /><span><b>Enable announcement email</b><small>Only announcements with “Send email” turned on and at least one To recipient will be delivered.</small></span></label><label>Gmail app password<input name="appPassword" type="password" autocomplete="new-password" placeholder="${settings.appPasswordConfigured ? 'Leave blank to keep the saved password' : 'Paste the Gmail app password'}" ${settings.encryptionReady ? '' : 'disabled'} /><small>Use a Gmail App Password for intranet@si-ware.com, not the normal mailbox password.</small></label>${settings.appPasswordConfigured ? '<label class="announcement-visibility"><input type="checkbox" name="clearAppPassword" value="true" /><span><b>Remove saved app password</b><small>This immediately prevents future email delivery until a new app password is saved.</small></span></label>' : ''}<div class="form-actions"><button class="action-button primary" ${settings.encryptionReady ? '' : 'disabled'}>Save notification settings</button></div><p class="notice warning" data-notification-settings-error hidden></p></form></article>`;
-    root.querySelector('form').addEventListener('submit', async event => {
+    root.innerHTML = `<div class="notification-settings">
+      <header class="notification-settings__intro"><h2>Announcement delivery</h2><p>Set the channels available for all announcements and what starts selected on new announcements.</p></header>
+      <form id="notification-settings-form" class="notification-settings__form">
+        <section class="notification-settings__section" aria-labelledby="notification-in-app-title">
+          <div class="notification-settings__section-heading"><h3 id="notification-in-app-title">In-app notifications</h3><span class="notification-settings__state ${settings.inAppEnabled === false ? 'is-off' : 'is-on'}">${settings.inAppEnabled === false ? 'Off' : 'On'}</span></div>
+          <label class="notification-settings__choice"><input type="checkbox" name="inAppEnabled" value="true" ${settings.inAppEnabled !== false ? 'checked' : ''} /><span><strong>Enable bell notifications</strong><small>Turn this off to hide announcement alerts for every employee.</small></span></label>
+          <label class="notification-settings__choice is-default"><input type="checkbox" name="inAppDefaultEnabled" value="true" ${settings.inAppDefaultEnabled !== false ? 'checked' : ''} /><span><strong>Selected by default on new announcements</strong><small>Editors can still choose recipients or turn off the bell for an announcement.</small></span></label>
+        </section>
+        <section class="notification-settings__section" aria-labelledby="notification-email-title">
+          <div class="notification-settings__section-heading"><h3 id="notification-email-title">Email delivery</h3><span class="notification-settings__state ${settings.emailEnabled ? 'is-on' : 'is-off'}">${settings.emailEnabled ? 'On' : 'Off'}</span></div>
+          <p class="notification-settings__from">From <strong>${escapeHtml(settings.sender)}</strong></p>
+          <label class="notification-settings__choice"><input type="checkbox" name="emailEnabled" value="true" ${settings.emailEnabled ? 'checked' : ''} /><span><strong>Enable announcement email</strong><small>Only announcements marked for email with a To recipient will send.</small></span></label>
+          <label class="notification-settings__choice is-default"><input type="checkbox" name="emailDefaultEnabled" value="true" ${settings.emailDefaultEnabled ? 'checked' : ''} /><span><strong>Selected by default on new announcements</strong><small>Editors enter the To, CC, and BCC recipients before publishing.</small></span></label>
+          <div class="notification-settings__credentials"><label for="notification-app-password">Gmail app password</label><div class="notification-settings__password"><input id="notification-app-password" name="appPassword" type="password" autocomplete="new-password" minlength="12" placeholder="${settings.appPasswordConfigured ? 'Leave blank to keep the saved password' : 'Enter the app password for this mailbox'}" ${settings.encryptionReady ? '' : 'disabled'} /><button type="button" data-notification-password-toggle aria-label="Show app password" aria-pressed="false" ${settings.encryptionReady ? '' : 'disabled'}>Show</button></div><p class="notification-settings__credential-status ${settings.encryptionReady ? '' : 'is-warning'}" role="status">${settings.encryptionReady ? (settings.appPasswordConfigured ? 'App password saved. Enter a new one only to replace it.' : 'No app password saved yet.') : 'Set NOTIFICATION_SECRET_KEY on the server to save an app password.'}</p></div>
+          ${settings.appPasswordConfigured ? '<label class="notification-settings__choice is-remove"><input type="checkbox" name="clearAppPassword" value="true" /><span><strong>Remove saved app password</strong><small>Future email delivery will stop until you enter a new one.</small></span></label>' : ''}
+        </section>
+        <p class="notification-settings__error" data-notification-settings-error role="alert" hidden></p>
+        <div class="notification-settings__actions"><button class="action-button primary" type="submit">Save notification settings</button></div>
+      </form>
+    </div>`;
+    const form = root.querySelector('form');
+    form.querySelector('[data-notification-password-toggle]')?.addEventListener('click', event => {
+      const button = event.currentTarget, input = form.elements.appPassword, visible = input.type === 'password';
+      input.type = visible ? 'text' : 'password'; button.textContent = visible ? 'Hide' : 'Show'; button.setAttribute('aria-label', `${visible ? 'Hide' : 'Show'} app password`); button.setAttribute('aria-pressed', String(visible));
+    });
+    form.elements.clearAppPassword?.addEventListener('change', event => {
+      form.elements.appPassword.disabled = event.target.checked || !settings.encryptionReady;
+      if (event.target.checked) { form.elements.appPassword.value = ''; form.elements.emailEnabled.checked = false; }
+    });
+    form.addEventListener('submit', async event => {
       event.preventDefault();
       const form = event.currentTarget, error = form.querySelector('[data-notification-settings-error]'), submit = form.querySelector('[type="submit"]');
-      error.hidden = true; submit.disabled = true;
+      error.hidden = true; submit.disabled = true; submit.textContent = 'Saving…';
       try {
         const values = new FormData(form);
-        await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ emailEnabled:values.get('emailEnabled') === 'true', appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
+        await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppDefaultEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailDefaultEnabled') === 'true', appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
         flash('Notification settings saved.'); renderNotificationsSettings();
-      } catch (reason) { error.textContent = reason.message || 'Notification settings could not be saved.'; error.hidden = false; submit.disabled = false; }
+      } catch (reason) { error.textContent = reason.message || 'Notification settings could not be saved.'; error.hidden = false; submit.disabled = false; submit.textContent = 'Save notification settings'; }
     });
   }).catch(error => { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message || 'Notification settings could not be loaded.')}</p>`; });
 }
@@ -1969,11 +2009,12 @@ function applyTemplatePublicationSettings(form, template) {
   syncAnnouncementRepeatOptions(form);
 }
 function applyAnnouncementNotificationFields(form, notification = {}) {
+  const defaults = dashboard?.notificationDefaults || {};
   const setValue = (name, value) => { const field = form.elements.namedItem(name); if (field) field.value = Array.isArray(value) ? value.join(', ') : String(value || ''); };
   const setChecked = (name, checked) => { const field = form.elements.namedItem(name); if (field) field.checked = checked; };
-  setChecked('notificationInAppEnabled', notification.inAppEnabled !== false);
+  setChecked('notificationInAppEnabled', notification.inAppEnabled ?? (defaults.inAppEnabled !== false && defaults.inAppDefaultEnabled !== false));
   setValue('notificationInAppRecipients', notification.inAppRecipients);
-  setChecked('notificationEmailEnabled', notification.emailEnabled === true || notification.emailEnabled === 'true');
+  setChecked('notificationEmailEnabled', notification.emailEnabled ?? (defaults.emailEnabled === true && defaults.emailDefaultEnabled === true));
   setValue('notificationEmailTo', notification.to); setValue('notificationEmailCc', notification.cc); setValue('notificationEmailBcc', notification.bcc);
 }
 document.addEventListener('click', event => {

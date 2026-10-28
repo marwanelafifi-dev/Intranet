@@ -144,7 +144,7 @@ const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ')
 const emailAddress = value => String(value || '').trim().toLowerCase();
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const notificationEmailList = value => [...new Set((Array.isArray(value) ? value : String(value || '').split(/[\n,;]/)).map(emailAddress).filter(isEmailAddress))].slice(0, 250);
-const defaultNotificationSettings = () => ({ emailEnabled:false, sender:notificationSender });
+const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, emailEnabled:false, emailDefaultEnabled:false, sender:notificationSender });
 const notificationSettings = data => ({ ...defaultNotificationSettings(), ...(data.adminSettings?.notificationSettings || {}) });
 const normaliseAnnouncementNotification = value => {
   const item = value && typeof value === 'object' ? value : {};
@@ -155,17 +155,18 @@ const normaliseAnnouncementNotification = value => {
     to:notificationEmailList(item.to),
     cc:notificationEmailList(item.cc),
     bcc:notificationEmailList(item.bcc),
-    emailDeliveryState:['sent','failed'].includes(item.emailDeliveryState) ? item.emailDeliveryState : '',
+    emailDeliveryState:['sent','failed','skipped'].includes(item.emailDeliveryState) ? item.emailDeliveryState : '',
     emailSentAt:item.emailSentAt ? String(item.emailSentAt) : '',
     emailError:item.emailError ? safeText(item.emailError).slice(0, 240) : ''
   };
 };
-const publicAnnouncementNotification = (value, actor) => {
+const publicAnnouncementNotification = (value, actor, data) => {
   const notification = normaliseAnnouncementNotification(value);
+  const enabled = notificationSettings(data).inAppEnabled !== false && notification.inAppEnabled;
   const email = emailAddress(actor?.email);
   return {
-    inAppEnabled:notification.inAppEnabled,
-    inAppVisible:notification.inAppEnabled && (!notification.inAppRecipients.length || notification.inAppRecipients.includes(email))
+    inAppEnabled:enabled,
+    inAppVisible:enabled && (!notification.inAppRecipients.length || notification.inAppRecipients.includes(email))
   };
 };
 async function notificationSecrets() {
@@ -254,7 +255,7 @@ async function deliverAnnouncementEmail(data, announcement) {
   const notification = normaliseAnnouncementNotification(announcement.notification);
   if (announcement.hidden === true || announcement.hidden === 'true' || !notification.emailEnabled || notification.emailDeliveryState || !notification.to.length) return false;
   const settings = notificationSettings(data);
-  if (!settings.emailEnabled) { announcement.notification = { ...notification, emailDeliveryState:'failed', emailError:'Email delivery is disabled in Administration > Notifications.' }; return true; }
+  if (!settings.emailEnabled) { announcement.notification = { ...notification, emailDeliveryState:'skipped', emailError:'Email delivery was disabled when this announcement published.' }; return true; }
   const secrets = await notificationSecrets();
   let password = '';
   try { password = decryptNotificationSecret(secrets.gmailAppPassword); }
@@ -469,8 +470,9 @@ function dashboardResponse(data, actor, admin = false) {
     return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
   }));
   if (Object.hasOwn(visible, 'events') && (!admin || !can(data, actor, 'page.events'))) visible.events = publicEvents(visible.events);
-  if (!admin && Array.isArray(visible.announcements)) visible.announcements = visible.announcements.map(announcement => ({ ...announcement, notification:publicAnnouncementNotification(announcement.notification, actor) }));
-  return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
+  if (!admin && Array.isArray(visible.announcements)) visible.announcements = visible.announcements.map(announcement => ({ ...announcement, notification:publicAnnouncementNotification(announcement.notification, actor, data) }));
+  const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled }; })() : undefined;
+  return { ...visible, ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
   const changedKeys = Object.keys(next).filter(key => adminContentKeyPages[key] && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
@@ -1100,14 +1102,21 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req), appPassword = String(body.appPassword || '').replace(/\s+/g, '');
       if (appPassword && (appPassword.length < 12 || appPassword.length > 160)) return json(res, 422, { error:'Enter a valid Gmail app password.' });
       const secrets = await notificationSecrets();
-      if (body.clearAppPassword === true) { delete secrets.gmailAppPassword; await unlink(notificationSecretsFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
-      if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }
+      if (body.clearAppPassword === true && appPassword) return json(res, 422, { error:'Choose either a new app password or remove the saved one.' });
+      if (appPassword && !notificationEncryptionKey) return json(res, 422, { error:'Set NOTIFICATION_SECRET_KEY on the server before saving an app password.' });
       const configured = Boolean(appPassword || (body.clearAppPassword !== true && secrets.gmailAppPassword));
       const emailEnabled = body.emailEnabled === true;
+      if (emailEnabled && !notificationEncryptionKey) return json(res, 422, { error:'Set NOTIFICATION_SECRET_KEY on the server before enabling email delivery.' });
       if (emailEnabled && !configured) return json(res, 422, { error:'Save a Gmail app password before enabling email delivery.' });
-      data.adminSettings.notificationSettings = { ...notificationSettings(data), emailEnabled, sender:notificationSender, updatedAt:new Date().toISOString() };
+      if (body.clearAppPassword === true) { delete secrets.gmailAppPassword; await unlink(notificationSecretsFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
+      if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }
+      const current = notificationSettings(data);
+      const inAppEnabled = typeof body.inAppEnabled === 'boolean' ? body.inAppEnabled : current.inAppEnabled;
+      const inAppDefaultEnabled = typeof body.inAppDefaultEnabled === 'boolean' ? body.inAppDefaultEnabled : current.inAppDefaultEnabled;
+      const emailDefaultEnabled = typeof body.emailDefaultEnabled === 'boolean' ? body.emailDefaultEnabled : current.emailDefaultEnabled;
+      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, sender:notificationSender, updatedAt:new Date().toISOString() };
       data._version += 1;
-      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ emailEnabled, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
+      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
       await save(data);
       return json(res, 200, await notificationStatus(data));
     }
