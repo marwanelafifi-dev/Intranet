@@ -263,6 +263,32 @@ test('administration routes enforce page, publishing, import, deletion, and audi
   }
 });
 
+test('a limited People editor can save Our Team without being blocked by non-editable event data', async () => {
+  const permissions = ['intranet.home', 'intranet.people', 'intranet.announcements', 'admin.access', 'content.edit', 'content.publish', 'page.content', 'page.people', 'page.announcements'];
+  const server = await startIsolatedServer({ demoRole:'PEOPLE_TEAM', permissions });
+  try {
+    const dashboardResponse = await fetch(`${server.origin}/api/admin/dashboard`);
+    assert.equal(dashboardResponse.status, 200);
+    const dashboard = await dashboardResponse.json();
+    assert.equal(Object.hasOwn(dashboard, 'newMembers'), true);
+    assert.equal(Object.hasOwn(dashboard, 'announcements'), true);
+    assert.equal(Object.hasOwn(dashboard, 'events'), false);
+
+    const changed = {
+      ...dashboard,
+      newMembers:[...(dashboard.newMembers || []), { id:'people-editor-test', name:'People Editor Test', companyEmail:'people.editor.test@si-ware.com' }]
+    };
+    const saved = await fetch(`${server.origin}/api/admin/dashboard`, {
+      method:'PATCH',
+      headers:{ 'content-type':'application/json' },
+      body:JSON.stringify({ version:dashboard._version, data:changed })
+    });
+    assert.equal(saved.status, 200);
+  } finally {
+    await stopIsolatedServer(server);
+  }
+});
+
 test('intranet page permissions block direct routes and restricted employee content', async () => {
   const server = await startIsolatedServer();
   try {

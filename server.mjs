@@ -319,13 +319,17 @@ function eventPrivateDetails(data, actor, eventId) {
   };
 }
 function dashboardResponse(data, actor, admin = false) {
-  const keys = admin ? new Set([...employeeDashboardKeys, ...adminContentKeys.filter(key =>
+  // An Administration response must contain only the content this role can edit.
+  // Employee dashboard data (notably redacted calendar events) is not a safe
+  // round-trip payload for a limited editor: it can differ from stored data and
+  // be mistaken for an unauthorized change when another page is saved.
+  const keys = admin ? new Set(['_version', ...adminContentKeys.filter(key =>
     adminContentKeyPages[key]?.some(permission => can(data, actor, permission)))]) : employeeDashboardKeys;
   const visible = Object.fromEntries(Object.entries(data).filter(([key]) => keys.has(key)).map(([key, value]) => {
     const required = intranetContentPermissions[key];
     return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
   }));
-  if (Object.hasOwn(visible, 'events')) visible.events = publicEvents(visible.events);
+  if (Object.hasOwn(visible, 'events') && (!admin || !can(data, actor, 'page.events'))) visible.events = publicEvents(visible.events);
   return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
