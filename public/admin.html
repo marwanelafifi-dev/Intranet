@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Si-Ware | Global Intranet</title>
+    <style>body.admin-loading .admin-shell,body.admin-loading .admin-global-actions{visibility:hidden}</style>
     <link rel="icon" type="image/png" href="/Icon.png" />
     <link rel="stylesheet" href="/admin.css" />
     <link rel="stylesheet" href="/admin-global-pages.css" />
@@ -24,9 +25,9 @@
     <link rel="stylesheet" href="/google-sync-settings.css?v=20261022-ou-picker" />
     <link rel="stylesheet" href="/admin-dark-finish.css?v=20261024-dark-mode-consistency" />
     <script src="/theme.js?v=20261017-admin-theme-sync" defer></script>
-    <script type="module" src="/admin.js?v=20261027-first-view-editor"></script>
+    <script type="module" src="/admin.js?v=20261028-permission-safe-load"></script>
   </head>
-  <body>
+  <body class="admin-loading" aria-busy="true">
     <a class="skip" href="#admin-main">Skip to content</a>
     <header class="admin-global-header">
       <a class="admin-global-brand" href="/" aria-label="Si-Ware intranet home"><img src="/siware-logo.png" alt="Si-Ware Systems" /><span>INTRANET</span></a>

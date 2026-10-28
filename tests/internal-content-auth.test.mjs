@@ -53,6 +53,7 @@ test('employee Home exposes permitted Administration entry points without the le
   const script = await readFile(join(projectRoot, 'public', 'app.js'), 'utf8');
   const sharedNav = await readFile(join(projectRoot, 'public', 'destination-nav.js'), 'utf8');
   const adminHtml = await readFile(join(projectRoot, 'public', 'admin.html'), 'utf8');
+  const adminScript = await readFile(join(projectRoot, 'public', 'admin.js'), 'utf8');
   assert.match(html, /id="admin-panel-link" href="\/admin\.html" hidden/);
   assert.doesNotMatch(html, /id="admin-view-link"|Admin view|Employee view/);
   assert.doesNotMatch(sharedNav, /data-admin-menu-link|Admin view|Employee view/);
@@ -61,6 +62,9 @@ test('employee Home exposes permitted Administration entry points without the le
   assert.doesNotMatch(html, /id="cms-panel"|id="cms-toggle"|id="content-form"/);
   assert.match(script, /function applyLayout\(\)/);
   assert.doesNotMatch(script, /\/api\/admin\/dashboard|\/api\/uploads|function saveDashboard\(/);
+  assert.match(adminHtml, /<body class="admin-loading" aria-busy="true">/);
+  assert.match(adminScript, /document\.body\.classList\.remove\('admin-loading'\)/);
+  assert.match(adminScript, /profilePhotoUrl = key === 'newMembers' \? await uploadEmployeeProfilePhoto\(photo\) : ''/);
 });
 
 test('role editor separates intranet pages from Admin Panel editing access', async () => {
