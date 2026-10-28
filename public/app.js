@@ -533,12 +533,18 @@ function memberContactIcon(type) {
   };
   return icons[type] || '';
 }
+const memberContactCopyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="8" y="8" width="11" height="11" rx="1.5"></rect><path d="M16 8V5.8A1.8 1.8 0 0 0 14.2 4H5.8A1.8 1.8 0 0 0 4 5.8v8.4A1.8 1.8 0 0 0 5.8 16H8"></path></svg>';
+function compactMemberContact({ type, value, href, label, name, external = false }) {
+  const safeValue = escapeHtml(value);
+  const externalAttributes = external ? ' target="_blank" rel="noopener noreferrer"' : '';
+  return `<span class="member-contact-item"><a class="member-contact-icon" href="${escapeHtml(href)}"${externalAttributes} aria-label="${escapeHtml(label)} ${escapeHtml(name)}" title="${escapeHtml(label)} ${escapeHtml(name)}">${memberContactIcon(type)}<span class="sr-only">${escapeHtml(label)}</span></a><span class="member-contact-popover" role="tooltip"><span class="member-contact-value">${safeValue}</span><button type="button" class="member-contact-copy" data-copy-contact="${safeValue}" aria-label="Copy ${escapeHtml(label.toLowerCase())} for ${escapeHtml(name)}">${memberContactCopyIcon}<span>Copy</span></button></span></span>`;
+}
 function compactMemberContacts(member) {
-  const links = [], name = escapeHtml(member.name);
-  if (member.companyEmail) links.push(`<a class="member-contact-icon" href="mailto:${escapeHtml(member.companyEmail)}" aria-label="Email ${name}">${memberContactIcon('email')}<span class="sr-only">Email</span></a>`);
-  if (member.phone) links.push(`<a class="member-contact-icon" href="tel:${escapeHtml(String(member.phone).replace(/[^+\d().\-\s]/g, ''))}" aria-label="Call ${name}">${memberContactIcon('phone')}<span class="sr-only">Phone</span></a>`);
-  if (/^https?:\/\/(?:[\w-]+\.)*linkedin\.com\//i.test(String(member.linkedinUrl || ''))) links.push(`<a class="member-contact-icon" href="${escapeHtml(member.linkedinUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${name}'s LinkedIn profile">${memberContactIcon('linkedin')}<span class="sr-only">LinkedIn</span></a>`);
-  return links.length ? `<nav class="member-contact-links member-contact-links-compact" aria-label="Contact ${name}">${links.join('')}</nav>` : '';
+  const links = [], name = String(member.name || 'this colleague');
+  if (member.companyEmail) links.push(compactMemberContact({ type:'email', value:member.companyEmail, href:`mailto:${member.companyEmail}`, label:'Email', name }));
+  if (member.phone) links.push(compactMemberContact({ type:'phone', value:member.phone, href:`tel:${String(member.phone).replace(/[^+\d().\-\s]/g, '')}`, label:'Call', name }));
+  if (/^https?:\/\/(?:[\w-]+\.)*linkedin\.com\//i.test(String(member.linkedinUrl || ''))) links.push(compactMemberContact({ type:'linkedin', value:member.linkedinUrl, href:member.linkedinUrl, label:'LinkedIn', name, external:true }));
+  return links.length ? `<nav class="member-contact-links member-contact-links-compact" aria-label="Contact ${escapeHtml(name)}">${links.join('')}</nav>` : '';
 }
 function latestDirectoryMembers() {
   return [...state.newMembers].sort((a, b) => (Date.parse(b.googleCreatedAt) || 0) - (Date.parse(a.googleCreatedAt) || 0) || String(a.name || '').localeCompare(String(b.name || ''))).slice(0, 2);
@@ -679,6 +685,18 @@ function setupExploreNudge() {
 function attachmentFilename(url) { const file = String(url || '').split('/').pop() || ''; return decodeURIComponent(file).replace(/-\d{10,}(\.[^.]+)$/i, '$1'); }
 function setupEvents() {
   $('#new-member-list').addEventListener('click', event => {
+    const copy = event.target.closest('[data-copy-contact]');
+    if (copy) {
+      event.preventDefault();
+      event.stopPropagation();
+      const value = copy.dataset.copyContact || '';
+      const fallback = () => { const input = document.createElement('textarea'); input.value = value; input.setAttribute('readonly', ''); input.style.position = 'fixed'; input.style.opacity = '0'; document.body.append(input); input.select(); document.execCommand('copy'); input.remove(); };
+      Promise.resolve(navigator.clipboard?.writeText ? navigator.clipboard.writeText(value) : fallback()).catch(fallback).finally(() => {
+        const label = copy.querySelector('span');
+        if (label) { label.textContent = 'Copied'; setTimeout(() => { label.textContent = 'Copy'; }, 1400); }
+      });
+      return;
+    }
     const trigger = event.target.closest('[data-member-profile]');
     if (!trigger) return;
     const member = state.newMembers.find(item => String(item.id) === trigger.dataset.memberProfile);
