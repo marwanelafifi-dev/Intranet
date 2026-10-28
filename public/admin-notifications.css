@@ -186,6 +186,38 @@
 .notification-settings__credential-status.is-warning {
   color: var(--danger);
 }
+.notification-settings__check {
+  margin-top: 14px;
+}
+.notification-settings__check:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.announcement-email-origin {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 16px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.announcement-email-origin strong {
+  color: var(--blue);
+  font-size: 12px;
+}
+.announcement-email-origin span {
+  font-size: 14px;
+  font-weight: 800;
+}
+.announcement-email-origin small,
+.announcement-email-origin-list {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .notification-settings__error {
   margin: 0 28px 15px;
   padding: 12px 14px;
@@ -325,6 +357,9 @@ html.dark .notification-settings__password button:hover:not(:disabled) {
     padding: 17px 18px 20px;
   }
   .notification-settings__actions button {
+    width: 100%;
+  }
+  .notification-settings__check {
     width: 100%;
   }
   .notification-settings__error {

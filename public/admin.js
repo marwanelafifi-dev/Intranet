@@ -1238,6 +1238,7 @@ function announcementNotificationFields(record = {}) {
   const inAppAvailable = defaults.inAppEnabled !== false;
   const emailAvailable = defaults.emailEnabled === true;
   const groups = Array.isArray(defaults.approvedGroups) ? defaults.approvedGroups : [];
+  if (record.source?.type === 'group-email') return `<fieldset class="announcement-delivery"><legend>Google Group audience</legend><div class="announcement-delivery__channel"><strong>${escapeHtml(record.source.group)}</strong><span>${inAppAvailable ? 'In-app bell enabled' : 'In-app bell disabled in Notifications'}</span></div><input type="hidden" name="notificationAudienceGroup" value="${escapeHtml(record.source.group)}" /><p class="announcement-delivery__notice">The original email was already delivered. Publishing this item will show it only to members of this group and will not send another email.</p></fieldset>`;
   const selectedGroup = groups.includes(notification.audienceGroup) ? notification.audienceGroup : groups.includes(notification.to?.[0]) ? notification.to[0] : record.id ? '' : defaults.defaultGroup || '';
   const emails = name => Array.isArray(notification[name]) ? notification[name].join(', ') : '';
   return `<fieldset class="announcement-delivery"><legend>Notification delivery</legend>
@@ -1265,7 +1266,7 @@ function renderContentPage(view) {
   if (view === 'newsi') { renderNewSi(); return; }
   if (page.key === 'events') dashboard.events.forEach((event, index) => { event.id ||= `event-seed-${index}`; });
   const root = $(`#view-${view}`);
-  root.innerHTML = `<p class="view-intro">${page.description} Changes publish to the employee intranet after you save.</p>${renderCollection(page.key)}`;
+  root.innerHTML = `<p class="view-intro">${page.description} ${page.key === 'announcements' ? 'Imported group emails stay hidden until you publish them.' : 'Changes publish to the employee intranet after you save.'}</p>${renderCollection(page.key)}`;
   if (page.key === 'announcements') {
     const record = dashboard.announcements.find(item => item.id === editingRecord.announcements) || {};
     root.querySelector('.collection-layout > .list')?.insertAdjacentHTML('beforeend', `${announcementScheduleRows()}${announcementTemplateRows()}`);
@@ -1273,7 +1274,20 @@ function renderContentPage(view) {
     root.querySelector('.form-actions')?.insertAdjacentHTML('afterbegin', '<button class="action-button secondary" type="button" data-save-announcement-template>Save as template</button>');
     const delivery = root.querySelector('.announcement-delivery');
     if (delivery) root.querySelector('[data-editor="announcements"] h3')?.after(delivery);
+    if (record.source?.type === 'group-email') {
+      root.querySelector('[data-editor="announcements"] h3')?.insertAdjacentHTML('afterend', `<p class="announcement-email-origin"><strong>Sent from Email Account</strong><span>${escapeHtml(record.source.fromEmail)}</span><small>Received for ${escapeHtml(record.source.group)}. Review the content before making it visible.</small>${record.source.hasAttachments ? '<small>The original email has attachments. Add the required files below before publishing; email attachments are not copied automatically.</small>' : ''}</p>`);
+      root.querySelector('[name="deliveryMode"][value="scheduled"]')?.closest('label')?.setAttribute('hidden', '');
+      root.querySelector('[data-save-announcement-template]')?.remove();
+      const visibility = root.querySelector('.announcement-visibility input[name="hidden"][type="checkbox"]')?.closest('label');
+      if (visibility) visibility.querySelector('span').innerHTML = '<b>Keep hidden until approved</b><small>Uncheck to publish this email to the selected Google Group and send an in-app bell when enabled.</small>';
+    }
     root.querySelectorAll('.list-row').forEach((row, index) => { if (dashboard.announcements[index]?.hidden === true || dashboard.announcements[index]?.hidden === 'true') row.querySelector('span')?.insertAdjacentHTML('beforeend', '<small class="hidden-announcement-status">Hidden from employees</small>'); });
+    root.querySelectorAll('.collection-layout > .list > .list-row').forEach((row, index) => {
+      const item = dashboard.announcements[index];
+      if (item?.source?.type !== 'group-email') return;
+      row.querySelector('span')?.insertAdjacentHTML('beforeend', `<small class="announcement-email-origin-list">Sent from Email Account · ${escapeHtml(item.source.fromEmail)} · ${escapeHtml(item.source.group)}</small>`);
+      row.querySelector('.row-actions')?.insertAdjacentHTML('afterbegin', `<button class="tool-button" type="button" data-toggle-email-visibility="${escapeHtml(item.id)}">${item.hidden === true || item.hidden === 'true' ? 'Publish' : 'Hide'}</button>`);
+    });
   }
   if (page.key === 'sessions') enhanceKnowledgeSessionEditor(root);
   if (page.key === 'moments') enhanceMomentEditor(root);
@@ -1405,6 +1419,13 @@ function renderNotificationsSettings() {
           <div class="notification-settings__section-heading"><h3 id="notification-in-app-title">In-app notifications</h3><span class="notification-settings__state ${settings.inAppEnabled === false ? 'is-off' : 'is-on'}">${settings.inAppEnabled === false ? 'Off' : 'On'}</span></div>
           <label class="notification-settings__choice"><input type="checkbox" name="inAppEnabled" value="true" ${settings.inAppEnabled !== false ? 'checked' : ''} /><span><strong>Enable bell notifications</strong><small>When enabled, new announcements alert members of their selected Google Group.</small></span></label>
         </section>
+        <section class="notification-settings__section" aria-labelledby="notification-inbox-title">
+          <div class="notification-settings__section-heading"><h3 id="notification-inbox-title">Incoming group email</h3><span class="notification-settings__state ${settings.inboundEmailEnabled ? 'is-on' : 'is-off'}">${settings.inboundEmailEnabled ? 'On' : 'Off'}</span></div>
+          <p class="notification-settings__from">Read from <strong>intranet@si-ware.com</strong>. Add this mailbox as a member of each approved Google Group so it receives a copy.</p>
+          <label class="notification-settings__choice"><input type="checkbox" name="inboundEmailEnabled" value="true" ${settings.inboundEmailEnabled ? 'checked' : ''} /><span><strong>Import new group emails for review</strong><small>Messages sent to approved groups arrive hidden in Announcements. An editor reviews and publishes each one for that group's members. Publishing creates an in-app bell when enabled and does not resend the original email.</small></span></label>
+          <p class="notification-settings__credential-status ${settings.inboundStatus?.lastError ? 'is-warning' : ''}" role="status">${settings.inboundStatus?.lastError ? escapeHtml(settings.inboundStatus.lastError) : settings.inboundStatus?.lastSuccessAt ? `Last inbox check: ${escapeHtml(cairo(settings.inboundStatus.lastSuccessAt))}. ${Number(settings.inboundStatus.imported) || 0} new item(s) on that check.` : 'No inbox check has completed yet.'}</p>
+          <button class="action-button secondary notification-settings__check" type="button" data-check-group-inbox ${settings.inboundEmailEnabled ? '' : 'disabled'}>Check inbox now</button>
+        </section>
         <section class="notification-settings__section" aria-labelledby="notification-email-title">
           <div class="notification-settings__section-heading"><h3 id="notification-email-title">Email delivery</h3><span class="notification-settings__state ${settings.emailEnabled ? 'is-on' : 'is-off'}">${settings.emailEnabled ? 'On' : 'Off'}</span></div>
           <p class="notification-settings__from">From <strong>${escapeHtml(settings.sender)}</strong></p>
@@ -1431,10 +1452,25 @@ function renderNotificationsSettings() {
       error.hidden = true; submit.disabled = true; submit.textContent = 'Saving…';
       try {
         const values = new FormData(form);
-        const saved = await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailEnabled') === 'true', approvedGroups:String(values.get('approvedGroups') || ''), defaultGroup:String(values.get('defaultGroup') || ''), appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
+        const saved = await api('/api/admin/notifications', { method:'PATCH', body:JSON.stringify({ inAppEnabled:values.get('inAppEnabled') === 'true', inAppDefaultEnabled:values.get('inAppEnabled') === 'true', emailEnabled:values.get('emailEnabled') === 'true', emailDefaultEnabled:values.get('emailEnabled') === 'true', inboundEmailEnabled:values.get('inboundEmailEnabled') === 'true', approvedGroups:String(values.get('approvedGroups') || ''), defaultGroup:String(values.get('defaultGroup') || ''), appPassword:String(values.get('appPassword') || ''), clearAppPassword:values.get('clearAppPassword') === 'true' }) });
         dashboard.notificationDefaults = { inAppEnabled:saved.inAppEnabled, inAppDefaultEnabled:saved.inAppDefaultEnabled, emailEnabled:saved.emailEnabled, emailDefaultEnabled:saved.emailDefaultEnabled, approvedGroups:saved.approvedGroups, defaultGroup:saved.defaultGroup };
         flash('Notification settings saved.'); renderNotificationsSettings();
       } catch (reason) { error.textContent = reason.message || 'Notification settings could not be saved.'; error.hidden = false; submit.disabled = false; submit.textContent = 'Save notification settings'; }
+    });
+    root.querySelector('[data-check-group-inbox]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.disabled = true; button.textContent = 'Checking inbox…';
+      try {
+        const status = await api('/api/admin/notifications/import', { method:'POST' });
+        dashboard = await api('/api/admin/dashboard'); savedDashboard = structuredClone(dashboard);
+        summary = await api('/api/admin/summary').catch(() => summary);
+        flash(`${status.imported || 0} new group email announcement(s) added for review.`);
+        renderAllowedAdminViews(); renderNotificationsSettings();
+      } catch (reason) {
+        const error = root.querySelector('[data-notification-settings-error]');
+        if (error) { error.textContent = reason.message || 'The inbox could not be checked.'; error.hidden = false; }
+        button.disabled = false; button.textContent = 'Check inbox now';
+      }
     });
   }).catch(error => { root.innerHTML = `<p class="notice warning">${escapeHtml(error.message || 'Notification settings could not be loaded.')}</p>`; });
 }
@@ -2039,6 +2075,7 @@ document.addEventListener('click', event => {
   window.setTimeout(() => applyTemplatePublicationSettings(form, template), 0);
 }, true);
 document.addEventListener('change', event => { const form = event.target.closest('[data-editor="announcements"]'); if (!form) return; if (event.target.matches('[name="scheduleDayOfWeek"]')) event.target.dataset.userSelected = 'true'; if (event.target.matches('[name="notificationAudienceGroup"]')) syncAnnouncementGroup(form); syncAnnouncementRepeatOptions(form); });
+document.addEventListener('click', async event => { const button = event.target.closest('[data-toggle-email-visibility]'); if (!button) return; const item = dashboard.announcements?.find(record => record.id === button.dataset.toggleEmailVisibility); if (item?.source?.type !== 'group-email') return; button.disabled = true; const wasHidden = item.hidden === true || item.hidden === 'true'; item.hidden = !wasHidden; await saveDashboard(wasHidden ? 'Email announcement published to its Google Group.' : 'Email announcement hidden from employees.'); });
 document.addEventListener('click', async event => { const action = event.target.closest('[data-toggle-announcement-schedule], [data-remove-announcement-schedule]'); if (!action) return; const id = action.dataset.toggleAnnouncementSchedule || action.dataset.removeAnnouncementSchedule, schedule = dashboard.announcementSchedules?.find(item => item.id === id); if (!schedule) return; if (action.dataset.removeAnnouncementSchedule) { dashboard.announcementSchedules = dashboard.announcementSchedules.filter(item => item.id !== id); await saveDashboard('Announcement schedule removed.'); } else { schedule.enabled = !schedule.enabled; await saveDashboard(`Announcement schedule ${schedule.enabled ? 'resumed' : 'paused'}.`); } });
 document.addEventListener('click', async event => { const use = event.target.closest('[data-use-announcement-template]'), remove = event.target.closest('[data-remove-announcement-template]'); if (!use && !remove) return; const id = (use || remove).dataset.useAnnouncementTemplate || (use || remove).dataset.removeAnnouncementTemplate, template = dashboard.announcementTemplates?.find(item => item.id === id); if (!template) return; if (remove) { dashboard.announcementTemplates = dashboard.announcementTemplates.filter(item => item.id !== id); await saveDashboard('Announcement template removed.'); return; } const form = document.querySelector('[data-editor="announcements"]'); if (!form) return; delete form.dataset.editAnnouncementTemplate; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); applyAnnouncementNotificationFields(form, template.notification); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''), missingImages = /\bsrc\s*=\s*["'](?:cid:|image(?:["']|$)|["'])/i.test(html); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email preview</h4><p>This template keeps its original email layout. Select Edit email to change its text.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Announcement email preview" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" />${missingImages ? '<small>Some email images were not included in the copied email. Upload replacements using Inline photo or video below.</small>' : ''}</section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; flash(`Template “${template.title}” loaded. Choose Send now, Schedule, or save an updated template.`); });
 document.addEventListener('click', event => { const action = event.target.closest('[data-edit-announcement-template]'); if (!action) return; const template = dashboard.announcementTemplates?.find(item => item.id === action.dataset.editAnnouncementTemplate), form = document.querySelector('[data-editor="announcements"]'); if (!template || !form) return; ['title','tag','department','audience'].forEach(name => { const input = form.elements.namedItem(name); if (input) input.value = template[name] || ''; }); applyAnnouncementNotificationFields(form, template.notification); const editor = form.querySelector('[data-rich-editor]'); if (isLegacyAnnouncementTemplate(template) && editor) { const html = String(template.bodyHtml || ''); editor.closest('.rich-editor').outerHTML = `<section class="announcement-email-preview"><div class="announcement-email-preview-head"><div><h4>Email template</h4><p>Edit the original email layout, then select Save changes to update this template.</p></div><button class="tool-button" type="button" data-edit-email>Edit email</button></div><iframe title="Editable announcement email template" sandbox="allow-same-origin" data-email-preview srcdoc="${escapeHtml(html)}"></iframe><input type="hidden" name="legacyEmailHtml" data-email-html value="${escapeHtml(html)}" /></section>`; } else if (editor) editor.innerHTML = editableAnnouncementHtml(template); form.querySelector('.announcement-content-disclosure')?.removeAttribute('open'); form._announcementTemplate = template; form.dataset.editAnnouncementTemplate = template.id; form.querySelector('.form-actions .action-button.primary')?.replaceChildren(document.createTextNode('Update template')); flash(`Editing template “${template.title}”. Save changes updates this template only.`); });

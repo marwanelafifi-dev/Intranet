@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const directoryScope = 'https://www.googleapis.com/auth/admin.directory.user.readonly';
 const groupMemberScope = 'https://www.googleapis.com/auth/admin.directory.group.member.readonly';
+const gmailReadScope = 'https://www.googleapis.com/auth/gmail.readonly';
 const orgUnitScope = 'https://www.googleapis.com/auth/admin.directory.orgunit.readonly';
 const calendarScope = 'https://www.googleapis.com/auth/calendar.events.readonly';
 const placeholder = 'To be confirmed';
@@ -251,6 +252,28 @@ export async function createWorkspaceClient(config, { fetchImpl = fetch, now = (
     throw new Error('Google Workspace result exceeded the 20-page safety limit; no partial data was published.');
   }
   return {
+    async gmailMessageIdsSince(epochSeconds, groups = []) {
+      const ids = [];
+      let pageToken = '';
+      const addresses = groups.filter(group => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(group));
+      const audienceQuery = addresses.length ? ` {${addresses.flatMap(group => [`to:${group}`, `cc:${group}`]).join(' ')}}` : '';
+      for (let page = 0; page < 20; page += 1) {
+        const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages');
+        url.searchParams.set('q', `after:${Math.max(0, Math.floor(epochSeconds))}${audienceQuery}`);
+        url.searchParams.set('maxResults', '100');
+        if (pageToken) url.searchParams.set('pageToken', pageToken);
+        const result = await get(url, gmailReadScope, 10000);
+        ids.push(...(result.messages || []).map(item => item.id).filter(Boolean));
+        pageToken = result.nextPageToken || '';
+        if (!pageToken) return ids;
+      }
+      throw new Error('The inbox has more than 2,000 recent messages; narrow the import window before retrying.');
+    },
+    async gmailMessage(id) {
+      const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}`);
+      url.searchParams.set('format', 'full');
+      return get(url, gmailReadScope, 10000);
+    },
     async hasGroupMember(groupEmail, memberEmail) {
       const url = new URL(`https://admin.googleapis.com/admin/directory/v1/groups/${encodeURIComponent(groupEmail)}/hasMember/${encodeURIComponent(memberEmail)}`);
       const result = await get(url, groupMemberScope, 5000);

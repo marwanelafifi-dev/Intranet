@@ -1,6 +1,7 @@
 const realFetch = globalThis.fetch;
 const members = JSON.parse(process.env.SIWARE_TEST_GROUP_MEMBERS_JSON || '{}');
 const groupStatuses = JSON.parse(process.env.SIWARE_TEST_GROUP_STATUS_JSON || '{}');
+const gmailMessages = JSON.parse(process.env.SIWARE_TEST_GMAIL_MESSAGES_JSON || '[]');
 
 globalThis.fetch = async (input, options) => {
   const url = new URL(input);
@@ -12,6 +13,14 @@ globalThis.fetch = async (input, options) => {
     const status = groupStatuses[decodeURIComponent(group)];
     if (status) return new Response(JSON.stringify({ error:{ code:status } }), { status, headers:{ 'content-type':'application/json' } });
     return new Response(JSON.stringify({ isMember:Array.isArray(members[decodeURIComponent(group)]) && members[decodeURIComponent(group)].includes(decodeURIComponent(member)) }), { status:200, headers:{ 'content-type':'application/json' } });
+  }
+  if (url.hostname === 'gmail.googleapis.com' && url.pathname === '/gmail/v1/users/me/messages') {
+    return new Response(JSON.stringify({ messages:gmailMessages.map(message => ({ id:message.id })) }), { status:200, headers:{ 'content-type':'application/json' } });
+  }
+  if (url.hostname === 'gmail.googleapis.com' && url.pathname.startsWith('/gmail/v1/users/me/messages/')) {
+    const id = decodeURIComponent(url.pathname.split('/').pop());
+    const message = gmailMessages.find(item => item.id === id);
+    return new Response(JSON.stringify(message || { error:'Not found' }), { status:message ? 200 : 404, headers:{ 'content-type':'application/json' } });
   }
   return realFetch(input, options);
 };

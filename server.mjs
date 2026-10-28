@@ -11,6 +11,7 @@ import { activeSessionActor, hasEmployeeRole } from './auth-session.mjs';
 import { describeContentChanges } from './audit-details.mjs';
 import { archiveExpiredEvents, auditRetentionDays, hasArchiveRunToday } from './audit-archive.mjs';
 import { workspaceSyncConfig, createWorkspaceClient, syncWorkspaceContent, eligibleEmployeeOu } from './google-workspace-sync.mjs';
+import { importedGroupAnnouncements } from './inbound-group-email.mjs';
 import { adminViewPermissions, adminActionPermissions, adminContentKeyPages, adminContentKeys, canOpenAdmin, removedContent, rolePermissionError } from './public/admin-permissions.js';
 import { defaultGlobalPageContent, normaliseGlobalPageContent } from './public/global-page-content.js';
 import { intranetPagePermissions, intranetRoutePermissions, intranetContentPermissions, firstAvailableIntranetPage } from './public/intranet-permissions.js';
@@ -20,6 +21,7 @@ const publicDir = join(process.cwd(), 'public');
 const uploadsDir = join(process.cwd(), 'data', 'uploads');
 const dataFile = process.env.DATA_FILE || join(process.cwd(), 'data', 'intranet.json');
 const notificationSecretsFile = join(dirname(dataFile), 'notification-secrets.json');
+const inboundEmailStateFile = join(dirname(dataFile), 'group-email-import-state.json');
 const seedFile = join(process.cwd(), 'data', 'seed.json');
 const adminDefaultsFile = join(process.cwd(), 'data', 'admin-defaults.json');
 const youtubeChannelId = 'UCPx_Gys4B6hSLw_JY3CkU5w';
@@ -144,7 +146,7 @@ const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ')
 const emailAddress = value => String(value || '').trim().toLowerCase();
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const notificationEmailList = value => [...new Set((Array.isArray(value) ? value : String(value || '').split(/[\n,;]/)).map(emailAddress).filter(isEmailAddress))].slice(0, 250);
-const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, emailEnabled:false, emailDefaultEnabled:false, approvedGroups:[], defaultGroup:'', sender:notificationSender });
+const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, emailEnabled:false, emailDefaultEnabled:false, inboundEmailEnabled:false, inboundStartedAt:'', approvedGroups:[], defaultGroup:'', sender:notificationSender });
 const notificationSettings = data => ({ ...defaultNotificationSettings(), ...(data.adminSettings?.notificationSettings || {}) });
 const normaliseAnnouncementNotification = value => {
   const item = value && typeof value === 'object' ? value : {};
@@ -203,7 +205,78 @@ function decryptNotificationSecret(record) {
 }
 async function notificationStatus(data) {
   const secrets = await notificationSecrets();
-  return { ...notificationSettings(data), appPasswordConfigured:Boolean(secrets.gmailAppPassword), encryptionReady:Boolean(notificationEncryptionKey) };
+  const settings = notificationSettings(data), state = await inboundEmailState().catch(() => ({}));
+  const lastSuccessAt = inboundEmailStatus.lastSuccessAt || (state.startedAt === settings.inboundStartedAt ? state.lastCheckedAt : null);
+  return { ...settings, appPasswordConfigured:Boolean(secrets.gmailAppPassword), encryptionReady:Boolean(notificationEncryptionKey), inboundStatus:{ ...inboundEmailStatus, lastSuccessAt } };
+}
+const inboundEmailStatus = { lastAttemptAt:null, lastSuccessAt:null, lastError:'', imported:0 };
+let inboundEmailPromise;
+async function inboundEmailClient() {
+  const keyFile = String(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '').trim();
+  if (!keyFile) throw new Error('Configure the Google service account key before enabling group email import.');
+  return createWorkspaceClient({ keyFile, subject:notificationSender });
+}
+async function inboundEmailState() {
+  try { return JSON.parse(await readFile(inboundEmailStateFile, 'utf8')); }
+  catch (error) { if (error.code === 'ENOENT') return {}; throw error; }
+}
+async function saveInboundEmailState(state) {
+  const temporary = `${inboundEmailStateFile}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(state, null, 2), { mode:0o600 });
+  await rename(temporary, inboundEmailStateFile);
+}
+async function importGroupEmails() {
+  if (inboundEmailPromise) return inboundEmailPromise;
+  inboundEmailPromise = performGroupEmailImport();
+  try { return await inboundEmailPromise; }
+  finally { inboundEmailPromise = null; }
+}
+async function performGroupEmailImport() {
+  try {
+    const data = await dashboard();
+    const settings = notificationSettings(data);
+    if (!settings.inboundEmailEnabled || !settings.approvedGroups?.length) return inboundEmailStatus;
+    const startedAt = Date.parse(settings.inboundStartedAt);
+    if (!Number.isFinite(startedAt)) throw new Error('Group email import needs a valid start time. Disable and re-enable it in Notifications.');
+    inboundEmailStatus.lastAttemptAt = new Date().toISOString();
+    const state = await inboundEmailState();
+    const scannedAt = state.startedAt === settings.inboundStartedAt ? Date.parse(state.lastCheckedAt) : Number.NaN;
+    const afterMs = Number.isFinite(scannedAt) ? Math.max(startedAt - 1000, scannedAt - 10 * 60_000) : startedAt - 1000;
+    const client = await inboundEmailClient();
+    const ids = await client.gmailMessageIdsSince(Math.floor(afterMs / 1000), settings.approvedGroups);
+    const existing = new Set((data.announcements || []).filter(item => item.source?.type === 'group-email').map(item => String(item.source.messageId)));
+    const imported = [];
+    for (const id of ids) {
+      if (existing.has(String(id))) continue;
+      const message = await client.gmailMessage(id);
+      imported.push(...importedGroupAnnouncements(message, settings.approvedGroups, notificationSender, settings.inboundStartedAt));
+    }
+    let count = 0;
+    if (imported.length) {
+      // Re-read after the network calls so an editor's intervening changes are retained.
+      const latest = await dashboard(), current = notificationSettings(latest);
+      if (current.inboundEmailEnabled && current.inboundStartedAt === settings.inboundStartedAt) {
+        const seen = new Set((latest.announcements || []).map(item => String(item.id)));
+        const newItems = imported.filter(item => current.approvedGroups.includes(item.source.group) && !seen.has(item.id));
+        if (newItems.length) {
+          latest.announcements.unshift(...newItems);
+          latest._version += 1;
+          auditEvent(latest, null, { action:'announcements.email.imported', resource:'Google Group email', route:'/system/group-email-import', outcome:'success', changes:{ count:newItems.length, groups:[...new Set(newItems.map(item => item.source.group))] } });
+          await save(latest);
+          count = newItems.length;
+        }
+      }
+    }
+    await saveInboundEmailState({ startedAt:settings.inboundStartedAt, lastCheckedAt:new Date().toISOString() });
+    inboundEmailStatus.lastSuccessAt = new Date().toISOString();
+    inboundEmailStatus.lastError = '';
+    inboundEmailStatus.imported = count;
+    if (count) console.info(`Imported ${count} Google Group email announcement(s) for review.`);
+  } catch (error) {
+    inboundEmailStatus.lastError = error.message || 'Group email import failed.';
+    console.error('Google Group email import failed:', inboundEmailStatus.lastError);
+  }
+  return inboundEmailStatus;
 }
 function announcementEmailHtml(announcement, origin) {
   const title = safeText(announcement.title || 'Company update');
@@ -515,7 +588,7 @@ async function dashboardResponse(data, actor, admin = false) {
       if (group && (!settings.approvedGroups?.includes(group) || !email.endsWith(`@${googleWorkspaceDomain}`))) return null;
       const copiedRecipient = notification.cc.includes(email) || notification.bcc.includes(email);
       if (group && !copiedRecipient && !await membership(group, email)) return null;
-      return { ...announcement, notification:publicAnnouncementNotification(announcement.notification, data, Boolean(group)) };
+      return { ...announcement, ...(announcement.source?.type === 'group-email' ? { source:{ type:'group-email', group:announcement.source.group, fromEmail:announcement.source.fromEmail, receivedAt:announcement.source.receivedAt } } : {}), notification:publicAnnouncementNotification(announcement.notification, data, Boolean(group)) };
     }))).filter(Boolean);
   }
   const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled, approvedGroups:settings.approvedGroups, defaultGroup:settings.defaultGroup }; })() : undefined;
@@ -1162,6 +1235,9 @@ const server = createServer(async (req, res) => {
       const defaultGroup = Object.hasOwn(body, 'defaultGroup') ? emailAddress(body.defaultGroup) : current.defaultGroup;
       if (approvedGroups.length && !defaultGroup) return json(res, 422, { error:'Choose a default Google Group for new announcements.' });
       if (defaultGroup && !approvedGroups.includes(defaultGroup)) return json(res, 422, { error:'The default audience must be one of the approved Google Groups.' });
+      const inboundEmailEnabled = typeof body.inboundEmailEnabled === 'boolean' ? body.inboundEmailEnabled : current.inboundEmailEnabled;
+      if (inboundEmailEnabled && !approvedGroups.length) return json(res, 422, { error:'Approve at least one Google Group before enabling email import.' });
+      const inboundStartedAt = inboundEmailEnabled ? (current.inboundEmailEnabled ? current.inboundStartedAt : new Date().toISOString()) : current.inboundStartedAt;
       if (approvedGroups.length) {
         const subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase();
         if (!isEmailAddress(subject)) return json(res, 422, { error:'Configure the delegated Google Workspace administrator before saving notification groups.' });
@@ -1180,16 +1256,29 @@ const server = createServer(async (req, res) => {
           }
         }
       }
+      if (inboundEmailEnabled) {
+        try { await (await inboundEmailClient()).gmailMessageIdsSince(Math.floor(Date.now() / 1000), approvedGroups); }
+        catch (error) {
+          console.warn('Google Group email import access check failed:', error.message);
+          return json(res, 422, { error:`Cannot read ${notificationSender}'s Gmail inbox. Enable the Gmail API, add the gmail.readonly domain-wide delegation scope to the existing service account client ID, and confirm this mailbox is an active Google Workspace account.${error.status ? ` Google returned HTTP ${error.status}.` : ''}` });
+        }
+      }
       if (body.clearAppPassword === true) { delete secrets.gmailAppPassword; await unlink(notificationSecretsFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
       if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }
       const inAppEnabled = typeof body.inAppEnabled === 'boolean' ? body.inAppEnabled : current.inAppEnabled;
       const inAppDefaultEnabled = typeof body.inAppDefaultEnabled === 'boolean' ? body.inAppDefaultEnabled : current.inAppDefaultEnabled;
       const emailDefaultEnabled = typeof body.emailDefaultEnabled === 'boolean' ? body.emailDefaultEnabled : current.emailDefaultEnabled;
-      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, approvedGroups, defaultGroup, sender:notificationSender, updatedAt:new Date().toISOString() };
+      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, inboundEmailEnabled, inboundStartedAt, approvedGroups, defaultGroup, sender:notificationSender, updatedAt:new Date().toISOString() };
       data._version += 1;
-      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, emailEnabled, approvedGroups, defaultGroup, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
+      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, emailEnabled, inboundEmailEnabled, approvedGroups, defaultGroup, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
       await save(data);
       return json(res, 200, await notificationStatus(data));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/notifications/import') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.notifications']); if (!actor) return;
+      if (!notificationSettings(data).inboundEmailEnabled) return json(res, 409, { error:'Enable group email import in Notifications first.' });
+      const status = await importGroupEmails();
+      return json(res, status.lastError ? 502 : 200, status.lastError ? { error:status.lastError } : status);
     }
     if (req.method === 'POST' && url.pathname === '/api/si-voice/chat') {
       const data = await dashboard(), actor = actorFor(req, data);
@@ -1227,7 +1316,7 @@ const server = createServer(async (req, res) => {
       if (!canOpenAdmin(configuredRoles(data)[actor?.role])) { auditEvent(data, actor, { action:'access.denied', resource:'admin.summary', route:'/admin.html', outcome:'denial' }); save(data).catch(() => {}); return json(res, actor ? 403 : 401, { error:actor ? 'You do not have permission for the administration workspace.' : 'Sign in is required.' }); }
       const canViewAudit = can(data, actor, 'audit.view') && can(data, actor, 'page.activity');
       const audit = canViewAudit ? data.auditEvents.slice(0, 8) : [], activity = canViewAudit ? data.activityEvents.slice(0, 8) : [];
-      return json(res, 200, { version:data._version, counts:{ announcements:data.announcements?.length || 0, people:data.newMembers?.length || 0, apps:data.apps?.length || 0, media:(await mediaInventory(data)).length, audits:canViewAudit ? data.auditEvents.length : 0, activity:canViewAudit ? data.activityEvents.length : 0 }, audit, activity, settings:can(data, actor, 'settings.manage') && can(data, actor, 'page.settings') ? data.adminSettings : null, actor });
+      return json(res, 200, { version:data._version, counts:{ announcements:(data.announcements || []).filter(item => item.hidden !== true && item.hidden !== 'true').length, people:data.newMembers?.length || 0, apps:data.apps?.length || 0, media:(await mediaInventory(data)).length, audits:canViewAudit ? data.auditEvents.length : 0, activity:canViewAudit ? data.activityEvents.length : 0 }, audit, activity, settings:can(data, actor, 'settings.manage') && can(data, actor, 'page.settings') ? data.adminSettings : null, actor });
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/dashboard') {
       const data = await dashboard(), actor = actorFor(req, data);
@@ -1345,6 +1434,21 @@ const server = createServer(async (req, res) => {
         const previous = new Map((data[key] || []).map(item => [String(item.id), item]));
         for (const item of next[key] || []) {
           if (JSON.stringify(item) === JSON.stringify(previous.get(String(item.id)))) continue;
+          if (key === 'announcements') {
+            const original = previous.get(String(item.id));
+            if (item.source?.type === 'group-email' && original?.source?.type !== 'group-email') return json(res, 422, { error:'Email announcements can only be created by the inbox import.' });
+            if (original?.source?.type === 'group-email') {
+              const group = original.source.group;
+              if (!allowedGroups.includes(group)) return json(res, 422, { error:'Restore the imported email audience in Notifications before publishing it.' });
+              item.source = original.source;
+              item.notification = { ...normaliseAnnouncementNotification(item.notification), audienceGroup:group, inAppEnabled:true, inAppRecipients:[], emailEnabled:false, to:[group], cc:[], bcc:[], emailDeliveryState:'skipped', emailSentAt:'', emailError:'Original email was already delivered to the Google Group.' };
+              if ((original.hidden === true || original.hidden === 'true') && item.hidden !== true && item.hidden !== 'true') {
+                const publishedAt = new Date();
+                item.publishedAt = publishedAt.toISOString();
+                item.date = announcementDateLabel(publishedAt);
+              }
+            }
+          }
           const notification = normaliseAnnouncementNotification(item.notification);
           const group = notification.audienceGroup;
           if (group && !allowedGroups.includes(group)) return json(res, 422, { error:'Choose an approved Google Group in Notifications before publishing this announcement.' });
@@ -1628,6 +1732,10 @@ const server = createServer(async (req, res) => {
 // a schedule is actually due, and its occurrence marker prevents duplicates.
 const announcementScheduleTimer = setInterval(() => { dashboard().catch(error => console.error('Announcement scheduler failed', error)); }, 60_000);
 announcementScheduleTimer.unref();
+const inboundEmailTimer = setInterval(() => { importGroupEmails().catch(error => console.error('Group email import timer failed', error)); }, 2 * 60_000);
+inboundEmailTimer.unref();
+const initialInboundEmailCheck = setTimeout(() => { importGroupEmails().catch(error => console.error('Initial group email import failed', error)); }, 15_000);
+initialInboundEmailCheck.unref();
 
 let googleSyncRunning = false;
 runGoogleSync = async ({ members = true, calendars = true } = {}) => {

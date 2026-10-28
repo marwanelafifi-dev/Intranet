@@ -12,6 +12,8 @@ video-inspect.html
 public/Si-Ware Systems - Presentation Template - Final.pptx
 data/intranet.json
 data/notification-secrets.json
+data/group-email-import-state.json
+data/group-email-import-state.json.*.tmp
 data/audit trail archive/
 data/intranet.json.*.tmp
 data/company-news-latest.json

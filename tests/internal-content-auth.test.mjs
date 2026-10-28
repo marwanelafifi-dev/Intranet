@@ -86,7 +86,7 @@ async function availablePort() {
   return port;
 }
 
-async function startIsolatedServer({ demoRole = '', permissions = [], legacy = false, seedTransform = null, fakeGroupMembers = null, fakeGroupStatuses = null } = {}) {
+async function startIsolatedServer({ demoRole = '', permissions = [], legacy = false, seedTransform = null, fakeGroupMembers = null, fakeGroupStatuses = null, fakeGmailMessages = null } = {}) {
   const tempDir = await mkdtemp(join(tmpdir(), 'siware-internal-content-auth-'));
   const dataFile = join(tempDir, 'intranet.json');
   await copyFile(join(projectRoot, 'data', 'seed.json'), dataFile);
@@ -122,6 +122,7 @@ async function startIsolatedServer({ demoRole = '', permissions = [], legacy = f
       GOOGLE_SYNC_SUBJECT: fakeGroupMembers ? 'admin@si-ware.com' : '',
       SIWARE_TEST_GROUP_MEMBERS_JSON:fakeGroupMembers ? JSON.stringify(fakeGroupMembers) : '',
       SIWARE_TEST_GROUP_STATUS_JSON:fakeGroupStatuses ? JSON.stringify(fakeGroupStatuses) : '',
+      SIWARE_TEST_GMAIL_MESSAGES_JSON:fakeGmailMessages ? JSON.stringify(fakeGmailMessages) : '',
       SECURE_COOKIES: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -275,6 +276,33 @@ test('notification group validation identifies inaccessible and missing groups',
       assert.match(body.error, expected);
     } finally { await stopIsolatedServer(server); }
   }
+});
+
+test('group email import waits for approval, keeps its sender, and never resends the original email', async () => {
+  const email = { id:'gmail-inbound-1', internalDate:String(Date.now() + 60_000), payload:{ mimeType:'text/plain', headers:[{ name:'From', value:'Colleague <colleague@si-ware.com>' }, { name:'To', value:'eg.team@si-ware.com' }, { name:'Subject', value:'Team update' }], body:{ data:Buffer.from('A message from the group mailbox').toString('base64url') } } };
+  const server = await startIsolatedServer({ demoRole:'NOTIFICATION_ADMIN', permissions:['admin.access', 'settings.manage', 'page.notifications', 'content.edit', 'content.publish', 'page.announcements'], fakeGroupMembers:{ 'eg.team@si-ware.com':[] }, fakeGmailMessages:[email] });
+  try {
+    const settings = await fetch(`${server.origin}/api/admin/notifications`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ inAppEnabled:true, emailEnabled:false, inboundEmailEnabled:true, approvedGroups:['eg.team@si-ware.com'], defaultGroup:'eg.team@si-ware.com' }) });
+    assert.equal(settings.status, 200);
+    const imported = await fetch(`${server.origin}/api/admin/notifications/import`, { method:'POST' });
+    assert.equal(imported.status, 200);
+    assert.equal((await imported.json()).imported, 1);
+    const before = await (await fetch(`${server.origin}/api/admin/dashboard`)).json();
+    const item = before.announcements.find(value => value.source?.messageId === email.id);
+    assert.ok(item);
+    assert.equal(item.hidden, true);
+    assert.equal(item.source.fromEmail, 'colleague@si-ware.com');
+    assert.equal(item.postedBy, 'Sent from Email Account');
+    const approved = await fetch(`${server.origin}/api/admin/dashboard`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ version:before._version, data:{ ...before, announcements:before.announcements.map(value => value.id === item.id ? { ...value, hidden:false, notification:{ ...value.notification, emailEnabled:true } } : value) } }) });
+    assert.equal(approved.status, 200);
+    const published = (await approved.json()).announcements.find(value => value.id === item.id);
+    assert.equal(published.hidden, false);
+    assert.equal(published.notification.emailEnabled, false);
+    assert.equal(published.notification.emailDeliveryState, 'skipped');
+    assert.ok(published.publishedAt);
+    const repeat = await fetch(`${server.origin}/api/admin/notifications/import`, { method:'POST' });
+    assert.equal((await repeat.json()).imported, 0);
+  } finally { await stopIsolatedServer(server); }
 });
 
 test('internal search and document routes require a session before returning content', async () => {

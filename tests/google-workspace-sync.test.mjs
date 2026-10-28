@@ -170,6 +170,8 @@ test('delegated client uses read-only scopes and paginates the OU and resource c
     const url = new URL(input);
     calls.push({ url, options });
     if (url.pathname === '/token') return { ok:true, json:async () => ({ access_token:'test-token', expires_in:3600 }) };
+    if (url.hostname === 'gmail.googleapis.com' && url.pathname.endsWith('/messages')) return { ok:true, json:async () => ({ messages:[{ id:'inbound-1' }] }) };
+    if (url.hostname === 'gmail.googleapis.com' && url.pathname.endsWith('/messages/inbound-1')) return { ok:true, json:async () => ({ id:'inbound-1', payload:{ headers:[] } }) };
     if (url.pathname.endsWith('/users')) return { ok:true, json:async () => url.searchParams.has('pageToken') ? { users:[user({ id:'second' })] } : { users:[user()], nextPageToken:'next' } };
     if (url.pathname.includes('/hasMember/')) return { ok:true, json:async () => ({ isMember:!url.pathname.includes('outsider%40') }) };
     if (url.pathname.endsWith('/orgunits')) return { ok:true, json:async () => ({ organizationUnits:[{ orgUnitPath:'/Egypt/Full-Time Employees', name:'Full-Time Employees', parentOrgUnitPath:'/Egypt' }, { orgUnitPath:'/Egypt/Consultants', name:'Consultants', parentOrgUnitPath:'/Egypt' }] }) };
@@ -184,8 +186,13 @@ test('delegated client uses read-only scopes and paginates the OU and resource c
   await client.photo('google-123');
   assert.equal(await client.hasGroupMember('everyone@si-ware.com', 'employee@si-ware.com'), true);
   assert.equal(await client.hasGroupMember('everyone@si-ware.com', 'outsider@si-ware.com'), false);
+  assert.deepEqual(await client.gmailMessageIdsSince(1_700_000_000, ['eg.team@si-ware.com']), ['inbound-1']);
+  assert.equal((await client.gmailMessage('inbound-1')).id, 'inbound-1');
+  assert.match(calls.find(call => call.url.hostname === 'gmail.googleapis.com' && call.url.pathname.endsWith('/messages')).url.searchParams.get('q'), /to:eg\.team@si-ware\.com/);
   assert.equal((await client.events(config.calendars[0].id, now, new Date('2026-11-22T10:00:00Z'))).length, 1);
-  assert.equal(calls.filter(call => call.url.pathname === '/token').length, 4);
+  assert.equal(calls.filter(call => call.url.pathname === '/token').length, 5);
+  const gmailToken = calls.find(call => call.url.pathname === '/token' && JSON.parse(Buffer.from(new URLSearchParams(call.options.body).get('assertion').split('.')[1], 'base64url')).scope.endsWith('/gmail.readonly'));
+  assert.ok(gmailToken);
   const group = calls.find(call => call.url.pathname.includes('/hasMember/'));
   assert.match(group.url.pathname, /everyone%40si-ware\.com\/hasMember\/employee%40si-ware\.com/);
   const groupToken = calls.find(call => call.url.pathname === '/token' && JSON.parse(Buffer.from(new URLSearchParams(call.options.body).get('assertion').split('.')[1], 'base64url')).scope.endsWith('/admin.directory.group.member.readonly'));

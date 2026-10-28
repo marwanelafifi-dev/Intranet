@@ -30,3 +30,4 @@ html.dark .destination-nav{border-color:#294467;background:#0d1b2e}html.dark .de
   #announcement-details-author{padding:12px 20px 18px}
   .announcement-template-frame{height:max(420px,calc(100vh - 235px))}
 }
+.announcement-provenance,#announcement-details-author{overflow-wrap:anywhere}

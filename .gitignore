@@ -9,6 +9,8 @@ recording-wpf-frame.png
 video-inspect.html
 data/intranet.json
 data/notification-secrets.json
+data/group-email-import-state.json
+data/group-email-import-state.json.*.tmp
 data/audit trail archive/
 data/intranet.json.*.tmp
 data/company-news-latest.json
