@@ -1165,8 +1165,20 @@ const server = createServer(async (req, res) => {
       if (approvedGroups.length) {
         const subject = String(process.env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase();
         if (!isEmailAddress(subject)) return json(res, 422, { error:'Configure the delegated Google Workspace administrator before saving notification groups.' });
-        try { for (const group of approvedGroups) await audienceGroupMember(group, subject); }
-        catch { return json(res, 422, { error:'Google Group access could not be verified. Add the group.member.readonly delegation scope and confirm each group address.' }); }
+        for (const group of approvedGroups) {
+          try { await audienceGroupMember(group, subject); }
+          catch (error) {
+            console.warn(`Google Group validation failed for ${group}: ${error.message}`);
+            let message = `Google Group access could not be verified for ${group}.`;
+            if (error.service === 'Google authorization') message += ' Check the service account client ID, its domain-wide delegation scopes, and the delegated administrator.';
+            else if (error.status === 404) message += ' Check that the group address exists in Google Admin.';
+            else if (error.status === 403 || error.status === 401) message += ' Grant the service account the group.member.readonly delegation scope and ensure the delegated administrator can read Groups.';
+            else if (error.status === 400) message += ' Check the group address and delegated administrator.';
+            else if (error.name === 'TimeoutError' || error.name === 'AbortError') message += ' The Google lookup timed out; try again.';
+            else message += ' Check Google Workspace access and try again.';
+            return json(res, 422, { error:message });
+          }
+        }
       }
       if (body.clearAppPassword === true) { delete secrets.gmailAppPassword; await unlink(notificationSecretsFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
       if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }

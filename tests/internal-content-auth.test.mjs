@@ -86,7 +86,7 @@ async function availablePort() {
   return port;
 }
 
-async function startIsolatedServer({ demoRole = '', permissions = [], legacy = false, seedTransform = null, fakeGroupMembers = null } = {}) {
+async function startIsolatedServer({ demoRole = '', permissions = [], legacy = false, seedTransform = null, fakeGroupMembers = null, fakeGroupStatuses = null } = {}) {
   const tempDir = await mkdtemp(join(tmpdir(), 'siware-internal-content-auth-'));
   const dataFile = join(tempDir, 'intranet.json');
   await copyFile(join(projectRoot, 'data', 'seed.json'), dataFile);
@@ -121,6 +121,7 @@ async function startIsolatedServer({ demoRole = '', permissions = [], legacy = f
       GOOGLE_SERVICE_ACCOUNT_KEY_FILE: googleKeyFile,
       GOOGLE_SYNC_SUBJECT: fakeGroupMembers ? 'admin@si-ware.com' : '',
       SIWARE_TEST_GROUP_MEMBERS_JSON:fakeGroupMembers ? JSON.stringify(fakeGroupMembers) : '',
+      SIWARE_TEST_GROUP_STATUS_JSON:fakeGroupStatuses ? JSON.stringify(fakeGroupStatuses) : '',
       SECURE_COOKIES: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -261,6 +262,19 @@ test('notification administrator can approve the two Google Groups and select a 
     assert.deepEqual(settings.approvedGroups, ['eg.team@si-ware.com','everyone@si-ware.com']);
     assert.equal(settings.defaultGroup, 'eg.team@si-ware.com');
   } finally { await stopIsolatedServer(server); }
+});
+
+test('notification group validation identifies inaccessible and missing groups', async () => {
+  for (const [status, expected] of [[403, /group\.member\.readonly/], [404, /group address exists/]]) {
+    const server = await startIsolatedServer({ demoRole:'NOTIFICATION_ADMIN', permissions:['admin.access', 'settings.manage', 'page.notifications'], fakeGroupMembers:{ 'eg.team@si-ware.com':[] }, fakeGroupStatuses:{ 'eg.team@si-ware.com':status } });
+    try {
+      const response = await fetch(`${server.origin}/api/admin/notifications`, { method:'PATCH', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ approvedGroups:['eg.team@si-ware.com'], defaultGroup:'eg.team@si-ware.com' }) });
+      assert.equal(response.status, 422);
+      const body = await response.json();
+      assert.match(body.error, /eg\.team@si-ware\.com/);
+      assert.match(body.error, expected);
+    } finally { await stopIsolatedServer(server); }
+  }
 });
 
 test('internal search and document routes require a session before returning content', async () => {

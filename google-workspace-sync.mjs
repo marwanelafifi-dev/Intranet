@@ -211,7 +211,12 @@ function signedAssertion(credentials, subject, scope, now) {
 }
 
 async function checkedJson(response, label) {
-  if (!response.ok) throw new Error(`${label} failed (HTTP ${response.status}).`);
+  if (!response.ok) {
+    const error = new Error(`${label} failed (HTTP ${response.status}).`);
+    error.status = response.status;
+    error.service = label;
+    throw error;
+  }
   return response.json();
 }
 
