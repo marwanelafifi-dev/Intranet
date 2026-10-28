@@ -1,10 +1,11 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile, access, copyFile, mkdir, unlink, stat, rename, readdir } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { extname, join, normalize, relative } from 'node:path';
+import { extname, join, normalize, relative, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { connect as tlsConnect } from 'node:tls';
 import { hashLocalPassword, passwordPolicyError, publicAccessUser, verifyLocalPassword } from './local-accounts.mjs';
 import { activeSessionActor, hasEmployeeRole } from './auth-session.mjs';
 import { describeContentChanges } from './audit-details.mjs';
@@ -18,6 +19,7 @@ const port = Number(process.env.PORT || 8080);
 const publicDir = join(process.cwd(), 'public');
 const uploadsDir = join(process.cwd(), 'data', 'uploads');
 const dataFile = process.env.DATA_FILE || join(process.cwd(), 'data', 'intranet.json');
+const notificationSecretsFile = join(dirname(dataFile), 'notification-secrets.json');
 const seedFile = join(process.cwd(), 'data', 'seed.json');
 const adminDefaultsFile = join(process.cwd(), 'data', 'admin-defaults.json');
 const youtubeChannelId = 'UCPx_Gys4B6hSLw_JY3CkU5w';
@@ -76,6 +78,9 @@ const syncDue = (schedule, kind, now = new Date()) => {
 const localAdminName = String(process.env.LOCAL_ADMIN_NAME || 'Local Administrator').trim();
 const localAdminEmail = String(process.env.LOCAL_ADMIN_EMAIL || '').trim().toLowerCase();
 const localAdminPassword = String(process.env.LOCAL_ADMIN_PASSWORD || '');
+const notificationSender = 'intranet@si-ware.com';
+const notificationSecretKey = String(process.env.NOTIFICATION_SECRET_KEY || '');
+const notificationEncryptionKey = notificationSecretKey ? createHash('sha256').update(notificationSecretKey).digest() : null;
 let localAccountsConfigured = false;
 const sessions = new Map(), oauthStates = new Map();
 const localLoginAttempts = new Map();
@@ -136,6 +141,140 @@ const rolePermissions = {
   ADMIN: [...intranetPagePermissions, 'events.details.all', 'admin.access', 'content.edit', 'content.publish', 'media.manage', 'access.manage', 'audit.view', 'audit.export', 'settings.manage', ...adminActionPermissions, ...adminPagePermissions]
 };
 const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ').trim().slice(0, 280);
+const emailAddress = value => String(value || '').trim().toLowerCase();
+const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const notificationEmailList = value => [...new Set((Array.isArray(value) ? value : String(value || '').split(/[\n,;]/)).map(emailAddress).filter(isEmailAddress))].slice(0, 250);
+const defaultNotificationSettings = () => ({ emailEnabled:false, sender:notificationSender });
+const notificationSettings = data => ({ ...defaultNotificationSettings(), ...(data.adminSettings?.notificationSettings || {}) });
+const normaliseAnnouncementNotification = value => {
+  const item = value && typeof value === 'object' ? value : {};
+  return {
+    inAppEnabled:item.inAppEnabled !== false && item.inAppEnabled !== 'false',
+    inAppRecipients:notificationEmailList(item.inAppRecipients),
+    emailEnabled:item.emailEnabled === true || item.emailEnabled === 'true',
+    to:notificationEmailList(item.to),
+    cc:notificationEmailList(item.cc),
+    bcc:notificationEmailList(item.bcc),
+    emailDeliveryState:['sent','failed'].includes(item.emailDeliveryState) ? item.emailDeliveryState : '',
+    emailSentAt:item.emailSentAt ? String(item.emailSentAt) : '',
+    emailError:item.emailError ? safeText(item.emailError).slice(0, 240) : ''
+  };
+};
+const publicAnnouncementNotification = (value, actor) => {
+  const notification = normaliseAnnouncementNotification(value);
+  const email = emailAddress(actor?.email);
+  return {
+    inAppEnabled:notification.inAppEnabled,
+    inAppVisible:notification.inAppEnabled && (!notification.inAppRecipients.length || notification.inAppRecipients.includes(email))
+  };
+};
+async function notificationSecrets() {
+  try { return JSON.parse(await readFile(notificationSecretsFile, 'utf8')); }
+  catch (error) { if (error.code === 'ENOENT') return {}; throw error; }
+}
+function encryptNotificationSecret(value) {
+  if (!notificationEncryptionKey) throw new Error('Set NOTIFICATION_SECRET_KEY on the server before saving the email app password.');
+  const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', notificationEncryptionKey, iv);
+  const ciphertext = Buffer.concat([cipher.update(String(value), 'utf8'), cipher.final()]);
+  return { iv:iv.toString('base64'), tag:cipher.getAuthTag().toString('base64'), ciphertext:ciphertext.toString('base64') };
+}
+function decryptNotificationSecret(record) {
+  if (!notificationEncryptionKey || !record?.iv || !record?.tag || !record?.ciphertext) return '';
+  const decipher = createDecipheriv('aes-256-gcm', notificationEncryptionKey, Buffer.from(record.iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(record.tag, 'base64'));
+  return Buffer.concat([decipher.update(Buffer.from(record.ciphertext, 'base64')), decipher.final()]).toString('utf8');
+}
+async function notificationStatus(data) {
+  const secrets = await notificationSecrets();
+  return { ...notificationSettings(data), appPasswordConfigured:Boolean(secrets.gmailAppPassword), encryptionReady:Boolean(notificationEncryptionKey) };
+}
+function announcementEmailHtml(announcement, origin) {
+  const title = safeText(announcement.title || 'Company update');
+  const content = String(announcement.bodyHtml || '').trim() || `<p>${safeText(announcement.body || announcement.message || announcement.description || '')}</p>`;
+  const link = `${origin.replace(/\/$/, '')}/announcements.html?announcement=${encodeURIComponent(announcement.id)}`;
+  return `<!doctype html><html><body style="margin:0;background:#f4f8fc;font-family:Arial,sans-serif;color:#12335f"><main style="max-width:680px;margin:24px auto;background:#fff;border:1px solid #d5e2f2;border-radius:14px;overflow:hidden"><header style="padding:24px 28px;background:#0758a9;color:#fff"><div style="font-size:13px;font-weight:700;letter-spacing:.04em">SI-WARE INTRANET</div><h1 style="margin:10px 0 0;font-size:26px">${title}</h1></header><section style="padding:28px;line-height:1.6">${content}<p style="margin:28px 0 0"><a href="${link}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0758a9;color:#fff;text-decoration:none;font-weight:700">Open announcement</a></p></section></main></body></html>`;
+}
+const smtpBase64 = value => Buffer.from(String(value || ''), 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trimEnd();
+async function sendGmailMessage({ password, to, cc, bcc, subject, text, html }) {
+  const socket = tlsConnect({ host:'smtp.gmail.com', port:465, servername:'smtp.gmail.com' });
+  let buffer = '', failure = null;
+  const replies = [], waiters = [];
+  const settle = (reply) => { const waiter = waiters.shift(); if (waiter) waiter.resolve(reply); else replies.push(reply); };
+  socket.on('data', chunk => {
+    buffer += chunk.toString('utf8');
+    let at;
+    while ((at = buffer.indexOf('\r\n')) >= 0) {
+      const line = buffer.slice(0, at); buffer = buffer.slice(at + 2);
+      if (/^\d{3} /.test(line)) settle(line);
+    }
+  });
+  socket.on('error', error => { failure = error; while (waiters.length) waiters.shift().reject(error); });
+  socket.on('end', () => { if (!failure && waiters.length) { const error = new Error('The Gmail SMTP connection closed unexpectedly.'); while (waiters.length) waiters.shift().reject(error); } });
+  const reply = () => {
+    if (failure) return Promise.reject(failure);
+    if (replies.length) return Promise.resolve(replies.shift());
+    return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
+  };
+  const command = async (line, expected) => {
+    socket.write(`${line}\r\n`);
+    const response = await reply();
+    if (!expected.test(response)) throw new Error(`Gmail SMTP rejected the message (${response}).`);
+  };
+  try {
+    const greeting = await reply();
+    if (!/^220 /.test(greeting)) throw new Error(`Gmail SMTP is unavailable (${greeting}).`);
+    await command('EHLO si-ware-intranet', /^250 /);
+    await command('AUTH LOGIN', /^334 /);
+    await command(Buffer.from(notificationSender).toString('base64'), /^334 /);
+    await command(Buffer.from(password).toString('base64'), /^235 /);
+    await command(`MAIL FROM:<${notificationSender}>`, /^250 /);
+    const recipients = [...new Set([...to, ...cc, ...bcc])];
+    for (const recipient of recipients) await command(`RCPT TO:<${recipient}>`, /^25[01] /);
+    await command('DATA', /^354 /);
+    const boundary = `siware-${randomUUID()}`;
+    const headers = [
+      `From: Si-Ware Intranet <${notificationSender}>`,
+      `To: ${to.join(', ')}`,
+      ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
+      `Subject: =?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      '',
+      `--${boundary}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', smtpBase64(text),
+      `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', smtpBase64(html),
+      `--${boundary}--`, '.', ''
+    ].join('\r\n');
+    socket.write(headers);
+    const result = await reply();
+    if (!/^250 /.test(result)) throw new Error(`Gmail SMTP rejected the message (${result}).`);
+    await command('QUIT', /^221 /);
+  } finally { socket.end(); }
+}
+async function deliverAnnouncementEmail(data, announcement) {
+  const notification = normaliseAnnouncementNotification(announcement.notification);
+  if (announcement.hidden === true || announcement.hidden === 'true' || !notification.emailEnabled || notification.emailDeliveryState || !notification.to.length) return false;
+  const settings = notificationSettings(data);
+  if (!settings.emailEnabled) { announcement.notification = { ...notification, emailDeliveryState:'failed', emailError:'Email delivery is disabled in Administration > Notifications.' }; return true; }
+  const secrets = await notificationSecrets();
+  let password = '';
+  try { password = decryptNotificationSecret(secrets.gmailAppPassword); }
+  catch { password = ''; }
+  if (!password) { announcement.notification = { ...notification, emailDeliveryState:'failed', emailError:'No usable Gmail app password is configured.' }; return true; }
+  try {
+    const origin = process.env.APP_ORIGIN || 'http://localhost:8080';
+    await sendGmailMessage({ password, to:notification.to, cc:notification.cc, bcc:notification.bcc, subject:safeText(announcement.title || 'Company update'), text:`${safeText(announcement.body || announcement.message || announcement.description || '')}\n\nOpen announcement: ${origin.replace(/\/$/, '')}/announcements.html?announcement=${encodeURIComponent(announcement.id)}`, html:announcementEmailHtml(announcement, origin) });
+    announcement.notification = { ...notification, emailDeliveryState:'sent', emailSentAt:new Date().toISOString(), emailError:'' };
+  } catch (error) {
+    console.error('Announcement email delivery failed:', error.message);
+    announcement.notification = { ...notification, emailDeliveryState:'failed', emailError:'Delivery failed. Check the Notifications email settings and app password.' };
+  }
+  return true;
+}
+async function deliverQueuedAnnouncementEmails(data) {
+  let changed = false;
+  for (const announcement of data.announcements || []) if (await deliverAnnouncementEmail(data, announcement)) changed = true;
+  return changed;
+}
 const adminDefaultKeys = ['apps','announcements','announcementSchedules','announcementTemplates','socialLinks','moments','momentsPageContent','sessions','knowledgePageContent','events','eventsPageContent','whistleblowerConfig','whistleblower2Config','newMembers','recentlyJoinedPageContent','policies','firstWeekChecklist','supportPortals','policyAcknowledgementContent','newSiPageContent','homePageContent','globalPageContent','settings','adminSettings'];
 const contentChangeLabels = {
   whistleblower2Config: 'Whistleblower 2 Google Form',
@@ -330,6 +469,7 @@ function dashboardResponse(data, actor, admin = false) {
     return [key, !admin && required && actor && !can(data, actor, required) ? (Array.isArray(value) ? [] : {}) : value];
   }));
   if (Object.hasOwn(visible, 'events') && (!admin || !can(data, actor, 'page.events'))) visible.events = publicEvents(visible.events);
+  if (!admin && Array.isArray(visible.announcements)) visible.announcements = visible.announcements.map(announcement => ({ ...announcement, notification:publicAnnouncementNotification(announcement.notification, actor) }));
   return { ...visible, user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
@@ -697,6 +837,8 @@ async function dashboard() {
       changed = true;
     }
     data.adminSettings ||= { layoutHistory:[] };
+    const currentNotificationSettings = notificationSettings(data);
+    if (JSON.stringify(data.adminSettings.notificationSettings || {}) !== JSON.stringify(currentNotificationSettings)) { data.adminSettings.notificationSettings = currentNotificationSettings; changed = true; }
     if (!data.adminSettings.googleSync) { data.adminSettings.googleSync = defaultGoogleSyncSettings(); changed = true; }
     if (data.adminSettings.auditRetentionDays !== auditRetentionDays || data.adminSettings.activityRetentionDays !== auditRetentionDays) {
       data.adminSettings.auditRetentionDays = auditRetentionDays;
@@ -705,7 +847,12 @@ async function dashboard() {
     }
     if (!hasArchiveRunToday(data)) changed = true;
     if (ensureEditableRecordIds(data)) changed = true;
+    for (const key of ['announcements', 'announcementSchedules', 'announcementTemplates']) {
+      const normalised = data[key].map(item => ({ ...item, notification:normaliseAnnouncementNotification(item.notification) }));
+      if (JSON.stringify(data[key]) !== JSON.stringify(normalised)) { data[key] = normalised; changed = true; }
+    }
     if (publishDueAnnouncements(data)) changed = true;
+    if (await deliverQueuedAnnouncementEmails(data)) changed = true;
     if (changed) await save(data);
     return withPolicyModifiedDates(data);
 }
@@ -724,7 +871,8 @@ function publishDueAnnouncements(data, now = new Date()) {
     const due = (schedule.frequency === 'once' && parts.date === schedule.scheduledDate) || schedule.frequency === 'daily' || (schedule.frequency === 'weekly' && Number(schedule.dayOfWeek) === weekday) || (schedule.frequency === 'monthly' && Number(parts.day) === monthlyDay);
     if (!due || schedule.lastPublishedOccurrence === parts.date) continue;
     const { id, frequency, scheduledDate, time, dayOfWeek, dayOfMonth, enabled, lastPublishedOccurrence, ...template } = schedule;
-    data.announcements.unshift({ ...template, id:`a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, scheduleId:id, date:announcementDateLabel(now), publishedAt:now.toISOString(), postedBy:template.postedBy || data.user?.name || 'Intranet team' });
+    const notification = normaliseAnnouncementNotification(template.notification);
+    data.announcements.unshift({ ...template, notification:{ ...notification, emailDeliveryState:'', emailSentAt:'', emailError:'' }, id:`a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, scheduleId:id, date:announcementDateLabel(now), publishedAt:now.toISOString(), postedBy:template.postedBy || data.user?.name || 'Intranet team' });
     schedule.lastPublishedOccurrence = parts.date;
     changed = true;
   }
@@ -943,6 +1091,26 @@ const server = createServer(async (req, res) => {
       const data = await dashboard(), actor = actorFor(req, data);
       if (!can(data, actor, 'admin.access')) return json(res, actor ? 403 : 401, { error:'Admin Panel access is required.' });
     }
+    if (req.method === 'GET' && url.pathname === '/api/admin/notifications') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.notifications']); if (!actor) return;
+      return json(res, 200, await notificationStatus(data));
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/notifications') {
+      const data = await dashboard(), actor = requireEveryPermission(req, res, data, ['settings.manage','page.notifications']); if (!actor) return;
+      const body = await readBody(req), appPassword = String(body.appPassword || '').replace(/\s+/g, '');
+      if (appPassword && (appPassword.length < 12 || appPassword.length > 160)) return json(res, 422, { error:'Enter a valid Gmail app password.' });
+      const secrets = await notificationSecrets();
+      if (body.clearAppPassword === true) { delete secrets.gmailAppPassword; await unlink(notificationSecretsFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
+      if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }
+      const configured = Boolean(appPassword || (body.clearAppPassword !== true && secrets.gmailAppPassword));
+      const emailEnabled = body.emailEnabled === true;
+      if (emailEnabled && !configured) return json(res, 422, { error:'Save a Gmail app password before enabling email delivery.' });
+      data.adminSettings.notificationSettings = { ...notificationSettings(data), emailEnabled, sender:notificationSender, updatedAt:new Date().toISOString() };
+      data._version += 1;
+      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ emailEnabled, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
+      await save(data);
+      return json(res, 200, await notificationStatus(data));
+    }
     if (req.method === 'POST' && url.pathname === '/api/si-voice/chat') {
       const data = await dashboard(), actor = actorFor(req, data);
       if (!actor) return json(res, 401, { error:'Sign in is required.' });
@@ -1101,9 +1269,12 @@ const server = createServer(async (req, res) => {
       }
       const contentDetails = describeContentChanges(data, next, changedKeys);
       changedKeys.forEach(key => { data[key] = key === 'globalPageContent' ? normaliseGlobalPageContent(next[key]) : next[key]; });
+      for (const key of ['announcements', 'announcementSchedules', 'announcementTemplates']) {
+        if (changedKeys.includes(key)) data[key] = data[key].map(item => ({ ...item, notification:normaliseAnnouncementNotification(item.notification) }));
+      }
       if (changedKeys.includes('settings')) { data.adminSettings.layoutHistory ||= []; data.adminSettings.layoutHistory.unshift({ at:new Date().toISOString(), by:actor.email, settings:data.settings }); data.adminSettings.layoutHistory = data.adminSettings.layoutHistory.slice(0, 12); }
       const changedContent = changedContentLabels(changedKeys);
-      withAnnouncementAudit(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent, details:contentDetails.details, truncated:contentDetails.truncated } }); await save(data);
+      withAnnouncementAudit(data); await deliverQueuedAnnouncementEmails(data); data._version += 1; auditEvent(data, actor, { action:changedKeys.includes('settings') ? 'presentation.updated' : 'content.updated', resource:changedContent.join(' · ') || 'No content changes', route:'/admin.html', outcome:'success', changes:{ fields:changedKeys, pages:changedContent, details:contentDetails.details, truncated:contentDetails.truncated } }); await save(data);
       return json(res, 200, dashboardResponse(await withPolicyModifiedDates(data), actor, true));
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/google-sync') {

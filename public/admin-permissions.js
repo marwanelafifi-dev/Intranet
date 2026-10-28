@@ -3,7 +3,7 @@ export const adminViewPermissions = Object.freeze({
   announcements:'page.announcements', social:'page.social', moments:'page.moments',
   knowledge:'page.knowledge', events:'page.events', whistleblower:'page.whistleblower',
   people:'page.people', newsi:'page.newsi', appearance:'page.appearance', media:'page.media',
-  access:'page.users', roles:'page.roles', activity:'page.activity', compliance:'page.compliance', settings:'page.settings'
+  access:'page.users', roles:'page.roles', activity:'page.activity', compliance:'page.compliance', settings:'page.settings', notifications:'page.notifications'
 });
 
 export const adminViewCapabilities = Object.freeze({
@@ -12,7 +12,7 @@ export const adminViewCapabilities = Object.freeze({
   knowledge:'content.edit', events:'content.edit', whistleblower:'content.edit',
   people:'content.edit', newsi:'content.edit', appearance:'content.edit',
   media:'media.manage', access:'access.manage', roles:'access.manage',
-  activity:'audit.view', compliance:'audit.view', settings:'settings.manage'
+  activity:'audit.view', compliance:'audit.view', settings:'settings.manage', notifications:'settings.manage'
 });
 
 export const adminActionPermissions = Object.freeze([

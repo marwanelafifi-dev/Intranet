@@ -22,6 +22,12 @@ For local Docker use, set `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD` in an u
 
 Authentication uses an HTTP-only, same-site session cookie. Set `SECURE_COOKIES=true` when serving over HTTPS. Sessions are kept in memory for up to eight hours, so restarting the container signs users out. Local credentials and memory-backed sessions are intended for this Docker environment; a production deployment needs a managed identity provider and shared session storage.
 
+## Announcement notifications and email
+
+In **Administration > Announcements**, each Send now, scheduled, or template announcement can control its in-app bell notification and target selected signed-in users by company email. It can also send email with separate To, CC, and BCC fields. Email is sent only when the announcement publishes and only after an administrator enables it in **Administration > Notifications**.
+
+Email sends from `intranet@si-ware.com` through Gmail SMTP. Before opening the Notifications page, add a unique long `NOTIFICATION_SECRET_KEY` to the untracked Ubuntu `.env` and restart the service. An administrator with both **Manage settings** and **Notifications** page access can then save the Gmail App Password in the UI and enable or disable email delivery at any time. The password is encrypted on the server and stored in `data/notification-secrets.json`; it is never returned to the browser. Keep that file out of Git and Docker images, restrict it to the service account, include it in backups, and do not change `NOTIFICATION_SECRET_KEY` unless you intend to enter the app password again.
+
 ## Google Workspace content sync
 
 Configure sources in **Administration > Settings > Google Workspace content sync**, not in `.env`. Select employee/intern OUs from the live Google list; Guests and Consultants are not selectable. The 3rd Floor Meeting Room (`c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com`) and Recreational Area Space (`c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com`) are preselected. Sync remains off until an administrator enables and saves it. Use **Sync now** for an immediate check. Grant the delegated service account these three read-only scopes: `https://www.googleapis.com/auth/admin.directory.user.readonly`, `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, and `https://www.googleapis.com/auth/calendar.events.readonly`.

@@ -10,7 +10,7 @@
 
 - Run `node --test tests/*.test.mjs` and `node --check server.mjs` for server or integration changes; check any edited browser JavaScript with `node --check <file>`.
 - Run `git diff --check` before handing off. Rebuild with `docker compose up --build -d` when Docker is available; never assume a successful Node test proves the container image builds.
-- Keep local `.env`, `data/intranet.json`, uploaded media, and `data/audit trail archive/` out of Git. Do not place Google service-account keys in the repository or Docker image.
+- Keep local `.env`, `data/intranet.json`, `data/notification-secrets.json`, uploaded media, and `data/audit trail archive/` out of Git. Do not place Google service-account keys or notification credentials in the repository or Docker image.
 
 ## Administration workspace
 
@@ -88,6 +88,8 @@
 - User management supports Google identities and local intranet identities without exposing a password field in the administration UI. The protected local administrator is defined by runtime configuration; do not create or display local credentials in content data.
 - The first-week checklist supports independent completion gates: policy acknowledgement, Security Awareness video completion, Company Portal training engagement, and opening a configured resource link. A locked task explains its prerequisite; viewing or editing an Administration preview must never complete an employee task.
 - The dashboard header includes an in-app announcement bell. It derives its items from published announcements, keeps read state per signed-in employee in browser storage, allows individual or bulk read acknowledgement, opens the corresponding announcement, and refreshes the dashboard announcement feed every 60 seconds while the page is visible. It is an in-app inbox, not an external email or push-notification service.
+- **Announcement delivery:** Each announcement, schedule, and reusable template can independently enable or disable the in-app bell, target the bell to specific company email addresses (or all signed-in users when blank), and opt into email with To, CC, and BCC recipients. Announcement content remains visible on the announcement page; targeting controls only the bell. Email delivery uses `intranet@si-ware.com` through Gmail SMTP and is opt-in per announcement.
+- **Notifications administration:** Only roles with both `settings.manage` and `page.notifications` can open Administration > Notifications, enable or disable announcement email, or save/remove the Gmail App Password. The UI never receives the saved password. It is AES-256-GCM encrypted in host-only `data/notification-secrets.json` using `NOTIFICATION_SECRET_KEY` from the Ubuntu `.env`; do not rotate that key while an app password must remain usable. The secret file is ignored by Git and Docker build context, and must be included in host backups with restricted permissions.
 
 ---
 

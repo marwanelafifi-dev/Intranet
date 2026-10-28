@@ -224,6 +224,9 @@ function visibleAnnouncements() {
     .slice()
     .sort((first, second) => new Date(second.publishedAt || second.date || 0) - new Date(first.publishedAt || first.date || 0));
 }
+function notificationAnnouncements() {
+  return visibleAnnouncements().filter(item => item.notification?.inAppEnabled !== false && item.notification?.inAppVisible !== false);
+}
 function notificationStorageKey() {
   return `siware-announcement-notifications:${String(state?.user?.email || state?.user?.id || state?.user?.name || 'employee').trim().toLowerCase()}`;
 }
@@ -241,7 +244,7 @@ function notificationTime(item) {
 function renderNotifications() {
   const panel = $('#notification-panel'), button = $('#notification-button'), badge = $('#notification-badge');
   if (!panel || !button || !badge) return;
-  const items = visibleAnnouncements().slice(0, 12), readIds = readNotificationIds();
+  const items = notificationAnnouncements().slice(0, 12), readIds = readNotificationIds();
   const unread = items.filter(item => !readIds.has(String(item.id)));
   badge.hidden = !unread.length;
   badge.textContent = unread.length > 9 ? '9+' : String(unread.length);
@@ -263,7 +266,7 @@ function markAnnouncementRead(id) {
 }
 function markAllAnnouncementsRead() {
   const readIds = readNotificationIds();
-  visibleAnnouncements().forEach(item => readIds.add(String(item.id)));
+  notificationAnnouncements().forEach(item => readIds.add(String(item.id)));
   saveNotificationIds(readIds);
   renderNotifications();
 }
@@ -272,7 +275,7 @@ async function refreshAnnouncementNotifications() {
   try {
     const dashboard = await request('/api/dashboard');
     const announcements = Array.isArray(dashboard.announcements) ? dashboard.announcements : [];
-    const newItems = announcements.filter(item => item.hidden !== true && item.hidden !== 'true' && !knownAnnouncementIds.has(String(item.id)));
+    const newItems = announcements.filter(item => item.hidden !== true && item.hidden !== 'true' && item.notification?.inAppEnabled !== false && item.notification?.inAppVisible !== false && !knownAnnouncementIds.has(String(item.id)));
     state.announcements = announcements;
     announcements.forEach(item => knownAnnouncementIds.add(String(item.id)));
     renderAnnouncement();
