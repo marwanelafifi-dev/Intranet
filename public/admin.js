@@ -2001,13 +2001,17 @@ document.addEventListener('submit', async event => {
     form.noValidate = false;
     delete values.iconImage; delete values.memberProfilePhoto; delete values.policyDocument; delete values.checklistAttachment; delete values.announcementMedia; delete values.announcementAttachment; delete values.deliveryMode; delete values.repeatAnnouncement; delete values.scheduleDate; delete values.scheduleFrequency; delete values.scheduleTime; delete values.scheduleDayOfWeek; delete values.scheduleDayOfMonth;
     if (key === 'announcements') {
+      const existingNotification = record?.notification || {};
       values.notification = {
         inAppEnabled:values.notificationInAppEnabled === 'true',
         inAppRecipients:values.notificationInAppRecipients,
         emailEnabled:values.notificationEmailEnabled === 'true',
         to:values.notificationEmailTo,
         cc:values.notificationEmailCc,
-        bcc:values.notificationEmailBcc
+        bcc:values.notificationEmailBcc,
+        emailDeliveryState:existingNotification.emailDeliveryState || '',
+        emailSentAt:existingNotification.emailSentAt || '',
+        emailError:existingNotification.emailError || ''
       };
       delete values.notificationInAppEnabled; delete values.notificationInAppRecipients; delete values.notificationEmailEnabled; delete values.notificationEmailTo; delete values.notificationEmailCc; delete values.notificationEmailBcc;
     }
