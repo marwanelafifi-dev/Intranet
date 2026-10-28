@@ -159,11 +159,9 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
   return { created, updated };
 }
 
-// Directory sync is authoritative only for Google-managed cards that still belong
-// to one of the OUs currently being synced.  That narrow scope means a card is
-// removed when its Google account is moved out of a selected OU or suspended,
-// while manually managed cards (and cards from an OU an admin later deselects)
-// remain untouched.
+// After every complete Directory read, the selected OU list is authoritative for
+// Google-managed cards. A card disappears when its account leaves a selected OU,
+// is suspended, or its OU is unchecked. Manual cards remain untouched.
 export function pruneDirectoryMembers(data, users, config) {
   if (!config.ous?.length || !Array.isArray(data.newMembers)) return { removed:0 };
   const activeUserIds = new Set(users
@@ -172,7 +170,6 @@ export function pruneDirectoryMembers(data, users, config) {
   const before = data.newMembers.length;
   data.newMembers = data.newMembers.filter(member => {
     if (member?.source !== 'google-directory' || !member.googleUserId) return true;
-    if (!config.ous.includes(member.organizationUnit)) return true;
     return activeUserIds.has(String(member.googleUserId));
   });
   return { removed:before - data.newMembers.length };

@@ -103,7 +103,7 @@ test('multiple exact Egypt OUs map known employment types without importing chil
   assert.equal(data.newMembers.some(member => member.companyEmail === 'child@si-ware.com'), false);
 });
 
-test('removes a Google-managed card after the user leaves a selected OU, without removing manual cards', async () => {
+test('removes Google-managed cards after a user leaves or an administrator deselects an OU, without removing manual cards', async () => {
   const data = {
     newMembers:[
       { id:'left-user', source:'google-directory', googleUserId:'left-google-user', companyEmail:'left@si-ware.com', organizationUnit:'/People/New Hires' },
@@ -114,9 +114,9 @@ test('removes a Google-managed card after the user leaves a selected OU, without
     events:[]
   };
   const result = await syncWorkspaceContent(data, { ...config, calendars:[] }, { users:async () => [user()] }, now);
-  assert.equal(result.members.removed, 1);
+  assert.equal(result.members.removed, 2);
   assert.equal(result.changed, true);
-  assert.deepEqual(new Set(data.newMembers.map(member => member.id)), new Set(['active-user', 'manual-user', 'deselected-user']));
+  assert.deepEqual(new Set(data.newMembers.map(member => member.id)), new Set(['active-user', 'manual-user']));
 });
 
 test('does not remove directory cards when a selected OU cannot be read', async () => {
