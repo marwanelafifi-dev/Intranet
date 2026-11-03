@@ -17,6 +17,13 @@ function initials(member) {
   return String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2)).trim();
 }
 
+function avatarMarkup(member) {
+  const photoUrl = String(member.profilePhotoUrl || member.photoUrl || '').trim();
+  return photoUrl
+    ? `<img class="org-chart-avatar" src="${escapeHtml(photoUrl)}" alt="" loading="lazy" /><span class="org-chart-avatar org-chart-initials" style="--member-color:${escapeHtml(member.color || '#dceeff')}" hidden aria-hidden="true">${escapeHtml(initials(member))}</span>`
+    : `<span class="org-chart-avatar org-chart-initials" style="--member-color:${escapeHtml(member.color || '#dceeff')}" aria-hidden="true">${escapeHtml(initials(member))}</span>`;
+}
+
 function quickActions(member) {
   const name = String(member.name || 'colleague').trim();
   const email = String(member.companyEmail || '').trim();
@@ -35,13 +42,15 @@ function nodeMarkup(node, visible, searchActive) {
   const { member, children } = node;
   const hasChildren = children.length > 0;
   const isOpen = searchActive || expanded.has(node.id);
-  const photoUrl = String(member.profilePhotoUrl || member.photoUrl || '').trim();
-  const avatar = photoUrl
-    ? `<img class="org-chart-avatar" src="${escapeHtml(photoUrl)}" alt="" loading="lazy" /><span class="org-chart-avatar org-chart-initials" style="--member-color:${escapeHtml(member.color || '#dceeff')}" hidden aria-hidden="true">${escapeHtml(initials(member))}</span>`
-    : `<span class="org-chart-avatar org-chart-initials" style="--member-color:${escapeHtml(member.color || '#dceeff')}" aria-hidden="true">${escapeHtml(initials(member))}</span>`;
+  const avatar = avatarMarkup(member);
   const structure = [member.sector, member.department].filter(value => value && value !== 'To be confirmed').join(' · ');
   const childrenMarkup = hasChildren ? `<ul class="org-chart-children" ${isOpen ? '' : 'hidden'}>${children.map(child => nodeMarkup(child, visible, searchActive)).join('')}</ul>` : '';
   return `<li class="org-chart-node"><article class="org-chart-person-shell"><button class="org-chart-person" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}"><span class="org-chart-person-name">${escapeHtml(member.name || 'Colleague')}</span><span class="org-chart-person-body">${avatar}<span><b>${escapeHtml(member.role || 'Role not listed')}</b>${structure ? `<small>${escapeHtml(structure)}</small>` : ''}</span></span></button><footer>${quickActions(member)}${hasChildren ? `<button class="org-chart-toggle" type="button" data-org-toggle="${escapeHtml(node.id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? 'Collapse' : 'Expand'} ${escapeHtml(member.name || 'colleague')}’s direct reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg><span>${children.length} direct report${children.length === 1 ? '' : 's'}</span></button>` : '<span class="org-chart-no-reports">Individual contributor</span>'}</footer></article>${childrenMarkup}</li>`;
+}
+
+function leaderMarkup(node) {
+  const member = node.member;
+  return `<button class="org-chart-leader" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}">${avatarMarkup(member)}<span><b>${escapeHtml(member.name || 'Colleague')}</b><small>${escapeHtml(member.role || 'Role not listed')}</small></span></button>`;
 }
 
 function render() {
@@ -49,8 +58,9 @@ function render() {
   const visible = visibleOrganizationNodeIds(roots, query);
   const markup = roots.map(root => nodeMarkup(root, visible, Boolean(query.trim()))).join('');
   select('#organization-chart-tree').innerHTML = markup || '<p class="org-chart-empty">No colleagues match this search.</p>';
+  select('#org-chart-top-level').innerHTML = roots.map(leaderMarkup).join('') || '<p class="org-chart-empty">No top-level colleagues are available.</p>';
   select('#org-chart-result-count').textContent = query.trim() ? `${visible?.size || 0} colleagues shown in the matching hierarchy` : `${members.length} colleagues in the organization chart`;
-  select('#organization-chart-tree').querySelectorAll('.org-chart-avatar[src]').forEach(photo => {
+  select('.org-chart-workspace').querySelectorAll('.org-chart-avatar[src]').forEach(photo => {
     photo.addEventListener('error', () => { photo.hidden = true; photo.nextElementSibling.hidden = false; }, { once:true });
   });
 }
@@ -75,7 +85,7 @@ async function loadChart() {
 select('#org-chart-search').addEventListener('input', render);
 select('[data-org-expand-all]').addEventListener('click', () => { const add = nodes => nodes.forEach(node => { expanded.add(node.id); add(node.children); }); add(roots); render(); });
 select('[data-org-collapse-all]').addEventListener('click', () => { expanded.clear(); roots.forEach(root => expanded.add(root.id)); render(); });
-select('#organization-chart-tree').addEventListener('click', event => {
+select('.org-chart-workspace').addEventListener('click', event => {
   const toggle = event.target.closest('[data-org-toggle]');
   if (toggle) {
     const id = toggle.dataset.orgToggle;
