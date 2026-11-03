@@ -15,10 +15,12 @@ test('organization chart presents email, phone, and LinkedIn quick actions when 
   assert.match(script, /org-chart-quick-actions/);
   assert.match(script, /org-chart-bio-action/);
   assert.match(script, /org-chart-report-control/);
-  assert.match(script, /data-org-focus/);
-  assert.match(script, /org-chart-report-grid/);
-  assert.match(script, /org-chart-top-leadership/);
-  assert.match(script, /Back to manager/);
+  assert.match(script, /data-org-toggle/);
+  assert.match(script, /data-org-expand-reports/);
+  assert.match(script, /data-org-expand-all/);
+  assert.match(script, /data-org-collapse-all/);
+  assert.match(script, /Direct reports <b>/);
+  assert.match(script, /All reports <b>/);
   assert.doesNotMatch(script, /Individual contributor/);
   assert.match(script, /filterOrganizationChartMembers/);
   assert.match(styles, /\.org-chart-quick-actions a\{display:grid/);
@@ -34,8 +36,9 @@ test('organization chart keeps a consistent card footprint when profile details 
   assert.match(styles, /\.org-chart-person\{min-height:0;grid-template-rows:37px minmax\(0,1fr\)\}/);
   assert.match(styles, /\.org-chart-person-shell footer\{min-height:66px;padding:5px 9px;grid-template-rows:26px 26px;gap:4px\}/);
   assert.match(styles, /\.org-chart-canvas\{min-height:0;padding-block:22px 24px\}/);
-  assert.match(styles, /\.org-chart-explorer\{display:grid;gap:30px\}/);
-  assert.match(styles, /\.org-chart-canvas\{overflow:visible\}/);
+  assert.match(styles, /\.org-chart-report-actions\{display:flex;justify-content:flex-end;gap:4px;min-width:0\}/);
+  assert.match(styles, /\.org-chart-expand-reports\{display:inline-flex/);
+  assert.doesNotMatch(styles, /\.org-chart-canvas\{overflow:visible\}/);
 });
 
 test('enabled professional biographies are rendered inside the colleague profile', () => {
