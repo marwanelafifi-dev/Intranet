@@ -1195,12 +1195,18 @@ function mountPreviewOnlyCollection(root, key, title, href) {
     });
     workspace.append(form);
     const organizationChart = document.createElement('article');
+    const organizationUnits = [...new Set((dashboard.newMembers || []).map(member => String(member.organizationUnit || '').trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, undefined, { sensitivity:'base' }));
+    const selectedOrganizationUnits = Array.isArray(copy.orgChartOrganizationUnits) ? new Set(copy.orgChartOrganizationUnits.map(unit => String(unit || '').trim()).filter(Boolean)) : null;
+    const organizationUnitOptions = organizationUnits.length
+      ? organizationUnits.map(unit => `<label><input type="checkbox" name="organizationUnits" value="${escapeHtml(unit)}" ${!selectedOrganizationUnits || selectedOrganizationUnits.has(unit) ? 'checked' : ''} /><span>${escapeHtml(unit)}</span></label>`).join('')
+      : '<p class="organization-chart-organization-units-empty">No Organization Units are available yet. Add or import them in Our Team first.</p>';
     organizationChart.className = 'panel organization-chart-admin-control';
-    organizationChart.innerHTML = `<div class="collection-heading"><div><h2>Organization chart</h2><p>Show the reporting hierarchy built from each colleague’s Direct Manager relationship.</p></div><a class="action-button secondary" href="/organization-chart.html" target="_blank" rel="noopener">Open chart</a></div><form><label class="organization-chart-visibility"><input type="checkbox" name="enabled" ${copy.orgChartEnabled === false ? '' : 'checked'} /><span><b>Enable organization chart</b><small>When disabled, the Our Team link is hidden and the chart URL is unavailable to employees.</small></span></label><div class="form-actions"><button class="action-button primary">Save organization chart setting</button></div></form>`;
+    organizationChart.innerHTML = `<div class="collection-heading"><div><h2>Organization chart</h2><p>Show the reporting hierarchy built from each colleague’s Direct Manager relationship.</p></div><a class="action-button secondary" href="/organization-chart.html" target="_blank" rel="noopener">Open chart</a></div><form><label class="organization-chart-visibility"><input type="checkbox" name="enabled" ${copy.orgChartEnabled === false ? '' : 'checked'} /><span><b>Enable organization chart</b><small>When disabled, the Our Team link is hidden and the chart URL is unavailable to employees.</small></span></label><fieldset class="organization-chart-organization-units"><legend>Organization Units included in the chart</legend><p>Use this to exclude an Interns OU or a specific sub-unit without removing colleagues from the directory. Each unit is controlled independently.</p><div>${organizationUnitOptions}</div></fieldset><div class="form-actions"><button class="action-button primary">Save organization chart setting</button></div></form>`;
     organizationChart.querySelector('form').addEventListener('submit', event => {
       event.preventDefault();
       const enabled = organizationChart.querySelector('[name="enabled"]').checked;
-      dashboard.recentlyJoinedPageContent = { ...dashboard.recentlyJoinedPageContent, orgChartEnabled:enabled };
+      const includedOrganizationUnits = new FormData(event.currentTarget).getAll('organizationUnits').map(unit => String(unit).trim()).filter(Boolean);
+      dashboard.recentlyJoinedPageContent = { ...dashboard.recentlyJoinedPageContent, orgChartEnabled:enabled, orgChartOrganizationUnits:includedOrganizationUnits };
       saveDashboard(`Organization chart ${enabled ? 'enabled' : 'disabled'} for employees.`);
     });
     workspace.append(organizationChart);

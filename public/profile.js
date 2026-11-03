@@ -1,4 +1,5 @@
 import { signOut } from './account-actions.js';
+import { visibleSector } from './employee-presentation.js';
 
 const $ = selector => document.querySelector(selector);
 const labels = { ADMIN:'Administrator', CONTENT_EDITOR:'Content editor', AUDIT_VIEWER:'Audit viewer', EMPLOYEE:'Employee' };
@@ -63,7 +64,7 @@ function renderDirectoryDetails(member) {
   [
     ['Job title', member.role],
     ['Department', member.department || member.team],
-    ['Sector', member.sector],
+    ['Sector', visibleSector(member)],
     ['Team', member.team && member.team !== member.department ? member.team : ''],
     ['Direct manager', member.directManager],
     ['Employment type', member.employmentType],

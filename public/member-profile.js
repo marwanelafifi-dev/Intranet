@@ -1,3 +1,5 @@
+import { visibleSector } from './employee-presentation.js';
+
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
 
 let profileCard;
@@ -61,8 +63,8 @@ function profileMarkup(member, directory) {
   const facts = [
     detail('Employee ID', member.employeeId || 'Not assigned in Google Workspace'),
     detail('Employment type', member.employmentType),
-    detail('Sector', member.sector === 'To be confirmed' ? '' : member.sector),
-    detail('Department', member.department),
+    detail('Sector', visibleSector(member)),
+    detail('Department', member.department || member.team),
     detail('Direct manager', manager?.name, true, manager?.email),
     detail('Organization unit', member.organizationUnit),
     detail('Joined', member.joined)

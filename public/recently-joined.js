@@ -1,5 +1,6 @@
 import { openMemberProfile } from './member-profile.js';
 import { matchesMemberSearch } from './team-directory-data.js';
+import { visibleSector } from './employee-presentation.js';
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
 const select = selector => document.querySelector(selector);
@@ -57,7 +58,7 @@ function memberCard(member) {
   const manager = directManagerDetails(member);
   const facts = [
     manager ? { label:'Direct manager', value:manager.name, email:manager.email, fullWidth:true } : null,
-    { label:'Sector', value:member.sector },
+    { label:'Sector', value:visibleSector(member) },
     { label:'Department', value:member.department || member.team },
     { label:'Employment', value:member.employmentType },
     { label:'Joined', value:member.joined }

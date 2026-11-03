@@ -2,6 +2,12 @@ const text = value => String(value || '').trim();
 const emailKey = value => text(value).toLocaleLowerCase();
 const nameSort = (left, right) => text(left.member.name).localeCompare(text(right.member.name), undefined, { sensitivity:'base' });
 
+export function filterOrganizationChartMembers(members = [], includedOrganizationUnits) {
+  if (!Array.isArray(includedOrganizationUnits)) return members;
+  const included = new Set(includedOrganizationUnits.map(text).filter(Boolean));
+  return members.filter(member => included.has(text(member.organizationUnit)));
+}
+
 function sortBranches(nodes) {
   nodes.sort(nameSort);
   nodes.forEach(node => sortBranches(node.children));

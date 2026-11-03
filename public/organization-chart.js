@@ -1,5 +1,6 @@
 import { openMemberProfile } from './member-profile.js';
-import { buildOrganizationChart, visibleOrganizationNodeIds } from './organization-chart-data.js';
+import { buildOrganizationChart, filterOrganizationChartMembers, visibleOrganizationNodeIds } from './organization-chart-data.js';
+import { organizationDescriptor } from './employee-presentation.js';
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
 const select = selector => document.querySelector(selector);
@@ -43,11 +44,11 @@ function nodeMarkup(node, visible, searchActive) {
   const hasChildren = children.length > 0;
   const isOpen = searchActive || expanded.has(node.id);
   const avatar = avatarMarkup(member);
-  const structure = [member.sector, member.department].filter(value => value && value !== 'To be confirmed').join(' · ');
+  const structure = organizationDescriptor(member);
   const biographyAction = (member.bioEnabled === true || member.bioEnabled === 'true') && String(member.bio || '').trim() ? `<button class="org-chart-bio-action" type="button" data-org-profile="${node.index}">Read bio</button>` : '';
   const reportControl = hasChildren ? `<button class="org-chart-toggle" type="button" data-org-toggle="${escapeHtml(node.id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? 'Collapse' : 'Expand'} ${escapeHtml(member.name || 'colleague')}’s direct reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg><span>${children.length} direct report${children.length === 1 ? '' : 's'}</span></button>` : '<span class="org-chart-no-reports">Individual contributor</span>';
   const childrenMarkup = hasChildren ? `<ul class="org-chart-children" ${isOpen ? '' : 'hidden'}>${children.map(child => nodeMarkup(child, visible, searchActive)).join('')}</ul>` : '';
-  return `<li class="org-chart-node"><article class="org-chart-person-shell"><button class="org-chart-person" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}"><span class="org-chart-person-name">${escapeHtml(member.name || 'Colleague')}</span><span class="org-chart-person-body">${avatar}<span><b>${escapeHtml(member.role || 'Role not listed')}</b>${structure ? `<small>${escapeHtml(structure)}</small>` : ''}</span></span></button><footer><div class="org-chart-card-actions">${quickActions(member)}${biographyAction}</div><div class="org-chart-report-control">${reportControl}</div></footer></article>${childrenMarkup}</li>`;
+  return `<li class="org-chart-node"><article class="org-chart-person-shell"><button class="org-chart-person" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}"><span class="org-chart-person-name">${escapeHtml(member.name || 'Colleague')}</span><span class="org-chart-person-body">${avatar}<span><b>${escapeHtml(member.role || 'Role not listed')}</b><small>${escapeHtml(structure)}</small></span></span></button><footer><div class="org-chart-card-actions">${quickActions(member)}${biographyAction}</div><div class="org-chart-report-control">${reportControl}</div></footer></article>${childrenMarkup}</li>`;
 }
 
 function render() {
@@ -67,7 +68,7 @@ async function loadChart() {
     if (!response.ok) throw new Error('The organization chart is unavailable');
     const data = await response.json();
     if (data.recentlyJoinedPageContent?.orgChartEnabled === false) throw new Error('The organization chart is not currently available');
-    members = (data.newMembers || []).map(member => ({ ...member }));
+    members = filterOrganizationChartMembers((data.newMembers || []).map(member => ({ ...member })), data.recentlyJoinedPageContent?.orgChartOrganizationUnits);
     roots = buildOrganizationChart(members);
     roots.forEach(root => expanded.add(root.id));
     render();
