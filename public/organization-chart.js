@@ -48,17 +48,11 @@ function nodeMarkup(node, visible, searchActive) {
   return `<li class="org-chart-node"><article class="org-chart-person-shell"><button class="org-chart-person" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}"><span class="org-chart-person-name">${escapeHtml(member.name || 'Colleague')}</span><span class="org-chart-person-body">${avatar}<span><b>${escapeHtml(member.role || 'Role not listed')}</b>${structure ? `<small>${escapeHtml(structure)}</small>` : ''}</span></span></button><footer>${quickActions(member)}${hasChildren ? `<button class="org-chart-toggle" type="button" data-org-toggle="${escapeHtml(node.id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? 'Collapse' : 'Expand'} ${escapeHtml(member.name || 'colleague')}’s direct reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg><span>${children.length} direct report${children.length === 1 ? '' : 's'}</span></button>` : '<span class="org-chart-no-reports">Individual contributor</span>'}</footer></article>${childrenMarkup}</li>`;
 }
 
-function leaderMarkup(node) {
-  const member = node.member;
-  return `<button class="org-chart-leader" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}">${avatarMarkup(member)}<span><b>${escapeHtml(member.name || 'Colleague')}</b><small>${escapeHtml(member.role || 'Role not listed')}</small></span></button>`;
-}
-
 function render() {
   const query = select('#org-chart-search').value;
   const visible = visibleOrganizationNodeIds(roots, query);
   const markup = roots.map(root => nodeMarkup(root, visible, Boolean(query.trim()))).join('');
   select('#organization-chart-tree').innerHTML = markup || '<p class="org-chart-empty">No colleagues match this search.</p>';
-  select('#org-chart-top-level').innerHTML = roots.map(leaderMarkup).join('') || '<p class="org-chart-empty">No top-level colleagues are available.</p>';
   select('#org-chart-result-count').textContent = query.trim() ? `${visible?.size || 0} colleagues shown in the matching hierarchy` : `${members.length} colleagues in the organization chart`;
   select('.org-chart-workspace').querySelectorAll('.org-chart-avatar[src]').forEach(photo => {
     photo.addEventListener('error', () => { photo.hidden = true; photo.nextElementSibling.hidden = false; }, { once:true });
