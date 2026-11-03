@@ -5,6 +5,10 @@ export function csvValue(row, columns, aliases) {
   return index === undefined ? '' : String(row[index] || '').trim();
 }
 
+export function hasMemberIdentifierColumn(columns) {
+  return ['companyemail', 'workemail', 'email', 'employeeid', 'employeenumber', 'employeecode'].some(key => columns.has(key));
+}
+
 export function safeLinkedInUrl(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -15,10 +19,16 @@ export function safeLinkedInUrl(value) {
   } catch { return null; }
 }
 
-export function findExistingCsvMember(members, email, name) {
-  return members.find(member => email
-    ? String(member.companyEmail || '').trim().toLowerCase() === email
-    : name && String(member.name || '').trim().toLowerCase() === name);
+export function findExistingCsvMember(members, { email = '', employeeId = '' }, index) {
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedId = String(employeeId).trim().toLowerCase();
+  if (!normalizedEmail && !normalizedId) throw new Error(`Row ${index + 2} needs a Company Email or Employee ID to identify the colleague.`);
+  if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) throw new Error(`Row ${index + 2} has an invalid Company Email.`);
+  const byEmail = normalizedEmail ? members.filter(member => String(member.companyEmail || '').trim().toLowerCase() === normalizedEmail) : [];
+  const byId = normalizedId ? members.filter(member => String(member.employeeId || '').trim().toLowerCase() === normalizedId) : [];
+  if (byEmail.length > 1 || byId.length > 1) throw new Error(`Row ${index + 2} matches more than one colleague. Correct the duplicate Company Email or Employee ID before importing.`);
+  if (byEmail[0] && byId[0] && byEmail[0] !== byId[0]) throw new Error(`Row ${index + 2} has a Company Email and Employee ID belonging to different colleagues.`);
+  return byEmail[0] || byId[0];
 }
 
 export function csvMemberRecord(row, columns, existing, index) {
@@ -32,7 +42,7 @@ export function csvMemberRecord(row, columns, existing, index) {
     photoUrl:['photo url', 'photo', 'image url'], photoFilename:['photo filename', 'image filename']
   };
   const values = Object.fromEntries(Object.entries(aliases).map(([field, names]) => [field, csvValue(row, columns, names)]));
-  if (!values.name && !existing?.name) throw new Error(`Row ${index + 2} needs a Name, or a Company Email matching an existing colleague.`);
+  if (!values.name && !existing?.name) throw new Error(`Row ${index + 2} did not match an existing colleague. Add a Name to create a new record, or correct the Company Email or Employee ID.`);
   if (values.linkedinUrl) {
     values.linkedinUrl = safeLinkedInUrl(values.linkedinUrl);
     if (values.linkedinUrl === null) throw new Error(`Row ${index + 2} has an invalid LinkedIn URL.`);
@@ -41,6 +51,7 @@ export function csvMemberRecord(row, columns, existing, index) {
   for (const [field, value] of Object.entries(values)) {
     if (!value) continue;
     if (field === 'companyEmail' && existing && String(existing.companyEmail || '').toLowerCase() === value.toLowerCase()) continue;
+    if (field === 'employeeId' && existing && String(existing.employeeId || '').trim().toLowerCase() === value.toLowerCase()) continue;
     record[field] = value;
   }
   if (values.name || !existing) record.initials = record.name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase();
