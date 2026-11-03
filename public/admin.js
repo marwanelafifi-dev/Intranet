@@ -188,22 +188,36 @@ async function importNewMembersCsv(file) {
   if (!/\.csv$/i.test(file.name) || file.size > 2 * 1024 * 1024) { flash('Choose a CSV file that is 2 MB or smaller.'); return; }
   const rows = parseCsv(await file.text());
   const result = planMemberCsvImport(rows, dashboard.newMembers);
-  const message = `CSV import: ${result.created} added, ${result.updated} updated, ${result.unmatched.length} not found.`;
+  const notImported = result.rowLog.filter(item => item.outcome === 'Not imported').length;
+  const message = `CSV import: ${result.created} added, ${result.updated} updated, ${notImported} not imported.`;
   if (result.created || result.updated) {
     dashboard.newMembers = result.members;
     await saveDashboard(message, true, true, 'import');
   }
-  showTeamImportReport(result.unmatched);
-  flash(message, result.unmatched.length ? 20000 : 4500);
+  const logUrl = downloadTeamImportLog(result.rowLog);
+  showTeamImportReport(result, logUrl);
+  flash(`${message} The row log was downloaded.`, notImported ? 20000 : 4500);
 }
-function showTeamImportReport(unmatched) {
+function csvLogValue(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
+function downloadTeamImportLog(entries) {
+  const heading = ['CSV row', 'Company Email', 'Employee ID', 'Result', 'Details'];
+  const rows = entries.map(item => [item.row, item.companyEmail, item.employeeId, item.outcome, item.detail]);
+  const csv = `\uFEFF${[heading, ...rows].map(row => row.map(csvLogValue).join(',')).join('\r\n')}\r\n`;
+  const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `our-team-import-log-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.csv`;
+  document.body.append(link); link.click(); link.remove();
+  return url;
+}
+function showTeamImportReport(result, logUrl) {
   const root = $('#view-people');
   root.querySelector('.team-import-report')?.remove();
-  if (!unmatched.length) return;
+  const notImported = result.rowLog.filter(item => item.outcome === 'Not imported');
   const report = document.createElement('section');
   report.className = 'team-import-report';
   report.setAttribute('role', 'status');
-  report.innerHTML = `<h2>${unmatched.length} ${unmatched.length === 1 ? 'row was' : 'rows were'} not imported</h2><p>These identifiers are not in the live Our Team directory. Check each email or Employee ID, or confirm the colleague is in a selected Google organizational unit. No directory card was created for these rows.</p><details><summary>Review unmatched rows</summary><ul>${unmatched.map(item => `<li>Row ${item.row}: ${escapeHtml(item.identifier)}</li>`).join('')}</ul></details>`;
+  report.innerHTML = `<h2>Import complete</h2><p>${result.created} added, ${result.updated} updated, and ${notImported.length} not imported. The downloaded row log records every row and its outcome.</p><a class="action-button secondary" href="${logUrl}" download="our-team-import-log.csv">Download row log</a>${notImported.length ? `<details><summary>Review rows not imported</summary><ul>${notImported.map(item => `<li>Row ${item.row}: ${escapeHtml(item.companyEmail || item.employeeId || 'No identifier')} — ${escapeHtml(item.detail)}</li>`).join('')}</ul></details>` : ''}`;
   root.prepend(report);
 }
 function normaliseKnowledgeCsvDate(value) {

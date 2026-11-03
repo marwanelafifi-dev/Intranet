@@ -16,14 +16,30 @@ test('bulk Sector import updates matching rows and reports missing colleagues wi
   assert.equal(original[0].sector, '');
 });
 
-test('a malformed row aborts the import plan without changing saved colleagues', () => {
+test('a malformed row is written to the log while valid rows remain available to save', () => {
   const original = [{ id:'active-1', name:'Active Colleague', companyEmail:'active@si-ware.com', sector:'' }];
-  assert.throws(() => planMemberCsvImport([
+  const result = planMemberCsvImport([
     ['Sector', 'Company Email'],
     ['Commercial', 'active@si-ware.com'],
     ['Commercial', '']
-  ], original), /needs a Company Email or Employee ID/);
+  ], original);
+  assert.equal(result.updated, 1);
+  assert.deepEqual(result.rowLog, [
+    { row:2, companyEmail:'active@si-ware.com', employeeId:'', outcome:'Updated', detail:'Existing colleague matched.' },
+    { row:3, companyEmail:'', employeeId:'', outcome:'Not imported', detail:'Row 3 needs a Company Email or Employee ID to identify the colleague.' }
+  ]);
   assert.equal(original[0].sector, '');
+});
+
+test('the row log contains every source row with an outcome', () => {
+  const result = planMemberCsvImport([
+    ['Name', 'Company Email', 'Sector'],
+    ['Active Colleague', 'active@si-ware.com', 'Commercial'],
+    ['New Colleague', 'new@si-ware.com', 'Research'],
+    ['', 'missing@si-ware.com', 'Energy']
+  ], [{ id:'active-1', name:'Active Colleague', companyEmail:'active@si-ware.com', sector:'' }]);
+  assert.deepEqual(result.rowLog.map(item => [item.row, item.outcome]), [[2, 'Updated'], [3, 'Added'], [4, 'Not imported']]);
+  assert.equal(result.rowLog.length, 3);
 });
 
 test('bulk import accepts a reduced template with either identifier column', () => {

@@ -72,19 +72,36 @@ export function planMemberCsvImport(rows, members) {
   if (rows.length > 501) throw new Error('Import up to 500 employees at a time.');
   const columns = new Map(rows[0].map((header, index) => [csvKey(header), index]));
   if (!hasMemberIdentifierColumn(columns)) throw new Error('The CSV must include Company Email or Employee ID to identify colleagues.');
-  const known = members.map(member => ({ ...member })), originalCount = known.length, created = [], unmatched = [];
+  const known = members.map(member => ({ ...member })), originalCount = known.length, created = [], unmatched = [], rowLog = [];
   let updated = 0;
   rows.slice(1).forEach((row, index) => {
     const email = csvValue(row, columns, ['company email', 'work email', 'email']);
     const employeeId = csvValue(row, columns, ['employee id', 'employee number', 'employee code']);
-    const existing = findExistingCsvMember(known, { email, employeeId }, index);
-    if (!existing && !csvValue(row, columns, ['name', 'full name', 'employee name'])) {
-      unmatched.push({ row:index + 2, identifier:email || employeeId });
+    const rowNumber = index + 2;
+    let existing;
+    try { existing = findExistingCsvMember(known, { email, employeeId }, index); }
+    catch (error) {
+      rowLog.push({ row:rowNumber, companyEmail:email, employeeId, outcome:'Not imported', detail:error.message });
       return;
     }
-    const member = csvMemberRecord(row, columns, existing, index);
-    if (existing) { Object.assign(existing, member); updated += 1; }
-    else { known.push(member); created.push(member); }
+    if (!existing && !csvValue(row, columns, ['name', 'full name', 'employee name'])) {
+      const detail = 'No matching colleague was found. No directory card was created.';
+      unmatched.push({ row:rowNumber, identifier:email || employeeId });
+      rowLog.push({ row:rowNumber, companyEmail:email, employeeId, outcome:'Not imported', detail });
+      return;
+    }
+    try {
+      const member = csvMemberRecord(row, columns, existing, index);
+      if (existing) {
+        Object.assign(existing, member); updated += 1;
+        rowLog.push({ row:rowNumber, companyEmail:email || existing.companyEmail || '', employeeId:employeeId || existing.employeeId || '', outcome:'Updated', detail:'Existing colleague matched.' });
+      } else {
+        known.push(member); created.push(member);
+        rowLog.push({ row:rowNumber, companyEmail:email || member.companyEmail || '', employeeId:employeeId || member.employeeId || '', outcome:'Added', detail:'New colleague created.' });
+      }
+    } catch (error) {
+      rowLog.push({ row:rowNumber, companyEmail:email, employeeId, outcome:'Not imported', detail:error.message });
+    }
   });
-  return { members:[...created, ...known.slice(0, originalCount)], created:created.length, updated, unmatched };
+  return { members:[...created, ...known.slice(0, originalCount)], created:created.length, updated, unmatched, rowLog };
 }
