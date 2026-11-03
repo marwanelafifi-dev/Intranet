@@ -13,6 +13,7 @@ test('organization chart presents email, phone, and LinkedIn quick actions when 
   assert.match(script, /linkedin/);
   assert.match(script, /org-chart-quick-actions/);
   assert.match(script, /org-chart-bio-action/);
+  assert.match(script, /org-chart-report-control/);
   assert.match(styles, /\.org-chart-quick-actions a\{display:grid/);
   assert.match(styles, /\.org-chart-bio-action\{display:inline-flex/);
   assert.match(styles, /\.org-chart-canvas\{overflow:auto/);
