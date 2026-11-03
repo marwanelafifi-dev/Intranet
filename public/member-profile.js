@@ -24,9 +24,9 @@ function safeLinkedInUrl(value) {
   }
 }
 
-function detail(label, value) {
+function detail(label, value, fullWidth = false) {
   const text = String(value || '').trim();
-  return text ? `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text)}</dd></div>` : '';
+  return text ? `<div${fullWidth ? ' class="member-profile-fact--full"' : ''}><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text)}</dd></div>` : '';
 }
 
 function initialsAvatar(member) {
@@ -50,13 +50,12 @@ function profileMarkup(member) {
     ? `<button class="member-profile-photo-button" type="button" data-member-photo-view aria-label="View photo of ${escapeHtml(name)}"><img class="member-profile-avatar member-profile-photo" src="${escapeHtml(photoUrl)}" alt="Photo of ${escapeHtml(name)}" /></button>`
     : `<span class="member-profile-avatar" style="--member-color:${color}" aria-hidden="true">${escapeHtml(initials)}</span>`;
   const facts = [
-    detail('Department', member.department),
-    detail('Sector', member.sector === 'To be confirmed' ? '' : member.sector),
-    member.team && ![member.department, member.sector].includes(member.team) ? detail('Team', member.team) : '',
-    detail('Direct manager', member.directManager),
-    detail('Employment type', member.employmentType),
-    detail('Organization unit', member.organizationUnit),
     detail('Employee ID', member.employeeId || 'Not assigned in Google Workspace'),
+    detail('Employment type', member.employmentType),
+    detail('Sector', member.sector === 'To be confirmed' ? '' : member.sector),
+    detail('Department', member.department),
+    detail('Direct manager', member.directManager, true),
+    detail('Organization unit', member.organizationUnit),
     detail('Joined', member.joined)
   ].join('');
   const email = String(member.companyEmail || '').trim();

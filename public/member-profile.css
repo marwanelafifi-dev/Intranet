@@ -23,6 +23,7 @@
 .member-profile-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .member-profile-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px;margin:22px 0 0;padding:19px 0;border-top:1px solid var(--line,#d7e4f5);border-bottom:1px solid var(--line,#d7e4f5)}
 .member-profile-facts div{min-width:0}
+.member-profile-facts .member-profile-fact--full{grid-column:1/-1}
 .member-profile-facts dt{margin-bottom:4px;color:var(--muted,#526a87);font-size:11px;font-weight:700}
 .member-profile-facts dd{margin:0;color:var(--ink,#102b4e);font-size:13px;font-weight:750;line-height:1.4;overflow-wrap:anywhere}
 .member-profile-note{padding-top:18px}
