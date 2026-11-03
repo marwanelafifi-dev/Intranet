@@ -63,7 +63,7 @@ function renderDirectoryDetails(member) {
   [
     ['Job title', member.role],
     ['Department', member.department || member.team],
-    ['Division', member.division],
+    ['Sector', member.sector],
     ['Team', member.team && member.team !== member.department ? member.team : ''],
     ['Direct manager', member.directManager],
     ['Employment type', member.employmentType],

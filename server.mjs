@@ -1657,7 +1657,7 @@ const server = createServer(async (req, res) => {
         ['intranet.home', 'Form', 'forms', item => `${item.title} ${item.detail}`, item => item.url],
         ['intranet.home', 'FAQ', 'faqs', item => `${item.title} ${item.detail}`, item => item.url],
         ['intranet.home', 'Service request', 'serviceRequests', item => `${item.title} ${item.detail}`, item => item.url],
-        ['intranet.people', 'Colleague', 'newMembers', item => `${item.name} ${item.role} ${item.team} ${item.department} ${item.division} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'],
+        ['intranet.people', 'Colleague', 'newMembers', item => `${item.name} ${item.companyEmail} ${item.role} ${item.team} ${item.department} ${item.sector} ${item.employmentType} ${item.directManager}`, () => '/recently-joined.html'],
         ['intranet.knowledge', 'Knowledge', 'sessions', item => `${item.title} ${item.presenter.name} ${item.category}`, () => '/knowledge-hub.html'],
         ['intranet.apps', 'App', 'apps', item => `${item.name} ${item.caption}`, item => item.url]
       ];

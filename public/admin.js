@@ -3,6 +3,7 @@ import { adminViewPermissions, adminViewCapabilities, adminActionPermissions, ca
 import { intranetPages, intranetPagePermissions, firstAvailableIntranetPage } from './intranet-permissions.js';
 import { renderAuditTrail } from './audit-trail.js';
 import { renderGoogleSyncSettings } from './google-sync-settings.js';
+import { csvKey, csvValue, csvMemberRecord, findExistingCsvMember, safeLinkedInUrl } from './team-csv.js';
 import { mountUsersPage } from './admin-users.js';
 import { defaultGlobalPageContent, normaliseGlobalPageContent, applyGlobalPageContent, loadGlobalPageContent } from './global-page-content.js';
 
@@ -110,7 +111,7 @@ const editableCollections = {
   moments: { title:'Moments', description:'Manage the moments displayed across the intranet.', fields:[['title','Title'],['kind','Label'],['color','Accent colour','color']] },
   events: { title:'Events & key dates', description:'Maintain the employee events calendar and important company dates.', fields:[['date','Date','date'],['title','Title'],['time','Time'],['type','Location']] },
   policies: { title:'Policies', description:'Manage employee-facing policy metadata and ownership.', fields:[['title','Link text shown to employees'],['summary','Summary','textarea'],['owner','Owner'],['department','Department'],['audience','Audience'],['version','Version']] },
-  newMembers: { title:'Our Team', description:'Employee directory display content only; this never grants authentication access.', fields:[['name','Name'],['role','Role'],['employmentType','Employment type'],['department','Department'],['division','Division'],['directManager','Direct manager'],['employeeId','Employee ID','text',true],['joined','Joined']] },
+  newMembers: { title:'Our Team', description:'Employee directory display content only; this never grants authentication access.', fields:[['name','Name'],['role','Role'],['employmentType','Employment type'],['department','Department'],['sector','Sector','text',true],['directManager','Direct manager'],['employeeId','Employee ID','text',true],['joined','Joined']] },
   firstWeekChecklist: { title:'New Si-Warians first-week checklist', description:'Manage the onboarding tasks shown on the New Si-Warians page.', fields:[['text','Task','textarea'],['resourceLabel','Resource label','text',true],['resourceUrl','Resource link','text',true],['attachmentLabel','Attachment label','text',true]] },
   apps: { title:'Quick Launch apps', description:'Manage employee application destinations and their descriptions.', fields:[['name','Name'],['caption','Description'],['url','URL'],['color','Accent colour','color']] },
   supportPortals: { title:'Support portals', description:'Manage approved employee support destinations.', fields:[['name','Name'],['description','Description','textarea'],['url','URL']] }
@@ -140,7 +141,7 @@ function renderCollection(key) {
   const isApps = key === 'apps';
   const csvImport = isPeople ? { input:'new-members-csv', template:'/recently-joined-import-template.csv', filename:'recently-joined-import-template.csv', action:'data-import-new-members', label:'Import CSV' } : isSessions ? { input:'knowledge-sessions-csv', template:'/knowledge-hub-sessions-import-template.csv', filename:'knowledge-hub-sessions-import-template.csv', action:'data-import-knowledge-sessions', label:'Import CSV' } : null;
   const headingActions = '';
-  const csvHelp = isPeople ? '<p class="csv-import-help">Import a CSV to add or update employee cards. Required: <b>Name</b>. Supported columns: Role, Employment Type, Department, Division, Direct Manager, Joined, Company Email, Phone, LinkedIn URL, Welcome Message, and Photo URL.</p>' : isSessions ? '<p class="csv-import-help">Import CSV or tab-separated text. Required: <b>Title and Date</b>. A blank Category becomes General; a blank Presenter is marked for review. Resource links work immediately. Filenames are retained and linked only when a matching resource is known—otherwise upload or add a URL in the session editor.</p>' : '';
+  const csvHelp = isPeople ? '<p class="csv-import-help">To update Sector for existing colleagues, import a CSV with <b>Company Email</b> and <b>Sector</b>. Other details stay as they are. New colleagues also need a Name. The full template supports Role, Employment Type, Department, Direct Manager, Joined, Phone, LinkedIn URL, Welcome Message, and Photo URL.</p>' : isSessions ? '<p class="csv-import-help">Import CSV or tab-separated text. Required: <b>Title and Date</b>. A blank Category becomes General; a blank Presenter is marked for review. Resource links work immediately. Filenames are retained and linked only when a matching resource is known—otherwise upload or add a URL in the session editor.</p>' : '';
   return `<article class="panel collection-panel${isApps ? ' collection-panel--apps' : ''}" data-collection="${key}"><div class="collection-heading"><div><h2>${config.title}</h2><p>${config.description}</p></div>${headingActions}</div>${csvHelp}<div class="collection-layout"><div class="list">${(dashboard[key] || []).map(item => { const details = key === 'policies' ? [item.category, item.department].filter(Boolean).join(' · ') : item.category || item.caption || item.role || item.audience || item.description || ''; const visual = isApps ? (item.iconUrl ? `<img class="app-icon-preview" src="${escapeHtml(item.iconUrl)}" alt="" />` : `<span class="app-list-mark" aria-hidden="true">${escapeHtml(String(item.name || '?').trim().slice(0, 1).toUpperCase())}</span>`) : ['apps','supportPortals'].includes(key) && item.iconUrl ? `<img class="app-icon-preview" src="${escapeHtml(item.iconUrl)}" alt="" />` : ''; return `<div class="list-row${isApps ? ' app-list-row' : ''}">${isApps ? `<span class="app-list-content">${visual}<span><b>${escapeHtml(recordLabel(key, item))}</b><small>${escapeHtml(details)}</small></span></span>` : `${visual}<span><b>${escapeHtml(recordLabel(key, item))}</b><small>${escapeHtml(details)}</small></span>`}<div class="row-actions"><button class="tool-button" type="button" data-edit-record="${key}:${item.id}">Edit</button><button class="tool-button danger-link" type="button" data-remove-record="${key}:${item.id}">Remove</button></div></div>`; }).join('') || '<p class="empty">No records yet.</p>'}</div><form class="inline-editor${isApps ? ' app-editor' : ''}" data-editor="${key}"><h3>${record ? `Edit ${escapeHtml(recordLabel(key, record))}` : isApps ? 'Create Quick Launch app' : `New ${config.title.slice(0, -1)}`}</h3>${recordFields(key, record)}<div class="form-actions"><button class="action-button danger" type="button" data-remove-record="${key}:${record?.id || ''}" ${record ? '' : 'hidden'}>Remove</button><button class="action-button primary">Save changes</button></div></form></div></article>`;
 }
 function announcementScheduleDescription(schedule) {
@@ -182,36 +183,6 @@ function parseCsv(text) {
   if (value.length || row.length) commitRow();
   return rows;
 }
-function csvKey(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-function csvValue(row, columns, aliases) { const index = aliases.map(alias => columns.get(csvKey(alias))).find(value => value !== undefined); return index === undefined ? '' : String(row[index] || '').trim(); }
-function csvMemberRecord(row, columns, existing, index) {
-  const name = csvValue(row, columns, ['name', 'full name', 'employee name']);
-  if (!name) throw new Error(`Row ${index + 2} needs a Name.`);
-  const linkedinInput = csvValue(row, columns, ['linkedin url', 'linkedin', 'linkedin profile']);
-  const linkedinUrl = linkedinInput ? safeLinkedInUrl(linkedinInput) : (existing?.linkedinUrl || '');
-  if (linkedinUrl === null) throw new Error(`Row ${index + 2} has an invalid LinkedIn URL.`);
-  const department = csvValue(row, columns, ['department']) || existing?.department || 'To be confirmed';
-  const photoUrl = csvValue(row, columns, ['photo url', 'photo', 'image url']) || existing?.photoUrl || '';
-  return {
-    ...(existing || { id:`member-${Date.now()}-${index}`, color:'#dceeff' }),
-    name,
-    role:csvValue(row, columns, ['role', 'job title', 'title']) || existing?.role || 'To be confirmed',
-    employmentType:csvValue(row, columns, ['employment type', 'employment', 'type']) || existing?.employmentType || 'Full Time',
-    department,
-    division:csvValue(row, columns, ['division']) || existing?.division || 'To be confirmed',
-    directManager:csvValue(row, columns, ['direct manager', 'manager']) || existing?.directManager || 'To be confirmed',
-    employeeId:csvValue(row, columns, ['employee id', 'employee number', 'employee code']) || existing?.employeeId || '',
-    joined:csvValue(row, columns, ['joined', 'join date', 'start date']) || existing?.joined || 'To be confirmed',
-    companyEmail:csvValue(row, columns, ['company email', 'work email', 'email']) || existing?.companyEmail || '',
-    phone:csvValue(row, columns, ['phone', 'phone number', 'mobile']) || existing?.phone || '',
-    linkedinUrl,
-    message:csvValue(row, columns, ['welcome message', 'message', 'intro']) || existing?.message || '',
-    photoUrl,
-    photoFilename:csvValue(row, columns, ['photo filename', 'image filename']) || existing?.photoFilename || '',
-    team:department,
-    initials:name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase()
-  };
-}
 async function importNewMembersCsv(file) {
   if (!file?.name) return;
   if (!/\.csv$/i.test(file.name) || file.size > 2 * 1024 * 1024) { flash('Choose a CSV file that is 2 MB or smaller.'); return; }
@@ -219,17 +190,17 @@ async function importNewMembersCsv(file) {
   if (rows.length < 2) throw new Error('The CSV needs a header row and at least one employee.');
   if (rows.length > 501) throw new Error('Import up to 500 employees at a time.');
   const columns = new Map(rows[0].map((header, index) => [csvKey(header), index]));
-  if (csvValue(rows[0], columns, ['name', 'full name', 'employee name']) === '' && !columns.has('name') && !columns.has('fullname') && !columns.has('employeename')) throw new Error('The CSV must include a Name column.');
-  const known = [...dashboard.newMembers], created = [];
+  if (!['name','fullname','employeename','companyemail','workemail','email'].some(key => columns.has(key))) throw new Error('The CSV must include Name or Company Email. New colleagues need a Name.');
+  const known = dashboard.newMembers.map(member => ({ ...member })), originalCount = known.length, created = [];
   let updated = 0;
   rows.slice(1).forEach((row, index) => {
     const email = csvValue(row, columns, ['company email', 'work email', 'email']).toLowerCase();
     const name = csvValue(row, columns, ['name', 'full name', 'employee name']).toLowerCase();
-    const existing = known.find(member => (email && String(member.companyEmail || '').toLowerCase() === email) || (name && String(member.name || '').toLowerCase() === name));
+    const existing = findExistingCsvMember(known, email, name);
     const member = csvMemberRecord(row, columns, existing, index);
     if (existing) { Object.assign(existing, member); updated += 1; } else { known.push(member); created.push(member); }
   });
-  dashboard.newMembers.unshift(...created);
+  dashboard.newMembers = [...created, ...known.slice(0, originalCount)];
   await saveDashboard(`CSV imported: ${created.length} added and ${updated} updated.`, true, true, 'import');
 }
 function normaliseKnowledgeCsvDate(value) {
@@ -1384,17 +1355,16 @@ function enhancePersonEditor(root) {
   const initials = record.initials || String(record.name || '').split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || 'SW';
   joined?.insertAdjacentHTML('afterend', `<fieldset class="member-contact-editor"><legend>Contact details <small>(optional)</small></legend><label>Company email<input name="companyEmail" type="email" maxlength="120" value="${escapeHtml(record.companyEmail || '')}" placeholder="name@si-ware.com" /></label><label>Phone number<input name="phone" type="tel" maxlength="40" value="${escapeHtml(record.phone || '')}" placeholder="+20 …" /></label><label>LinkedIn profile<input name="linkedinUrl" type="url" maxlength="300" value="${escapeHtml(record.linkedinUrl || '')}" placeholder="https://www.linkedin.com/in/…" /></label></fieldset><fieldset class="member-photo-editor"><legend>Employee photo</legend><label>Photo upload<input name="memberProfilePhoto" type="file" accept="image/png,image/jpeg,image/webp" /><small>JPEG, PNG, or WebP; minimum 600 × 600 pixels and maximum 10 MB.</small></label><div class="member-photo-preview-area">${memberPhotoPreview(record.profilePhotoUrl || record.photoUrl, record.profilePhotoFilename || record.photoFilename, initials)}</div></fieldset><p class="member-editor-status" role="status" aria-live="polite"></p>`);
 }
-function safeLinkedInUrl(value) { const raw = String(value || '').trim(); if (!raw) return ''; const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`; try { const url = new URL(candidate); return /(^|\.)linkedin\.com$/i.test(url.hostname) ? url.href : null; } catch { return null; } }
 async function saveMember(event, form) {
   event.preventDefault();
   const formData = new FormData(form), existing = editingRecord.newMembers && dashboard.newMembers.find(item => item.id === editingRecord.newMembers), status = form.querySelector('.member-editor-status'), button = form.querySelector('.action-button.primary');
-  const name = String(formData.get('name') || '').trim(), role = String(formData.get('role') || '').trim(), employmentType = String(formData.get('employmentType') || '').trim(), department = String(formData.get('department') || '').trim(), division = String(formData.get('division') || '').trim(), directManager = String(formData.get('directManager') || '').trim(), employeeId = String(formData.get('employeeId') || '').trim(), joined = String(formData.get('joined') || '').trim(), companyEmail = String(formData.get('companyEmail') || '').trim(), phone = String(formData.get('phone') || '').trim(), linkedinUrl = safeLinkedInUrl(formData.get('linkedinUrl')), photo = formData.get('memberProfilePhoto');
-  if (!name || !role || !employmentType || !department || !division || !directManager || !joined) { status.textContent = 'Complete the required employment details before saving.'; return; }
+  const name = String(formData.get('name') || '').trim(), role = String(formData.get('role') || '').trim(), employmentType = String(formData.get('employmentType') || '').trim(), department = String(formData.get('department') || '').trim(), sector = String(formData.get('sector') || '').trim(), directManager = String(formData.get('directManager') || '').trim(), employeeId = String(formData.get('employeeId') || '').trim(), joined = String(formData.get('joined') || '').trim(), companyEmail = String(formData.get('companyEmail') || '').trim(), phone = String(formData.get('phone') || '').trim(), linkedinUrl = safeLinkedInUrl(formData.get('linkedinUrl')), photo = formData.get('memberProfilePhoto');
+  if (!name || !role || !employmentType || !department || !directManager || !joined) { status.textContent = 'Complete the required employment details before saving.'; return; }
   if (linkedinUrl === null) { status.textContent = 'Use a valid linkedin.com profile URL, or leave this field empty.'; return; }
   try {
     button.disabled = true; button.textContent = photo?.name ? 'Uploading photo…' : 'Saving colleague…'; status.textContent = photo?.name ? `Uploading ${photo.name}…` : 'Saving colleague…';
     const profilePhotoUrl = await uploadEmployeeProfilePhoto(photo);
-    const record = { ...(existing || { id:`member-${Date.now()}`, color:'#dceeff', message:'' }), name, role, employmentType, department, division, directManager, employeeId, joined, companyEmail, phone, linkedinUrl, team:department, initials:name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase(), profilePhotoUrl:profilePhotoUrl || existing?.profilePhotoUrl || '', profilePhotoFilename:profilePhotoUrl ? photo.name : existing?.profilePhotoFilename || '', intranetOverrides:profilePhotoUrl ? { ...(existing?.intranetOverrides || {}), profilePhotoUrl:true } : existing?.intranetOverrides };
+    const record = { ...(existing || { id:`member-${Date.now()}`, color:'#dceeff', message:'' }), name, role, employmentType, department, sector, directManager, employeeId, joined, companyEmail, phone, linkedinUrl, team:department, initials:name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase(), profilePhotoUrl:profilePhotoUrl || existing?.profilePhotoUrl || '', profilePhotoFilename:profilePhotoUrl ? photo.name : existing?.profilePhotoFilename || '', intranetOverrides:profilePhotoUrl ? { ...(existing?.intranetOverrides || {}), profilePhotoUrl:true } : existing?.intranetOverrides };
     if (existing) Object.assign(existing, record); else dashboard.newMembers.unshift(record);
     editingRecord.newMembers = record.id; await saveDashboard(profilePhotoUrl ? 'Original employee photo uploaded and published.' : 'Colleague details published.');
   } catch (error) { status.textContent = error.message || 'The colleague could not be saved.'; button.disabled = false; button.textContent = 'Save changes'; }

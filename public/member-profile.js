@@ -51,8 +51,8 @@ function profileMarkup(member) {
     : `<span class="member-profile-avatar" style="--member-color:${color}" aria-hidden="true">${escapeHtml(initials)}</span>`;
   const facts = [
     detail('Department', member.department),
-    detail('Division', member.division === 'To be confirmed' ? '' : member.division),
-    member.team && ![member.department, member.division].includes(member.team) ? detail('Team', member.team) : '',
+    detail('Sector', member.sector === 'To be confirmed' ? '' : member.sector),
+    member.team && ![member.department, member.sector].includes(member.team) ? detail('Team', member.team) : '',
     detail('Direct manager', member.directManager),
     detail('Employment type', member.employmentType),
     detail('Organization unit', member.organizationUnit),

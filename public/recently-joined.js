@@ -1,4 +1,5 @@
 import { openMemberProfile } from './member-profile.js';
+import { matchesMemberSearch } from './team-directory-data.js';
 
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
 const select = selector => document.querySelector(selector);
@@ -44,6 +45,7 @@ function memberCard(member) {
     : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(initials)}</span>`;
   const facts = [
     ['Department', member.department || member.team],
+    ['Sector', member.sector],
     ['Direct manager', member.directManager],
     ['Employment', member.employmentType],
     ['Joined', member.joined]
@@ -55,12 +57,11 @@ function renderMembers(resetPage = false) {
   const search = select('#member-search').value.trim().toLocaleLowerCase();
   const type = select('#member-type-filter').value;
   const department = select('#member-department-filter').value;
-  const division = select('#member-division-filter').value;
+  const sector = select('#member-sector-filter').value;
   const organizationUnit = select('#member-ou-filter').value;
   const sort = select('#member-sort').value;
   const filtered = members.filter(member => {
-    const details = [member.name, member.role, member.department, member.division, member.directManager, member.team, member.organizationUnit].filter(Boolean).join(' ').toLocaleLowerCase();
-    return (!search || details.includes(search)) && (!type || member.employmentType === type) && (!department || member.department === department) && (!division || member.division === division) && (!organizationUnit || member.organizationUnit === organizationUnit);
+    return matchesMemberSearch(member, search) && (!type || member.employmentType === type) && (!department || member.department === department) && (!sector || member.sector === sector) && (!organizationUnit || member.organizationUnit === organizationUnit);
   }).sort(sort === 'newest'
     ? (left, right) => joinedTimestamp(right) - joinedTimestamp(left) || String(left.name || '').localeCompare(String(right.name || ''))
     : (left, right) => String(left.name || '').localeCompare(String(right.name || '')));
@@ -90,7 +91,7 @@ function populateFilters() {
   const options = (values, label) => `<option value="">All ${label}</option>${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;
   select('#member-type-filter').innerHTML = options([...new Set(members.map(member => member.employmentType).filter(value => value && value !== 'To be confirmed'))].sort(), 'employment types');
   select('#member-department-filter').innerHTML = options([...new Set(members.map(member => member.department).filter(value => value && value !== 'To be confirmed'))].sort(), 'departments');
-  select('#member-division-filter').innerHTML = options([...new Set(members.map(member => member.division).filter(value => value && value !== 'To be confirmed'))].sort(), 'divisions');
+  select('#member-sector-filter').innerHTML = options([...new Set(members.map(member => member.sector).filter(value => value && value !== 'To be confirmed'))].sort(), 'sectors');
   select('#member-ou-filter').innerHTML = options([...new Set(members.map(member => member.organizationUnit).filter(Boolean))].sort(), 'organization units');
 }
 
@@ -126,7 +127,7 @@ async function loadTeam() {
       ...member,
       employmentType:String(member.employmentType || '').trim() || 'To be confirmed',
       department:member.department || member.team || 'To be confirmed',
-      division:member.division || 'To be confirmed',
+      sector:String(member.sector || '').trim(),
       organizationUnit:String(member.organizationUnit || '').trim()
     }));
     populateFilters();
@@ -138,14 +139,14 @@ async function loadTeam() {
   }
 }
 
-['#member-type-filter', '#member-department-filter', '#member-division-filter', '#member-ou-filter', '#member-sort'].forEach(selector => select(selector).addEventListener('change', () => renderMembers(true)));
+['#member-type-filter', '#member-department-filter', '#member-sector-filter', '#member-ou-filter', '#member-sort'].forEach(selector => select(selector).addEventListener('change', () => renderMembers(true)));
 select('#member-search').addEventListener('input', () => renderMembers(true));
 select('[data-member-previous]').addEventListener('click', () => { if (currentPage > 1) { currentPage -= 1; renderMembers(); } });
 select('[data-member-next]').addEventListener('click', () => { currentPage += 1; renderMembers(); });
 select('#all-new-members').addEventListener('click', event => {
   if (event.target.closest('[data-clear-member-filters]')) {
     select('#member-search').value = '';
-    ['#member-type-filter', '#member-department-filter', '#member-division-filter', '#member-ou-filter'].forEach(selector => { select(selector).value = ''; });
+    ['#member-type-filter', '#member-department-filter', '#member-sector-filter', '#member-ou-filter'].forEach(selector => { select(selector).value = ''; });
     renderMembers(true);
     select('#member-search').focus();
     return;

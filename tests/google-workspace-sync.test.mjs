@@ -54,9 +54,10 @@ test('matches an existing card by email and refreshes Google-sourced fields', ()
 });
 
 test('keeps intranet-owned division, LinkedIn details, and original photos through future directory syncs', () => {
-  const data = { newMembers:[{ id:'manual-2', googleUserId:'google-123', companyEmail:'new.person@si-ware.com', division:'Product', linkedinUrl:'https://www.linkedin.com/in/new-person', profilePhotoUrl:'/uploads/new-person-original.jpg', intranetOverrides:{ division:true, linkedinUrl:true }, googleImportedFields:{ division:'Solutions' } }] };
+  const data = { newMembers:[{ id:'manual-2', googleUserId:'google-123', companyEmail:'new.person@si-ware.com', sector:'Energy', division:'Product', linkedinUrl:'https://www.linkedin.com/in/new-person', profilePhotoUrl:'/uploads/new-person-original.jpg', intranetOverrides:{ division:true, linkedinUrl:true }, googleImportedFields:{ division:'Solutions' } }] };
   mergeDirectoryMembers(data, [user({ customSchemas:{ Employment:{ hireDate:'2026-10-20', division:'Platform' } } })], config, now);
   assert.equal(data.newMembers[0].division, 'Product');
+  assert.equal(data.newMembers[0].sector, 'Energy');
   assert.equal(data.newMembers[0].linkedinUrl, 'https://www.linkedin.com/in/new-person');
   assert.equal(data.newMembers[0].profilePhotoUrl, '/uploads/new-person-original.jpg');
   assert.equal(data.newMembers[0].googleImportedFields.division, 'Platform');

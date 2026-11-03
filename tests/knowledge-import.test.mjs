@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { csvKey, csvValue } from '../public/team-csv.js';
 
 const source = readFileSync(new URL('../public/admin.js', import.meta.url), 'utf8');
 const serverSource = readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
@@ -9,7 +10,7 @@ const linkValidator = source.slice(source.indexOf('function safeKnowledgeAdminLi
 assert.ok(importer.startsWith('function parseCsv(text)'));
 assert.ok(linkValidator.startsWith('function safeKnowledgeAdminLink(value)'));
 
-const context = vm.createContext({ dashboard:{ sessions:[] }, URL, lastMessage:'' });
+const context = vm.createContext({ dashboard:{ sessions:[] }, URL, csvKey, csvValue, lastMessage:'' });
 context.saveDashboard = async message => { context.lastMessage = message; };
 context.flash = message => { context.lastMessage = message; };
 vm.runInContext(`${importer}\n${linkValidator}\nglobalThis.importSessions = importKnowledgeSessionsCsv; globalThis.safeLink = safeKnowledgeAdminLink;`, context);
