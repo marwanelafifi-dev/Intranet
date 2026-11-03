@@ -21,6 +21,7 @@ test('organization chart presents email, phone, and LinkedIn quick actions when 
   assert.match(script, /data-org-collapse-all/);
   assert.match(script, /Direct reports <b>/);
   assert.match(script, /All reports <b>/);
+  assert.match(script, /data-org-expand-reports[\s\S]*data-org-toggle/);
   assert.doesNotMatch(script, /Individual contributor/);
   assert.match(script, /filterOrganizationChartMembers/);
   assert.match(styles, /\.org-chart-quick-actions a\{display:grid/);
@@ -38,6 +39,7 @@ test('organization chart keeps a consistent card footprint when profile details 
   assert.match(styles, /\.org-chart-canvas\{min-height:0;padding-block:22px 24px\}/);
   assert.match(styles, /\.org-chart-report-actions\{display:flex;justify-content:flex-end;gap:4px;min-width:0\}/);
   assert.match(styles, /\.org-chart-expand-reports\{display:inline-flex/);
+  assert.match(styles, /\.org-chart-report-actions \.org-chart-toggle span\{overflow:visible;text-overflow:clip\}/);
   assert.doesNotMatch(styles, /\.org-chart-canvas\{overflow:visible\}/);
 });
 
