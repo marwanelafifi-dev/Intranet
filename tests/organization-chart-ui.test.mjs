@@ -25,7 +25,8 @@ test('organization chart presents email, phone, and LinkedIn quick actions when 
 test('organization chart keeps a consistent card footprint when profile details are missing', () => {
   assert.match(script, /organizationDescriptor/);
   assert.match(presentationScript, /Organization details not listed/);
-  assert.match(styles, /\.org-chart-person-shell\{height:214px;grid-template-rows:37px minmax\(0,1fr\) 66px\}/);
+  assert.match(styles, /\.org-chart-person-shell\{height:214px;grid-template-rows:minmax\(0,1fr\) 66px\}/);
+  assert.match(styles, /\.org-chart-person\{min-height:0;grid-template-rows:37px minmax\(0,1fr\)\}/);
   assert.match(styles, /\.org-chart-person-shell footer\{min-height:66px;padding:5px 9px;grid-template-rows:26px 26px;gap:4px\}/);
 });
 
