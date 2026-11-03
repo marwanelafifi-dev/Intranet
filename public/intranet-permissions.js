@@ -16,6 +16,7 @@ export const intranetPages = Object.freeze([
 export const intranetPagePermissions = Object.freeze([...new Set(intranetPages.map(page => page.permission))]);
 export const intranetRoutePermissions = Object.freeze(Object.fromEntries([
   ...intranetPages.map(page => [page.path, page.permission]),
+  ['/organization-chart.html', 'intranet.people'],
   ['/employee-voice.html', 'intranet.whistleblower'],
   ['/index.html', 'intranet.home']
 ]));

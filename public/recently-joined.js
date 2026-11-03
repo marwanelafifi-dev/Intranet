@@ -135,6 +135,8 @@ async function loadTeam() {
     if (!response.ok) throw new Error('The team directory is unavailable');
     const data = await response.json();
     applyPageCopy(data.recentlyJoinedPageContent);
+    const orgChartLink = document.querySelector('[data-org-chart-link]');
+    if (orgChartLink) orgChartLink.hidden = data.recentlyJoinedPageContent?.orgChartEnabled === false;
     members = (data.newMembers || []).map(member => ({
       ...member,
       employmentType:String(member.employmentType || '').trim() || 'To be confirmed',

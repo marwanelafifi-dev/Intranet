@@ -1060,7 +1060,7 @@ await dashboard();
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower(?:-2)?|employee-voice)\.html$/i.test(url.pathname);
+    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|organization-chart|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower(?:-2)?|employee-voice)\.html$/i.test(url.pathname);
     if (isAuthenticationConfigured() && !sessionFor(req) && ['GET','HEAD'].includes(req.method) && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
     const documentRoute = url.pathname.toLowerCase(), requiredPage = intranetRoutePermissions[documentRoute];
     if (['GET','HEAD'].includes(req.method) && (requiredPage || documentRoute === '/admin.html')) {
@@ -1075,7 +1075,8 @@ const server = createServer(async (req, res) => {
         return res.end(req.method === 'HEAD' ? '' : denied.replaceAll('@@RETURN_PATH@@', next));
       }
       const whistleblowerRouteDisabled = (documentRoute === '/whistleblower.html' && data.whistleblowerConfig?.enabled === false) || (documentRoute === '/whistleblower-2.html' && data.whistleblower2Config?.enabled === false);
-      if (whistleblowerRouteDisabled) return json(res, 404, { error:'This reporting route is not currently available.' });
+      const organizationChartDisabled = documentRoute === '/organization-chart.html' && data.recentlyJoinedPageContent?.orgChartEnabled === false;
+      if (whistleblowerRouteDisabled || organizationChartDisabled) return json(res, 404, { error:'This page is not currently available.' });
     }
     if (req.method === 'GET' && url.pathname === '/api/auth/options') { const data = await dashboard(); return json(res, 200, { google:isGoogleConfigured(), local:localSignInAvailable(data) }); }
     if (req.method === 'GET' && url.pathname === '/api/global-page-content') {

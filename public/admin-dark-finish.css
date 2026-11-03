@@ -32,6 +32,7 @@ html.dark #role-card-editor-dialog .role-admin-switch:has(input:checked){backgro
 
 /* Editor and sync surfaces that specify a light fill in their feature CSS. */
 html.dark :is(.announcement-content-disclosure,.announcement-email-preview,.moment-media-preview,.member-photo-preview,.rich-editor,.rich-toolbar,.knowledge-remove-dialog,.google-sync-schedule,.google-sync-schedule.is-disabled){background:#10243e;border-color:#36516f;color:#edf4ff}
+html.dark .organization-chart-visibility{background:#10243e;border-color:#36516f}
 html.dark .announcement-content-disclosure[open] summary{background:#173757}html.dark .announcement-email-preview.is-editing{background:#183655;border-color:#6385aa}
 html.dark :is(.announcement-email-preview iframe,.moment-media-preview iframe,.global-login-preview iframe){background:#0b1728}
 html.dark .home-layout-number{background:#1b416e;color:#cce5ff}html.dark .google-sync-connection.is-disconnected{background:#483817;color:#ffe6aa}

@@ -1179,10 +1179,20 @@ function mountPreviewOnlyCollection(root, key, title, href) {
       if (missing) { flash('Page text cannot be empty. Restore or edit the highlighted text before saving.'); return; }
       const tooLong = Object.entries(values).find(([, value]) => String(value).length > 400);
       if (tooLong) { flash('Keep each text area under 400 characters.'); return; }
-      dashboard.recentlyJoinedPageContent = values;
+      dashboard.recentlyJoinedPageContent = { ...dashboard.recentlyJoinedPageContent, ...values };
       saveDashboard('Our Team page text saved and published.');
     });
     workspace.append(form);
+    const organizationChart = document.createElement('article');
+    organizationChart.className = 'panel organization-chart-admin-control';
+    organizationChart.innerHTML = `<div class="collection-heading"><div><h2>Organization chart</h2><p>Show the reporting hierarchy built from each colleague’s Direct Manager relationship.</p></div><a class="action-button secondary" href="/organization-chart.html" target="_blank" rel="noopener">Open chart</a></div><form><label class="organization-chart-visibility"><input type="checkbox" name="enabled" ${copy.orgChartEnabled === false ? '' : 'checked'} /><span><b>Enable organization chart</b><small>When disabled, the Our Team link is hidden and the chart URL is unavailable to employees.</small></span></label><div class="form-actions"><button class="action-button primary">Save organization chart setting</button></div></form>`;
+    organizationChart.querySelector('form').addEventListener('submit', event => {
+      event.preventDefault();
+      const enabled = organizationChart.querySelector('[name="enabled"]').checked;
+      dashboard.recentlyJoinedPageContent = { ...dashboard.recentlyJoinedPageContent, orgChartEnabled:enabled };
+      saveDashboard(`Organization chart ${enabled ? 'enabled' : 'disabled'} for employees.`);
+    });
+    workspace.append(organizationChart);
   }
   if (key === 'events') {
     const copy = dashboard.eventsPageContent || {}, form = document.createElement('form');

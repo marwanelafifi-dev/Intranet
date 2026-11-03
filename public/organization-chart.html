@@ -1,0 +1,45 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Explore the Si-Ware reporting hierarchy" />
+    <title>Organization chart | Si-Ware Intranet</title>
+    <link rel="icon" type="image/png" href="/Icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/search-and-policies.css" />
+    <link rel="stylesheet" href="/portal-refresh.css" />
+    <link rel="stylesheet" href="/brand-assets.css" />
+    <link rel="stylesheet" href="/accessibility-pass.css" />
+    <link rel="stylesheet" href="/policy-governance.css" />
+    <link rel="stylesheet" href="/new-members.css" />
+    <link rel="stylesheet" href="/recently-joined.css" />
+    <link rel="stylesheet" href="/organization-chart.css" />
+    <link rel="stylesheet" href="/resilience.css" />
+    <link rel="stylesheet" href="/professional-polish.css" />
+    <link rel="stylesheet" href="/professional-corrections.css" />
+    <link rel="stylesheet" href="/formal-refinement.css" />
+    <link rel="stylesheet" href="/motion-finish.css" />
+    <link rel="stylesheet" href="/theme-toggle.css" />
+    <link rel="stylesheet" href="/destination-pages.css" />
+    <link rel="stylesheet" href="/member-profile.css" />
+    <script src="/theme.js" defer></script>
+  </head>
+  <body class="policy-page team-directory-page org-chart-page">
+    <main class="policy-shell">
+      <header class="policy-topbar">
+        <a class="brand" href="/"><img class="brand-logo" src="/siware-logo.png" alt="Si-Ware Systems" /></a>
+        <div class="policy-topbar-actions"><button class="theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Enable dark mode" title="Enable dark mode"><svg class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="theme-moon" d="M20 15.4A8.4 8.4 0 0 1 8.6 4 8.4 8.4 0 1 0 20 15.4Z" /><circle class="theme-sun" cx="12" cy="12" r="3.5" /><path class="theme-rays" d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l1.4-1.4" /></svg><span class="theme-toggle-label">Dark mode</span></button><a class="back-link" href="/recently-joined.html">Our Team</a></div>
+      </header>
+      <section class="policy-hero">
+        <div><h1><span>Organization</span> <em>chart.</em></h1><p>Explore how colleagues connect across Si-Ware. Select a person to open their full profile.</p></div>
+        <aside class="policy-hero-aside" aria-label="Organization chart guidance"><span aria-hidden="true"></span><b>Built from reporting relationships</b><p>The chart updates whenever the employee directory is updated.</p></aside>
+      </section>
+      <section class="policy-layout">
+        <nav class="policy-nav" aria-label="Our Team pages"><p>Our Team</p><a href="/recently-joined.html">Team directory</a><a href="/organization-chart.html" aria-current="page">Organization chart</a><a href="/new-hires.html">New colleague guidance</a></nav>
+        <div class="policy-content"><article class="policy-card org-chart-card"><div class="org-chart-heading"><div><h2>Reporting hierarchy</h2><p>Expand a manager to view direct reports. A search keeps the matching reporting branch visible.</p></div><div class="org-chart-actions"><button type="button" data-org-expand-all>Expand all</button><button type="button" data-org-collapse-all>Collapse all</button></div></div><div class="org-chart-toolbar"><label>Find a colleague<input id="org-chart-search" type="search" placeholder="Search by name, role, email or team" autocomplete="off" /></label><span id="org-chart-result-count" role="status"></span></div><ul id="organization-chart-tree" class="organization-chart-tree" aria-live="polite"><li class="org-chart-loading">Loading organization chart…</li></ul></article></div>
+      </section>
+    </main>
+    <script type="module" src="/organization-chart.js"></script>
+    <script type="module" src="/destination-nav.js"></script>
+  </body>
+</html>

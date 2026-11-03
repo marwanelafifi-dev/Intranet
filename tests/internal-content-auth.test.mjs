@@ -78,6 +78,19 @@ test('role editor separates intranet pages from Admin Panel editing access', asy
   }
 });
 
+test('organization chart is protected by Our Team access and can be disabled centrally', async () => {
+  const server = await startIsolatedServer({ demoRole:'PEOPLE', permissions:['intranet.people'], seedTransform:data => {
+    data.recentlyJoinedPageContent = { ...(data.recentlyJoinedPageContent || {}), orgChartEnabled:false };
+  } });
+  try {
+    const response = await fetch(`${server.origin}/organization-chart.html`);
+    assert.equal(response.status, 404);
+    assert.match(await response.text(), /not currently available/);
+  } finally {
+    await stopIsolatedServer(server);
+  }
+});
+
 async function availablePort() {
   const server = createNetServer();
   await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
