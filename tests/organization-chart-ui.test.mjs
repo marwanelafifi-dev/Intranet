@@ -19,6 +19,7 @@ test('organization chart presents email, phone, and LinkedIn quick actions when 
   assert.match(script, /org-chart-report-grid/);
   assert.match(script, /org-chart-top-leadership/);
   assert.match(script, /Back to manager/);
+  assert.doesNotMatch(script, /Individual contributor/);
   assert.match(script, /filterOrganizationChartMembers/);
   assert.match(styles, /\.org-chart-quick-actions a\{display:grid/);
   assert.match(styles, /\.org-chart-bio-action\{display:inline-flex/);

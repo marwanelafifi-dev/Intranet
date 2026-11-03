@@ -43,7 +43,7 @@ function cardMarkup(node) {
   const biographyAction = (member.bioEnabled === true || member.bioEnabled === 'true') && String(member.bio || '').trim() ? `<button class="org-chart-bio-action" type="button" data-org-profile="${node.index}">Read bio</button>` : '';
   const reportControl = children.length
     ? `<button class="org-chart-toggle" type="button" data-org-focus="${escapeHtml(node.id)}" aria-label="View ${escapeHtml(member.name || 'colleague')}'s direct reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg><span>View ${children.length} report${children.length === 1 ? '' : 's'}</span></button>`
-    : '<span class="org-chart-no-reports">Individual contributor</span>';
+    : '<span class="org-chart-no-reports" aria-hidden="true"></span>';
   return `<article class="org-chart-person-shell"><button class="org-chart-person" type="button" data-org-profile="${node.index}" aria-label="View profile for ${escapeHtml(member.name || 'colleague')}"><span class="org-chart-person-name">${escapeHtml(member.name || 'Colleague')}</span><span class="org-chart-person-body">${avatarMarkup(member)}<span><b>${escapeHtml(member.role || 'Role not listed')}</b><small>${escapeHtml(organizationDescriptor(member))}</small></span></span></button><footer><div class="org-chart-card-actions">${quickActions(member)}${biographyAction}</div><div class="org-chart-report-control">${reportControl}</div></footer></article>`;
 }
 
