@@ -1,6 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { csvKey, csvMemberRecord, findExistingCsvMember, hasMemberIdentifierColumn } from '../public/team-csv.js';
+import { csvKey, csvMemberRecord, findExistingCsvMember, hasMemberIdentifierColumn, planMemberCsvImport } from '../public/team-csv.js';
+
+test('bulk Sector import updates matching rows and reports missing colleagues without creating cards', () => {
+  const original = [{ id:'active-1', name:'Active Colleague', companyEmail:'active@si-ware.com', sector:'', source:'google-directory' }];
+  const result = planMemberCsvImport([
+    ['Sector', 'Company Email'],
+    ['Commercial', 'active@si-ware.com'],
+    ['Commercial', 'former@si-ware.com']
+  ], original);
+  assert.equal(result.updated, 1);
+  assert.equal(result.created, 0);
+  assert.deepEqual(result.unmatched, [{ row:3, identifier:'former@si-ware.com' }]);
+  assert.deepEqual(result.members, [{ ...original[0], sector:'Commercial' }]);
+  assert.equal(original[0].sector, '');
+});
+
+test('a malformed row aborts the import plan without changing saved colleagues', () => {
+  const original = [{ id:'active-1', name:'Active Colleague', companyEmail:'active@si-ware.com', sector:'' }];
+  assert.throws(() => planMemberCsvImport([
+    ['Sector', 'Company Email'],
+    ['Commercial', 'active@si-ware.com'],
+    ['Commercial', '']
+  ], original), /needs a Company Email or Employee ID/);
+  assert.equal(original[0].sector, '');
+});
 
 test('bulk import accepts a reduced template with either identifier column', () => {
   const columns = headings => new Map(headings.map((heading, index) => [csvKey(heading), index]));

@@ -3,7 +3,7 @@ import { adminViewPermissions, adminViewCapabilities, adminActionPermissions, ca
 import { intranetPages, intranetPagePermissions, firstAvailableIntranetPage } from './intranet-permissions.js';
 import { renderAuditTrail } from './audit-trail.js';
 import { renderGoogleSyncSettings } from './google-sync-settings.js';
-import { csvKey, csvValue, csvMemberRecord, findExistingCsvMember, hasMemberIdentifierColumn, safeLinkedInUrl } from './team-csv.js';
+import { csvKey, csvValue, planMemberCsvImport, safeLinkedInUrl } from './team-csv.js';
 import { mountUsersPage } from './admin-users.js';
 import { defaultGlobalPageContent, normaliseGlobalPageContent, applyGlobalPageContent, loadGlobalPageContent } from './global-page-content.js';
 
@@ -141,7 +141,7 @@ function renderCollection(key) {
   const isApps = key === 'apps';
   const csvImport = isPeople ? { input:'new-members-csv', template:'/recently-joined-import-template.csv', filename:'recently-joined-import-template.csv', action:'data-import-new-members', label:'Import CSV' } : isSessions ? { input:'knowledge-sessions-csv', template:'/knowledge-hub-sessions-import-template.csv', filename:'knowledge-hub-sessions-import-template.csv', action:'data-import-knowledge-sessions', label:'Import CSV' } : null;
   const headingActions = '';
-  const csvHelp = isPeople ? '<p class="csv-import-help">Keep only the columns you want to update. Each row needs <b>Company Email or Employee ID</b> to find the colleague; blank and omitted fields stay unchanged. For new colleagues, also include Name. If both identifiers are present, they must refer to the same person.</p>' : isSessions ? '<p class="csv-import-help">Import CSV or tab-separated text. Required: <b>Title and Date</b>. A blank Category becomes General; a blank Presenter is marked for review. Resource links work immediately. Filenames are retained and linked only when a matching resource is known—otherwise upload or add a URL in the session editor.</p>' : '';
+  const csvHelp = isPeople ? '<p class="csv-import-help">Keep only the columns you want to update. Each row needs <b>Company Email or Employee ID</b> to find the colleague; blank and omitted fields stay unchanged. Unknown colleagues are skipped and listed after import. For new colleagues, also include Name. If both identifiers are present, they must refer to the same person.</p>' : isSessions ? '<p class="csv-import-help">Import CSV or tab-separated text. Required: <b>Title and Date</b>. A blank Category becomes General; a blank Presenter is marked for review. Resource links work immediately. Filenames are retained and linked only when a matching resource is known—otherwise upload or add a URL in the session editor.</p>' : '';
   return `<article class="panel collection-panel${isApps ? ' collection-panel--apps' : ''}" data-collection="${key}"><div class="collection-heading"><div><h2>${config.title}</h2><p>${config.description}</p></div>${headingActions}</div>${csvHelp}<div class="collection-layout"><div class="list">${(dashboard[key] || []).map(item => { const details = key === 'policies' ? [item.category, item.department].filter(Boolean).join(' · ') : item.category || item.caption || item.role || item.audience || item.description || ''; const visual = isApps ? (item.iconUrl ? `<img class="app-icon-preview" src="${escapeHtml(item.iconUrl)}" alt="" />` : `<span class="app-list-mark" aria-hidden="true">${escapeHtml(String(item.name || '?').trim().slice(0, 1).toUpperCase())}</span>`) : ['apps','supportPortals'].includes(key) && item.iconUrl ? `<img class="app-icon-preview" src="${escapeHtml(item.iconUrl)}" alt="" />` : ''; return `<div class="list-row${isApps ? ' app-list-row' : ''}">${isApps ? `<span class="app-list-content">${visual}<span><b>${escapeHtml(recordLabel(key, item))}</b><small>${escapeHtml(details)}</small></span></span>` : `${visual}<span><b>${escapeHtml(recordLabel(key, item))}</b><small>${escapeHtml(details)}</small></span>`}<div class="row-actions"><button class="tool-button" type="button" data-edit-record="${key}:${item.id}">Edit</button><button class="tool-button danger-link" type="button" data-remove-record="${key}:${item.id}">Remove</button></div></div>`; }).join('') || '<p class="empty">No records yet.</p>'}</div><form class="inline-editor${isApps ? ' app-editor' : ''}" data-editor="${key}"><h3>${record ? `Edit ${escapeHtml(recordLabel(key, record))}` : isApps ? 'Create Quick Launch app' : `New ${config.title.slice(0, -1)}`}</h3>${recordFields(key, record)}<div class="form-actions"><button class="action-button danger" type="button" data-remove-record="${key}:${record?.id || ''}" ${record ? '' : 'hidden'}>Remove</button><button class="action-button primary">Save changes</button></div></form></div></article>`;
 }
 function announcementScheduleDescription(schedule) {
@@ -187,21 +187,24 @@ async function importNewMembersCsv(file) {
   if (!file?.name) return;
   if (!/\.csv$/i.test(file.name) || file.size > 2 * 1024 * 1024) { flash('Choose a CSV file that is 2 MB or smaller.'); return; }
   const rows = parseCsv(await file.text());
-  if (rows.length < 2) throw new Error('The CSV needs a header row and at least one employee.');
-  if (rows.length > 501) throw new Error('Import up to 500 employees at a time.');
-  const columns = new Map(rows[0].map((header, index) => [csvKey(header), index]));
-  if (!hasMemberIdentifierColumn(columns)) throw new Error('The CSV must include Company Email or Employee ID to identify colleagues.');
-  const known = dashboard.newMembers.map(member => ({ ...member })), originalCount = known.length, created = [];
-  let updated = 0;
-  rows.slice(1).forEach((row, index) => {
-    const email = csvValue(row, columns, ['company email', 'work email', 'email']);
-    const employeeId = csvValue(row, columns, ['employee id', 'employee number', 'employee code']);
-    const existing = findExistingCsvMember(known, { email, employeeId }, index);
-    const member = csvMemberRecord(row, columns, existing, index);
-    if (existing) { Object.assign(existing, member); updated += 1; } else { known.push(member); created.push(member); }
-  });
-  dashboard.newMembers = [...created, ...known.slice(0, originalCount)];
-  await saveDashboard(`CSV imported: ${created.length} added and ${updated} updated.`, true, true, 'import');
+  const result = planMemberCsvImport(rows, dashboard.newMembers);
+  const message = `CSV import: ${result.created} added, ${result.updated} updated, ${result.unmatched.length} not found.`;
+  if (result.created || result.updated) {
+    dashboard.newMembers = result.members;
+    await saveDashboard(message, true, true, 'import');
+  }
+  showTeamImportReport(result.unmatched);
+  flash(message, result.unmatched.length ? 20000 : 4500);
+}
+function showTeamImportReport(unmatched) {
+  const root = $('#view-people');
+  root.querySelector('.team-import-report')?.remove();
+  if (!unmatched.length) return;
+  const report = document.createElement('section');
+  report.className = 'team-import-report';
+  report.setAttribute('role', 'status');
+  report.innerHTML = `<h2>${unmatched.length} ${unmatched.length === 1 ? 'row was' : 'rows were'} not imported</h2><p>These identifiers are not in the live Our Team directory. Check each email or Employee ID, or confirm the colleague is in a selected Google organizational unit. No directory card was created for these rows.</p><details><summary>Review unmatched rows</summary><ul>${unmatched.map(item => `<li>Row ${item.row}: ${escapeHtml(item.identifier)}</li>`).join('')}</ul></details>`;
+  root.prepend(report);
 }
 function normaliseKnowledgeCsvDate(value) {
   const input = String(value || '').trim();
