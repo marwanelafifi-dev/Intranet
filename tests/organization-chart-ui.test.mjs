@@ -12,5 +12,6 @@ test('organization chart presents email, phone, and LinkedIn quick actions when 
   assert.match(script, /linkedin/);
   assert.match(script, /org-chart-quick-actions/);
   assert.match(styles, /\.org-chart-quick-actions a\{display:grid/);
-  assert.match(styles, /\.org-chart-person-shell\{display:flex/);
+  assert.match(styles, /\.org-chart-canvas\{overflow:auto/);
+  assert.match(styles, /\.org-chart-person-shell\{display:grid/);
 });
