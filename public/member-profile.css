@@ -4,6 +4,7 @@
 .member-row-open:focus-visible{outline:2px solid #1458b6;outline-offset:2px}
 .new-member:has(.member-row-open:hover) .member-name-line b,.new-member-announcement:has(.member-row-open:hover) .new-member-announcement-head b{text-decoration:underline;text-underline-offset:3px}
 .new-member .member-contact-links,.new-member-announcement .member-contact-links{position:relative;z-index:2}
+.member-bio-action{position:relative;z-index:2;display:inline-flex;align-items:center;min-height:28px;padding:0 9px;border:1px solid #aac8e4;border-radius:7px;background:#fff;color:#1458b6;font:800 12px/1 Manrope,Arial,sans-serif;cursor:pointer;white-space:nowrap}.member-bio-action:hover{border-color:#4f8fc8;background:#eef6ff}.member-bio-action:focus-visible{outline:2px solid #1458b6;outline-offset:2px}
 .new-members-widget .new-member-summary{min-width:0;align-content:center;gap:3px}
 .new-members-widget .member-name-line>b{overflow-wrap:anywhere}
 .new-members-widget .member-title{color:var(--ink,#102b4e);font-weight:700}
@@ -17,6 +18,7 @@
 .member-profile-photo-button{width:68px;height:68px;padding:0;border:0;border-radius:14px;background:transparent;cursor:zoom-in}.member-profile-photo-button:focus-visible{outline:2px solid #1458b6;outline-offset:3px}.member-profile-photo-button:hover .member-profile-photo{filter:brightness(.94)}
 .member-profile-heading h2{margin:4px 0 3px;color:var(--ink,#102b4e);font-size:21px;font-weight:800;letter-spacing:-.03em;line-height:1.2}
 .member-profile-heading p{margin:0;color:var(--muted,#526a87);font-size:13px;line-height:1.5}
+.member-profile-bio{margin-top:22px;padding:17px 0 0;border-top:1px solid #b9d4ea}.member-profile-bio h3{margin:0 0 8px;color:var(--ink,#102b4e);font-size:13px;font-weight:800}.member-profile-bio p{margin:0;color:#365476;font-size:13px;line-height:1.7;white-space:pre-line}
 .member-profile-close{display:grid;width:32px;height:32px;place-items:center;border:0;border-radius:8px;background:var(--paper,#f3f7fc);color:var(--ink,#102b4e);cursor:pointer}
 .member-profile-close:hover{background:#e3efff;color:#1458b6}
 .member-profile-close:focus-visible,.member-profile-contacts a:focus-visible{outline:2px solid #1458b6;outline-offset:2px}
@@ -39,6 +41,8 @@
 html.dark .member-row-open:hover{background:rgb(154 196 255 / 8%)}
 html.dark .member-profile-popover{border-color:#34577d;box-shadow:0 20px 48px rgb(0 0 0 / 42%)}
 html.dark .member-profile-close:hover{background:#24486d;color:#d8ebff}
+html.dark .member-profile-bio{border-color:#477295}html.dark .member-profile-bio p{color:#d3e2f1}
+html.dark .member-bio-action{border-color:#55718f;background:#173757;color:#b9dcff}html.dark .member-bio-action:hover{background:#214b73;color:#edf4ff}
 html.dark .member-profile-contacts a{color:#9ac4ff}
 html.dark .member-photo-viewer{border-color:#34577d;box-shadow:0 20px 48px rgb(0 0 0 / 42%)}html.dark .member-photo-viewer-heading button:hover{background:#24486d;color:#d8ebff}html.dark .member-photo-viewer img{background:#10213a}
 @media(max-width:550px){.member-profile-card{padding:19px}.member-profile-heading{grid-template-columns:54px minmax(0,1fr) 30px;gap:11px}.member-profile-avatar{width:54px;height:54px;font-size:17px}.member-profile-heading h2{font-size:18px}.member-profile-facts{gap:15px}.member-profile-contacts a{display:grid;gap:2px}.member-profile-contacts b{text-align:left}}

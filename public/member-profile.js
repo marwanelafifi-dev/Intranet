@@ -77,6 +77,7 @@ function profileMarkup(member, directory) {
     linkedInUrl ? `<a href="${escapeHtml(linkedInUrl)}" target="_blank" rel="noopener noreferrer"><span>LinkedIn</span><b>View profile ↗</b></a>` : ''
   ].filter(Boolean).join('');
   const welcomeNote = String(member.message || '').trim();
+  const biography = member.bioEnabled === true || member.bioEnabled === 'true' ? String(member.bio || '').trim() : '';
 
   return `<div class="member-profile-card">
     <header class="member-profile-heading">
@@ -84,6 +85,7 @@ function profileMarkup(member, directory) {
       <div><h2 id="member-profile-title">${escapeHtml(name)}</h2>${member.role ? `<p>${escapeHtml(member.role)}</p>` : ''}</div>
       <button class="member-profile-close" type="button" data-member-profile-close aria-label="Close profile"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 19 19M19 5 5 19" /></svg></button>
     </header>
+    ${biography ? `<section class="member-profile-bio" aria-labelledby="member-profile-bio-title"><h3 id="member-profile-bio-title">Professional biography</h3><p>${escapeHtml(biography)}</p></section>` : ''}
     ${facts ? `<dl class="member-profile-facts">${facts}</dl>` : ''}
     ${welcomeNote ? `<section class="member-profile-note"><h3>Welcome note</h3><p>${escapeHtml(welcomeNote)}</p></section>` : ''}
     ${contacts ? `<nav class="member-profile-contacts" aria-label="Contact ${escapeHtml(name)}">${contacts}</nav>` : ''}

@@ -72,6 +72,14 @@ test('Employee ID alone matches a colleague and can update Sector without changi
   assert.deepEqual(csvMemberRecord(row, columns, matched, 0), { ...existing, sector:'Energy' });
 });
 
+test('Biography columns can publish or hide a professional biography without changing other profile fields', () => {
+  const existing = { id:'member-3', name:'Executive', companyEmail:'executive@si-ware.com', role:'CEO', bio:'Existing biography', bioEnabled:true };
+  const columns = new Map(['Company Email', 'Biography Enabled', 'Biography'].map((heading, index) => [csvKey(heading), index]));
+  assert.deepEqual(csvMemberRecord(['executive@si-ware.com', 'No', ''], columns, existing, 0), { ...existing, bioEnabled:false });
+  assert.deepEqual(csvMemberRecord(['executive@si-ware.com', 'Yes', 'Formal leadership biography'], columns, existing, 0), { ...existing, bioEnabled:true, bio:'Formal leadership biography' });
+  assert.throws(() => csvMemberRecord(['executive@si-ware.com', 'Maybe', ''], columns, existing, 0), /Biography Enabled must be Yes or No/);
+});
+
 test('a sparse CSV can update another field while blank columns remain unchanged', () => {
   const existing = { id:'member-2', name:'Taylor Lee', employeeId:'492', role:'Engineer', department:'Research', sector:'Energy' };
   const columns = new Map(['Employee ID', 'Role', 'Department'].map((heading, index) => [csvKey(heading), index]));

@@ -929,6 +929,12 @@ async function dashboard() {
       }));
       changed = true;
     }
+    const chairman = data.newMembers.find(member => String(member.companyEmail || '').trim().toLowerCase() === 'hisham.haddara@si-ware.com');
+    if (chairman && chairman.bio === undefined) {
+      chairman.bioEnabled = true;
+      chairman.bio = 'Hisham has 40 years of R&D and business management experience in the semiconductor and microelectronics industry. Prior to founding SWS, Hisham was with Memscap as President for Asia and the Middle East, overseeing business development activities in the region. Before that, he was Executive Vice President and President of Memscap Egypt, during which time he established and managed an R&D center focusing on RF IC design and MEMS component design for optical applications. Hisham was also the co-founder and General Manager of Anacad Egypt, which was later acquired by Mentor Graphics Corporation. In his role with Mentor Graphics, he managed the Egypt development center and was later appointed as Chief Scientist in the Analog/Mixed-Signal Simulation Division, where he started an initiative for analog design re-use. Hisham obtained his B.Sc. and M.Sc. degrees in Electrical Engineering, both with the highest honors, from Ain Shams University. Hisham received his Ph.D. degree in Microelectronics from the National Polytechnic Institute, Grenoble, France. His research work on sub-micron transistor reliability won the Best Thesis Award by the French CNRS (National Scientific Research Center). Hisham has been a Professor of Microelectronics at Ain-Shams University, Cairo. He has authored and co-authored two books, several patents, and more than 100 scientific publications in international journals and conferences. He serves on the board of directors of the National Science and Technology Development Agency (STDF) and the Information Technology Development Agency (ITIDA) of Egypt.';
+      changed = true;
+    }
     if (data.policies.some(policy => !policy.department)) {
       data.policies = data.policies.map(policy => ({ ...policy, department:policy.department || seededPolicies.get(policy.id)?.department || policy.owner || 'All departments' }));
       changed = true;
@@ -1465,7 +1471,11 @@ const server = createServer(async (req, res) => {
       }
       if (changedKeys.includes('newMembers')) {
         const existingById = new Map(data.newMembers.map(member => [String(member.id), member]));
+        const oversizedBiography = next.newMembers.find(member => String(member.bio || '').trim().length > 6000);
+        if (oversizedBiography) return json(res, 422, { error:'Professional biographies must be 6,000 characters or fewer.' });
         next.newMembers.forEach(member => {
+          member.bio = String(member.bio || '').trim();
+          member.bioEnabled = member.bioEnabled === true || member.bioEnabled === 'true';
           const existing = existingById.get(String(member.id));
           if (!existing || String(member.division || '').trim() === String(existing.division || '').trim()) return;
           member.intranetOverrides = { ...(existing.intranetOverrides || {}), ...(member.intranetOverrides || {}), division:true };
