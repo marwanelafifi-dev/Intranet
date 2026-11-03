@@ -63,6 +63,21 @@ test('keeps intranet-owned division, LinkedIn details, and original photos throu
   assert.equal(data.newMembers[0].googleImportedFields.division, 'Platform');
 });
 
+test('complete Google sync preserves an imported Sector while refreshing an active colleague', async () => {
+  const data = { newMembers:[{
+    id:'google-member-1', source:'google-directory', googleUserId:'google-123',
+    companyEmail:'new.person@si-ware.com', organizationUnit:'/People/New Hires',
+    sector:'Energy', role:'Old role'
+  }], events:[] };
+  const result = await syncWorkspaceContent(data, { ...config, calendars:[] }, {
+    users:async () => [user({ organizations:[{ primary:true, title:'New role', department:'R&D' }] })]
+  }, now);
+  assert.equal(result.members.removed, 0);
+  assert.equal(data.newMembers[0].role, 'New role');
+  assert.equal(data.newMembers[0].sector, 'Energy');
+  assert.equal(data.newMembers[0].googleImportedFields.sector, undefined);
+});
+
 test('fills a previously empty card when Google later adds a photo, without replacing any existing photo', () => {
   const data = { newMembers:[
     { id:'empty-photo', googleUserId:'google-123', companyEmail:'new.person@si-ware.com', photoUrl:'' },

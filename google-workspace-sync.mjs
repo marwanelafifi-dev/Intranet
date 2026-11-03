@@ -131,6 +131,8 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
       const intranetOverrides = existing.intranetOverrides || {};
       let dirty = false;
       for (const [key, value] of Object.entries(imported)) {
+        // Sector belongs to the intranet CSV/editor. Google sync must never replace it.
+        if (key === 'sector') continue;
         if (intranetOverrides[key] === true) continue;
         if (existing[key] !== value) { existing[key] = value; dirty = true; }
       }
@@ -148,7 +150,7 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
     }
     const member = {
       id:memberId, googleUserId:String(user.id), source:'google-directory',
-      ...imported, photoUrl:googlePhotoUrl, googleImportedFields:{ ...imported, photoUrl:googlePhotoUrl }, team:imported.department,
+      ...imported, sector:'', photoUrl:googlePhotoUrl, googleImportedFields:{ ...imported, photoUrl:googlePhotoUrl }, team:imported.department,
       initials:fullName.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
       color:'#dceeff', message:''
     };
