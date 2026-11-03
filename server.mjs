@@ -1246,7 +1246,12 @@ const server = createServer(async (req, res) => {
           catch (error) {
             console.warn(`Google Group validation failed for ${group}: ${error.message}`);
             let message = `Google Group access could not be verified for ${group}.`;
-            if (error.service === 'Google authorization') message += ' Check the service account client ID, its domain-wide delegation scopes, and the delegated administrator.';
+            if (error.service === 'Google authorization') {
+              message += ` Google authorization returned HTTP ${error.status || 'error'}${error.oauthCode ? ` (${error.oauthCode})` : ''}.`;
+              if (error.oauthCode === 'unauthorized_client' || error.oauthCode === 'access_denied') message += ' Confirm that Google Admin authorizes the service account numeric client ID for the group.member.readonly scope; changes can take time to propagate.';
+              else if (error.oauthCode === 'invalid_grant') message += ' Check the delegated administrator, service account key, and Ubuntu system clock.';
+              else message += ' Check the service account client ID, domain-wide delegation scopes, and delegated administrator.';
+            }
             else if (error.status === 404) message += ' Check that the group address exists in Google Admin.';
             else if (error.status === 403 || error.status === 401) message += ' Grant the service account the group.member.readonly delegation scope and ensure the delegated administrator can read Groups.';
             else if (error.status === 400) message += ' Check the group address and delegated administrator.';

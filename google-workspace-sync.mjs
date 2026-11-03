@@ -213,9 +213,13 @@ function signedAssertion(credentials, subject, scope, now) {
 
 async function checkedJson(response, label) {
   if (!response.ok) {
-    const error = new Error(`${label} failed (HTTP ${response.status}).`);
+    // Google OAuth error codes are safe to report; never expose its response description or token.
+    const body = label === 'Google authorization' ? await response.json().catch(() => ({})) : {};
+    const oauthCode = typeof body?.error === 'string' && /^[a-z_]{1,50}$/.test(body.error) ? body.error : '';
+    const error = new Error(`${label} failed (HTTP ${response.status}${oauthCode ? `, ${oauthCode}` : ''}).`);
     error.status = response.status;
     error.service = label;
+    error.oauthCode = oauthCode;
     throw error;
   }
   return response.json();

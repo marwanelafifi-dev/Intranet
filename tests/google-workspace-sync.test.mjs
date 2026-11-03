@@ -211,3 +211,21 @@ test('delegated client uses read-only scopes and paginates the OU and resource c
   assert.match(directory.url.searchParams.get('fields'), /externalIds/);
   assert.equal(calls.some(call => call.url.pathname.endsWith('/users/google-123/photos/thumbnail')), true);
 });
+
+test('Google authorization reports only its safe error code, never its response description', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength:2048 });
+  const credentials = { type:'service_account', client_email:'sync@project.iam.gserviceaccount.com', private_key_id:'key-1', private_key:privateKey.export({ type:'pkcs8', format:'pem' }) };
+  const client = await createWorkspaceClient({ keyFile:'test-key.json', subject:'admin@si-ware.com' }, {
+    now:() => now,
+    readCredentials:async () => JSON.stringify(credentials),
+    fetchImpl:async () => ({ ok:false, status:400, json:async () => ({ error:'unauthorized_client', error_description:'sensitive provider detail' }) })
+  });
+  await assert.rejects(client.hasGroupMember('eg.team@si-ware.com', 'admin@si-ware.com'), error => {
+    assert.equal(error.service, 'Google authorization');
+    assert.equal(error.status, 400);
+    assert.equal(error.oauthCode, 'unauthorized_client');
+    assert.match(error.message, /HTTP 400, unauthorized_client/);
+    assert.doesNotMatch(error.message, /sensitive provider detail/);
+    return true;
+  });
+});
