@@ -703,7 +703,7 @@ function setupEvents() {
     const trigger = event.target.closest('[data-member-profile]');
     if (!trigger) return;
     const member = state.newMembers.find(item => String(item.id) === trigger.dataset.memberProfile);
-    if (member) openMemberProfile(member, trigger);
+    if (member) openMemberProfile(member, trigger, state.newMembers);
   });
   $('#profile-button').addEventListener('click', () => { const menu = $('#profile-menu'); menu.hidden = !menu.hidden; $('#profile-button').setAttribute('aria-expanded', String(!menu.hidden)); });
   $('#notification-button').addEventListener('click', () => setNotificationPanel($('#notification-panel').hidden));

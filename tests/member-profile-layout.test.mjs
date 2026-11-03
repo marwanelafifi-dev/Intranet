@@ -10,11 +10,14 @@ test('clicked colleague profile facts use the requested order and manager full r
   const employmentType = profileSource.indexOf("detail('Employment type'");
   const sector = profileSource.indexOf("detail('Sector'");
   const department = profileSource.indexOf("detail('Department'");
-  const manager = profileSource.indexOf("detail('Direct manager', member.directManager, true)");
+  const manager = profileSource.indexOf("detail('Direct manager', manager?.name, true, manager?.email)");
   const organizationUnit = profileSource.indexOf("detail('Organization unit'");
   const joined = profileSource.indexOf("detail('Joined'");
 
   assert.ok(employeeId < employmentType && employmentType < sector && sector < department);
   assert.ok(department < manager && manager < organizationUnit && organizationUnit < joined);
+  assert.match(profileSource, /function directManagerDetails\(member, directory = \[\]\)/);
+  assert.match(profileSource, /candidate\.companyEmail/);
   assert.match(profileStyles, /\.member-profile-facts \.member-profile-fact--full\{grid-column:1\/-1\}/);
+  assert.match(profileStyles, /\.member-profile-facts dd small\{display:block/);
 });

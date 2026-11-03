@@ -26,6 +26,7 @@
 .member-profile-facts .member-profile-fact--full{grid-column:1/-1}
 .member-profile-facts dt{margin-bottom:4px;color:var(--muted,#526a87);font-size:11px;font-weight:700}
 .member-profile-facts dd{margin:0;color:var(--ink,#102b4e);font-size:13px;font-weight:750;line-height:1.4;overflow-wrap:anywhere}
+.member-profile-facts dd small{display:block;margin-top:2px;color:var(--muted,#526a87);font-size:11px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
 .member-profile-note{padding-top:18px}
 .member-profile-note h3{margin:0 0 6px;color:var(--ink,#102b4e);font-size:12px;font-weight:800}
 .member-profile-note p{margin:0;color:var(--muted,#526a87);font-size:13px;line-height:1.55}

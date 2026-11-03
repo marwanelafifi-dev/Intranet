@@ -36,6 +36,17 @@ function contactLinks(member) {
   return links.length ? `<nav class="member-contact-links" aria-label="Contact ${escapeHtml(name)}">${links.join('')}</nav>` : '';
 }
 
+function directManagerDetails(member) {
+  const email = String(member.directManager || '').trim();
+  if (!email || email === 'To be confirmed') return null;
+  const manager = members.find(candidate => String(candidate.companyEmail || '').trim().toLocaleLowerCase() === email.toLocaleLowerCase());
+  const name = String(manager?.name || '').trim();
+  return {
+    name: name || 'Manager not listed',
+    email
+  };
+}
+
 function memberCard(member) {
   const name = String(member.name || 'Colleague');
   const initials = String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2));
@@ -43,14 +54,15 @@ function memberCard(member) {
   const avatar = photoUrl
     ? `<img class="new-member-avatar new-member-photo" src="${escapeHtml(photoUrl)}" alt="" loading="lazy" /><span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" hidden aria-hidden="true">${escapeHtml(initials)}</span>`
     : `<span class="new-member-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(initials)}</span>`;
+  const manager = directManagerDetails(member);
   const facts = [
-    ['Department', member.department || member.team],
-    ['Sector', member.sector],
-    ['Direct manager', member.directManager],
-    ['Employment', member.employmentType],
-    ['Joined', member.joined]
-  ].filter(([, value]) => value && value !== 'To be confirmed');
-  return `<article class="new-member-announcement" data-member-id="${escapeHtml(member.id || '')}"><div class="member-card-main">${avatar}<div class="member-card-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Role not listed')}</p></div></div><dl class="member-directory-facts">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl><div class="member-card-footer">${contactLinks(member)}<span class="member-profile-cue" aria-hidden="true">View profile <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span></div><button class="member-row-open" type="button" data-member-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s full profile"></button></article>`;
+    manager ? { label:'Direct manager', value:manager.name, email:manager.email, fullWidth:true } : null,
+    { label:'Sector', value:member.sector },
+    { label:'Department', value:member.department || member.team },
+    { label:'Employment', value:member.employmentType },
+    { label:'Joined', value:member.joined }
+  ].filter(fact => fact?.value && fact.value !== 'To be confirmed');
+  return `<article class="new-member-announcement" data-member-id="${escapeHtml(member.id || '')}"><div class="member-card-main">${avatar}<div class="member-card-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Role not listed')}</p></div></div><dl class="member-directory-facts">${facts.map(fact => `<div${fact.fullWidth ? ' class="member-directory-fact--manager"' : ''}><dt>${fact.label}</dt><dd>${escapeHtml(fact.value)}${fact.email ? `<small>${escapeHtml(fact.email)}</small>` : ''}</dd></div>`).join('')}</dl><div class="member-card-footer">${contactLinks(member)}<span class="member-profile-cue" aria-hidden="true">View profile <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span></div><button class="member-row-open" type="button" data-member-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s full profile"></button></article>`;
 }
 
 function renderMembers(resetPage = false) {
@@ -165,7 +177,7 @@ select('#all-new-members').addEventListener('click', event => {
   const trigger = event.target.closest('[data-member-profile]');
   if (trigger) {
     const member = members[Number(trigger.dataset.memberProfile)];
-    if (member) openMemberProfile(member, trigger);
+    if (member) openMemberProfile(member, trigger, members);
   }
 });
 

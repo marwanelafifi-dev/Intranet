@@ -35,8 +35,10 @@
 .member-card-identity p{margin:3px 0 0;color:#4a6483;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
 .member-directory-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin:16px 0 14px;padding-top:14px;border-top:1px solid var(--line)}
 .member-directory-facts div{min-width:0}
+.member-directory-facts .member-directory-fact--manager{grid-column:1/-1}
 .member-directory-facts dt{margin:0 0 3px;color:#58718d;font-size:10px;font-weight:700}
 .member-directory-facts dd{margin:0;color:var(--ink);font-size:11px;font-weight:750;line-height:1.4;overflow-wrap:anywhere}
+.member-directory-facts dd small{display:block;margin-top:1px;color:#526a87;font-size:10px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
 .member-card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:11px;border-top:1px solid var(--line)}
 .new-member-announcement .member-contact-links{position:relative;z-index:2;margin:0}
 .member-profile-cue{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:#1458b6;font-size:10px;font-weight:800;white-space:nowrap}

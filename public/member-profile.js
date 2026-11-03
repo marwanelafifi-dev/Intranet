@@ -24,9 +24,17 @@ function safeLinkedInUrl(value) {
   }
 }
 
-function detail(label, value, fullWidth = false) {
+function detail(label, value, fullWidth = false, secondaryValue = '') {
   const text = String(value || '').trim();
-  return text ? `<div${fullWidth ? ' class="member-profile-fact--full"' : ''}><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text)}</dd></div>` : '';
+  const secondary = String(secondaryValue || '').trim();
+  return text ? `<div${fullWidth ? ' class="member-profile-fact--full"' : ''}><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text)}${secondary ? `<small>${escapeHtml(secondary)}</small>` : ''}</dd></div>` : '';
+}
+
+function directManagerDetails(member, directory = []) {
+  const email = String(member.directManager || '').trim();
+  if (!email || email === 'To be confirmed') return null;
+  const manager = directory.find(candidate => String(candidate.companyEmail || '').trim().toLocaleLowerCase() === email.toLocaleLowerCase());
+  return { name:String(manager?.name || '').trim() || 'Manager not listed', email };
 }
 
 function initialsAvatar(member) {
@@ -41,7 +49,7 @@ function initialsAvatar(member) {
   return avatar;
 }
 
-function profileMarkup(member) {
+function profileMarkup(member, directory) {
   const name = String(member.name || 'Colleague').trim();
   const initials = String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2)).trim();
   const color = /^#[\da-f]{3,8}$/i.test(String(member.color || '')) ? member.color : '#dceeff';
@@ -49,12 +57,13 @@ function profileMarkup(member) {
   const avatar = photoUrl
     ? `<button class="member-profile-photo-button" type="button" data-member-photo-view aria-label="View photo of ${escapeHtml(name)}"><img class="member-profile-avatar member-profile-photo" src="${escapeHtml(photoUrl)}" alt="Photo of ${escapeHtml(name)}" /></button>`
     : `<span class="member-profile-avatar" style="--member-color:${color}" aria-hidden="true">${escapeHtml(initials)}</span>`;
+  const manager = directManagerDetails(member, directory);
   const facts = [
     detail('Employee ID', member.employeeId || 'Not assigned in Google Workspace'),
     detail('Employment type', member.employmentType),
     detail('Sector', member.sector === 'To be confirmed' ? '' : member.sector),
     detail('Department', member.department),
-    detail('Direct manager', member.directManager, true),
+    detail('Direct manager', manager?.name, true, manager?.email),
     detail('Organization unit', member.organizationUnit),
     detail('Joined', member.joined)
   ].join('');
@@ -124,12 +133,12 @@ function openMemberPhoto(member, trigger) {
   viewer.querySelector('[data-member-photo-close]').focus({ preventScroll:true });
 }
 
-export function openMemberProfile(member, trigger) {
+export function openMemberProfile(member, trigger, directory = []) {
   if (!member || !trigger) return;
   const card = ensureProfileCard();
   if (card.matches(':popover-open')) card.hidePopover();
   returnFocus = trigger;
-  card.innerHTML = profileMarkup(member);
+  card.innerHTML = profileMarkup(member, directory);
   const photo = card.querySelector('.member-profile-photo');
   if (photo) photo.addEventListener('error', () => (photo.closest('[data-member-photo-view]') || photo).replaceWith(initialsAvatar(member)), { once:true });
   card.querySelector('[data-member-photo-view]')?.addEventListener('click', event => openMemberPhoto(member, event.currentTarget));
