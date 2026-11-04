@@ -35,7 +35,7 @@ export function csvMemberRecord(row, columns, existing, index) {
   const aliases = {
     name:['name', 'full name', 'employee name'], role:['role', 'job title', 'title'],
     employmentType:['employment type', 'employment', 'type'], department:['department'],
-    sector:['sector'], division:['division'], directManager:['direct manager', 'manager'],
+    sector:['sector'], employeeGrade:['employee grade', 'grade'], birthday:['birthday', 'birth date', 'birthdate'], directManager:['direct manager', 'manager'],
     employeeId:['employee id', 'employee number', 'employee code'], joined:['joined', 'join date', 'start date'],
     companyEmail:['company email', 'work email', 'email'], phone:['phone', 'phone number', 'mobile'],
     linkedinUrl:['linkedin url', 'linkedin', 'linkedin profile'], message:['welcome message', 'message', 'intro'],
@@ -68,7 +68,7 @@ export function csvMemberRecord(row, columns, existing, index) {
   if (!existing) Object.assign(record, {
     role:record.role || 'To be confirmed', employmentType:record.employmentType || 'Full Time',
     department:record.department || 'To be confirmed', sector:record.sector || '',
-    division:record.division || 'To be confirmed', directManager:record.directManager || 'To be confirmed',
+    employeeGrade:record.employeeGrade || '', birthday:record.birthday || '', directManager:record.directManager || 'To be confirmed',
     employeeId:record.employeeId || '', joined:record.joined || 'To be confirmed',
     companyEmail:record.companyEmail || '', phone:record.phone || '', linkedinUrl:record.linkedinUrl || '',
     message:record.message || '', bio:record.bio || '', bioEnabled:record.bioEnabled === true,

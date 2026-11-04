@@ -4,8 +4,8 @@ import { generateKeyPairSync } from 'node:crypto';
 import { workspaceSyncConfig, createWorkspaceClient, mergeDirectoryMembers, mergeCalendarEvents, syncWorkspaceContent, eligibleEmployeeOu } from '../google-workspace-sync.mjs';
 
 const now = new Date('2026-10-22T10:00:00.000Z');
-const config = { ous:['/People/New Hires'], lookbackDays:30, hireDateField:'Employment.hireDate', divisionField:'Employment.division', calendars:[{ id:'room@resource.calendar.google.com', label:'Training Room' }] };
-const user = overrides => ({ id:'google-123', primaryEmail:'new.person@si-ware.com', orgUnitPath:config.ous[0], creationTime:'2026-10-21T08:00:00Z', thumbnailPhotoUrl:'https://lh3.googleusercontent.com/a/profile-photo', externalIds:[{ type:'organization', value:'439' }], name:{ fullName:'New Person' }, organizations:[{ primary:true, title:'Engineer', department:'R&D' }], relations:[{ type:'manager', value:'Manager Name' }], phones:[{ type:'home', value:'01018191555' }], customSchemas:{ Employment:{ hireDate:'2026-10-20', division:'Solutions' } }, ...overrides });
+const config = { ous:['/People/New Hires'], lookbackDays:30, hireDateField:'Employment.hireDate', calendars:[{ id:'room@resource.calendar.google.com', label:'Training Room' }] };
+const user = overrides => ({ id:'google-123', primaryEmail:'new.person@si-ware.com', orgUnitPath:config.ous[0], creationTime:'2026-10-21T08:00:00Z', thumbnailPhotoUrl:'https://lh3.googleusercontent.com/a/profile-photo', externalIds:[{ type:'organization', value:'439' }], name:{ fullName:'New Person' }, organizations:[{ primary:true, title:'Engineer', department:'R&D' }], relations:[{ type:'manager', value:'Manager Name' }], phones:[{ type:'home', value:'01018191555' }], customSchemas:{ Employment:{ hireDate:'2026-10-20' }, Organization_Info:{ sector:'Solutions', employeeGrade:'G8', linkedin:'linkedin.com/in/new-person', birthday:'1989-05-14' } }, ...overrides });
 
 test('OU picker accepts every non-root Google Workspace organizational unit', () => {
   assert.equal(eligibleEmployeeOu('/Egypt/Full-Time Employees'), true);
@@ -19,9 +19,13 @@ test('OU picker accepts every non-root Google Workspace organizational unit', ()
 test('requires one non-root OU and explicit delegated credentials', () => {
   assert.throws(() => workspaceSyncConfig({ GOOGLE_RECENTLY_JOINED_OU:'/' }), /non-root/);
   assert.throws(() => workspaceSyncConfig({ GOOGLE_RECENTLY_JOINED_OU:'/People/New Hires' }), /needs/);
-  const parsed = workspaceSyncConfig({ GOOGLE_RECENTLY_JOINED_OU:'/People/New Hires/', GOOGLE_SYNC_SUBJECT:'admin@si-ware.com', GOOGLE_SERVICE_ACCOUNT_KEY_FILE:'/run/secrets/key.json', GOOGLE_CALENDAR_RESOURCES:'Training Room|room@example.com,events@example.com' });
+  const parsed = workspaceSyncConfig({ GOOGLE_RECENTLY_JOINED_OU:'/People/New Hires/', GOOGLE_SYNC_SUBJECT:'admin@si-ware.com', GOOGLE_SERVICE_ACCOUNT_KEY_FILE:'/run/secrets/key.json', GOOGLE_CALENDAR_RESOURCES:'Training Room|room@example.com,events@example.com', GOOGLE_SECTOR_FIELD:'Organization_Info.sector', GOOGLE_EMPLOYEE_GRADE_FIELD:'Organization_Info.employeeGrade', GOOGLE_LINKEDIN_FIELD:'Organization_Info.linkedin', GOOGLE_BIRTHDAY_FIELD:'Organization_Info.birthday' });
   assert.deepEqual(parsed.ous, ['/People/New Hires']);
   assert.deepEqual(parsed.calendars, [{ id:'room@example.com', label:'Training Room' }, { id:'events@example.com', label:'Calendar event' }]);
+  assert.equal(parsed.sectorField, 'Organization_Info.sector');
+  assert.equal(parsed.employeeGradeField, 'Organization_Info.employeeGrade');
+  assert.equal(parsed.linkedInField, 'Organization_Info.linkedin');
+  assert.equal(parsed.birthdayField, 'Organization_Info.birthday');
 });
 
 test('adds every active account in the exact OU and retains the Google creation date', () => {
@@ -53,29 +57,41 @@ test('matches an existing card by email and refreshes Google-sourced fields', ()
   assert.equal(data.newMembers[0].joined, 'October 2026');
 });
 
-test('keeps intranet-owned division, LinkedIn details, and original photos through future directory syncs', () => {
-  const data = { newMembers:[{ id:'manual-2', googleUserId:'google-123', companyEmail:'new.person@si-ware.com', sector:'Energy', division:'Product', linkedinUrl:'https://www.linkedin.com/in/new-person', profilePhotoUrl:'/uploads/new-person-original.jpg', intranetOverrides:{ division:true, linkedinUrl:true }, googleImportedFields:{ division:'Solutions' } }] };
-  mergeDirectoryMembers(data, [user({ customSchemas:{ Employment:{ hireDate:'2026-10-20', division:'Platform' } } })], config, now);
-  assert.equal(data.newMembers[0].division, 'Product');
-  assert.equal(data.newMembers[0].sector, 'Energy');
-  assert.equal(data.newMembers[0].linkedinUrl, 'https://www.linkedin.com/in/new-person');
+test('refreshes Google custom employee fields, retires Division, and preserves an original photo', () => {
+  const data = { newMembers:[{ id:'manual-2', googleUserId:'google-123', companyEmail:'new.person@si-ware.com', sector:'Energy', division:'Product', employeeGrade:'G6', birthday:'1981-01-01', linkedinUrl:'https://www.linkedin.com/in/old-person', profilePhotoUrl:'/uploads/new-person-original.jpg', intranetOverrides:{ division:true, linkedinUrl:true }, googleImportedFields:{ division:'Solutions' } }] };
+  mergeDirectoryMembers(data, [user()], config, now);
+  assert.equal(data.newMembers[0].sector, 'Solutions');
+  assert.equal(data.newMembers[0].employeeGrade, 'G8');
+  assert.equal(data.newMembers[0].birthday, '1989-05-14');
+  assert.equal(data.newMembers[0].linkedinUrl, 'https://linkedin.com/in/new-person');
   assert.equal(data.newMembers[0].profilePhotoUrl, '/uploads/new-person-original.jpg');
-  assert.equal(data.newMembers[0].googleImportedFields.division, 'Platform');
+  assert.equal('division' in data.newMembers[0], false);
+  assert.equal('division' in data.newMembers[0].googleImportedFields, false);
 });
 
-test('complete Google sync preserves an imported Sector while refreshing an active colleague', async () => {
+test('complete Google sync keeps manual optional values only when Google leaves their custom fields empty', async () => {
   const data = { newMembers:[{
     id:'google-member-1', source:'google-directory', googleUserId:'google-123',
     companyEmail:'new.person@si-ware.com', organizationUnit:'/People/New Hires',
-    sector:'Energy', role:'Old role'
+    sector:'Energy', employeeGrade:'G6', birthday:'1981-01-01', linkedinUrl:'https://www.linkedin.com/in/manual', role:'Old role'
   }], events:[] };
   const result = await syncWorkspaceContent(data, { ...config, calendars:[] }, {
-    users:async () => [user({ organizations:[{ primary:true, title:'New role', department:'R&D' }] })]
+    users:async () => [user({ organizations:[{ primary:true, title:'New role', department:'R&D' }], customSchemas:{ Employment:{ hireDate:'2026-10-20' }, Organization_Info:{} } })]
   }, now);
   assert.equal(result.members.removed, 0);
   assert.equal(data.newMembers[0].role, 'New role');
   assert.equal(data.newMembers[0].sector, 'Energy');
-  assert.equal(data.newMembers[0].googleImportedFields.sector, undefined);
+  assert.equal(data.newMembers[0].employeeGrade, 'G6');
+  assert.equal(data.newMembers[0].birthday, '1981-01-01');
+  assert.equal(data.newMembers[0].linkedinUrl, 'https://www.linkedin.com/in/manual');
+  assert.equal(data.newMembers[0].googleImportedFields.sector, '');
+});
+
+test('uses configured Google custom-field paths when field names are not automatic', () => {
+  const data = { newMembers:[] };
+  const configured = { ...config, sectorField:'HR_Data.businessArea', employeeGradeField:'HR_Data.band', linkedInField:'HR_Data.networkProfile', birthdayField:'HR_Data.dateOfBirth' };
+  mergeDirectoryMembers(data, [user({ customSchemas:{ Employment:{ hireDate:'2026-10-20' }, HR_Data:{ businessArea:'Manufacturing', band:'M3', networkProfile:'https://www.linkedin.com/in/configured', dateOfBirth:'1990-01-02' } } })], configured, now);
+  assert.deepEqual({ sector:data.newMembers[0].sector, employeeGrade:data.newMembers[0].employeeGrade, linkedinUrl:data.newMembers[0].linkedinUrl, birthday:data.newMembers[0].birthday }, { sector:'Manufacturing', employeeGrade:'M3', linkedinUrl:'https://www.linkedin.com/in/configured', birthday:'1990-01-02' });
 });
 
 test('fills a previously empty card when Google later adds a photo, without replacing any existing photo', () => {

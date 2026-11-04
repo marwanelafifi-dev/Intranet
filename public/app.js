@@ -94,7 +94,8 @@ const displayTimestamp = value => value ? new Intl.DateTimeFormat('en', { year:'
 function normalizeState(data) {
   data.homePageContent = { heroTitle:'Make room for what’s next.', heroDescription:'One place to find your people, sharpen your craft, and keep the work moving with purpose.', heroAction:'Explore what’s happening', heroActionUrl:'#knowledge', ...(data.homePageContent || {}) };
   data.newMembers ??= [];
-  data.newMembers = data.newMembers.map(member => ({ ...member, employmentType: memberEmploymentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time', department: member.department || member.team || 'To be confirmed', division: member.division || 'To be confirmed' }));
+  data.birthdayNotifications = Array.isArray(data.birthdayNotifications) ? data.birthdayNotifications : [];
+  data.newMembers = data.newMembers.map(member => ({ ...member, employmentType: memberEmploymentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time', department: member.department || member.team || 'To be confirmed' }));
   data.policies ??= policyIndex.map((policy, index) => ({ id: `fallback-policy-${index}`, summary: policy.detail, canonicalUrl: policy.href, ...policy }));
   data.policyAcknowledgementContent = { version:1, actionTitle:'Action required: acknowledge Si-Ware Policies', instructionText:'Before continuing, carefully review the mandatory policies below and record your acknowledgement in place of the former email reply.', beforeHeading:'Why this matters', beforeText:'Please read the mandatory Si-Ware Information Security Policy carefully. It covers information-handling policies including Computer Acceptable Use, Password, PDA/Smartphone and Remote Access, together with security awareness for your laptop, PC and mobile devices, physical security, virus protection, spyware/malware and social engineering/phishing. All Si-Ware users must know and adhere to these requirements. Confirmation is mandatory under Si-Ware security regulations.', confirmationLabel:'I confirm that I have read and accepted Si-Ware Policies.', confirmationHelp:'This records the current policy versions and confirmation time.', acceptedTitle:'Policies acknowledged', afterText:'Your acknowledgement has been recorded for the current policy versions.', ...(data.policyAcknowledgementContent || {}) };
   data.firstWeekChecklist ??= [
@@ -227,6 +228,12 @@ function visibleAnnouncements() {
 function notificationAnnouncements() {
   return visibleAnnouncements().filter(item => item.notification?.inAppEnabled !== false && item.notification?.inAppVisible !== false);
 }
+function birthdayNotificationItems() {
+  return (state.birthdayNotifications || []).filter(item => item?.type === 'birthday' && item?.id);
+}
+function notificationItems() {
+  return [...birthdayNotificationItems(), ...notificationAnnouncements()];
+}
 function notificationStorageKey() {
   return `siware-announcement-notifications:${String(state?.user?.email || state?.user?.id || state?.user?.name || 'employee').trim().toLowerCase()}`;
 }
@@ -237,6 +244,7 @@ function saveNotificationIds(ids) {
   try { localStorage.setItem(notificationStorageKey(), JSON.stringify([...ids].slice(-160))); } catch {}
 }
 function notificationTime(item) {
+  if (item.type === 'birthday') return 'Today';
   const value = item.publishedAt || item.date;
   const time = value ? new Date(value) : null;
   return time && !Number.isNaN(time.getTime()) ? new Intl.DateTimeFormat('en', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'Africa/Cairo' }).format(time) : (item.date || 'New');
@@ -244,12 +252,23 @@ function notificationTime(item) {
 function renderNotifications() {
   const panel = $('#notification-panel'), button = $('#notification-button'), badge = $('#notification-badge');
   if (!panel || !button || !badge) return;
-  const items = notificationAnnouncements().slice(0, 12), readIds = readNotificationIds();
+  const items = notificationItems().slice(0, 12), readIds = readNotificationIds();
   const unread = items.filter(item => !readIds.has(String(item.id)));
   badge.hidden = !unread.length;
   badge.textContent = unread.length > 9 ? '9+' : String(unread.length);
-  button.setAttribute('aria-label', unread.length ? `Announcements, ${unread.length} unread` : 'Announcements, all read');
+  button.setAttribute('aria-label', unread.length ? `Notifications, ${unread.length} unread` : 'Notifications, all read');
   panel.innerHTML = `<header class="notification-panel-head"><div><h2>Announcements</h2><p>${unread.length ? `${unread.length} unread` : 'You’re all caught up'}</p></div>${unread.length ? '<button type="button" data-notification-mark-all>Mark all read</button>' : ''}</header><div class="notification-list">${items.length ? items.map(item => { const unreadItem = !readIds.has(String(item.id)); return `<button class="notification-item${unreadItem ? ' is-unread' : ''}" type="button" data-notification-id="${escapeHtml(item.id)}"><span class="notification-item-dot" aria-hidden="true"></span><span class="notification-item-copy"><span class="notification-item-meta">${escapeHtml(item.tag || 'Company update')} · ${escapeHtml(notificationTime(item))}</span><strong>${escapeHtml(item.title || 'Untitled announcement')}</strong><small>${escapeHtml(announcementPreview(item.body || item.message || item.description || item.bodyHtml, item.title) || 'Open announcement')}</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>`; }).join('') : '<p class="notification-empty">No published announcements yet.</p>'}</div><footer class="notification-panel-foot"><a href="/announcements.html">View all announcements <span aria-hidden="true">→</span></a></footer>`;
+  panel.querySelector('.notification-panel-head h2').textContent = 'Notifications';
+  panel.querySelectorAll('[data-notification-id]').forEach(item => {
+    const notification = items.find(candidate => String(candidate.id) === String(item.dataset.notificationId));
+    if (notification?.type !== 'birthday') return;
+    item.dataset.notificationType = 'birthday';
+    item.classList.add('is-birthday');
+    item.querySelector('.notification-item-meta').textContent = `People moment · ${notificationTime(notification)}`;
+    const preview = item.querySelector('small');
+    if (preview) preview.textContent = notification.body || 'Celebrate a colleague today.';
+  });
+  if (!items.length) panel.querySelector('.notification-empty').textContent = 'No notifications yet.';
 }
 function setNotificationPanel(open) {
   const panel = $('#notification-panel'), button = $('#notification-button');
@@ -266,27 +285,58 @@ function markAnnouncementRead(id) {
 }
 function markAllAnnouncementsRead() {
   const readIds = readNotificationIds();
-  notificationAnnouncements().forEach(item => readIds.add(String(item.id)));
+  notificationItems().forEach(item => readIds.add(String(item.id)));
   saveNotificationIds(readIds);
   renderNotifications();
+}
+function birthdayPopupStorageKey(item) {
+  const person = String(state?.user?.email || state?.user?.id || state?.user?.name || 'employee').trim().toLowerCase();
+  return `siware-birthday-celebration:${person}:${String(item?.id || '')}`;
+}
+function hasSeenBirthdayPopup(item) {
+  try { return localStorage.getItem(birthdayPopupStorageKey(item)) === 'seen'; } catch { return false; }
+}
+function rememberBirthdayPopup(item) {
+  try { localStorage.setItem(birthdayPopupStorageKey(item), 'seen'); } catch {}
+}
+function birthdayDialogIcon() {
+  return '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 7v7M10.8 12.5l5 5M37.2 12.5l-5 5M8 26h8M32 26h8M14.5 38.5l5-5M33.5 38.5l-5-5"/><path d="M16 28.5c0-4.4 3.6-8 8-8s8 3.6 8 8v4.5H16Z"/><path d="M19.5 36h9M22 40h4"/></svg>';
+}
+function showBirthdayCelebration(item, automatic = false) {
+  const dialog = $('#birthday-celebration-dialog');
+  if (!dialog || !item) return;
+  if (automatic) rememberBirthdayPopup(item);
+  markAnnouncementRead(item.id);
+  const people = Array.isArray(item.people) ? item.people : [];
+  dialog.innerHTML = `<div class="birthday-celebration-shell"><header class="birthday-celebration-header"><span class="birthday-celebration-mark">${birthdayDialogIcon()}</span><div><p>People moment</p><h2 id="birthday-celebration-title">Celebrate a colleague</h2></div><button class="birthday-celebration-close" type="button" data-birthday-dialog-close aria-label="Close birthday celebration"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5 19 19M19 5 5 19"/></svg></button></header><div class="birthday-celebration-body"><p class="birthday-celebration-lead">${escapeHtml(item.body || 'Take a moment to send your best wishes today.')}</p><ul class="birthday-celebration-people">${people.map(person => `<li><span class="birthday-celebration-avatar" aria-hidden="true">${escapeHtml(String(person.name || '').split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(person.name || 'Colleague')}</strong><small>Celebrating today</small></span><a href="mailto:${escapeHtml(person.email || '')}">Send wishes <span aria-hidden="true">→</span></a></li>`).join('')}</ul><p class="birthday-celebration-note">This celebration is shared only with colleagues; birthday details are kept private.</p></div><footer class="birthday-celebration-footer"><button type="button" class="birthday-celebration-dismiss" data-birthday-dialog-close>Continue to intranet</button></footer></div>`;
+  if (!dialog.open) dialog.showModal();
+}
+function showPendingBirthdayCelebration() {
+  const item = birthdayNotificationItems().find(notification => !hasSeenBirthdayPopup(notification));
+  if (!item) return;
+  window.setTimeout(() => showBirthdayCelebration(item, true), 520);
 }
 async function refreshAnnouncementNotifications() {
   if (document.hidden) return;
   try {
     const dashboard = await request('/api/dashboard');
     const announcements = Array.isArray(dashboard.announcements) ? dashboard.announcements : [];
+    const birthdayNotifications = Array.isArray(dashboard.birthdayNotifications) ? dashboard.birthdayNotifications : [];
     const newItems = announcements.filter(item => item.hidden !== true && item.hidden !== 'true' && item.notification?.inAppEnabled !== false && item.notification?.inAppVisible !== false && !knownAnnouncementIds.has(String(item.id)));
     state.announcements = announcements;
+    state.birthdayNotifications = birthdayNotifications;
     announcements.forEach(item => knownAnnouncementIds.add(String(item.id)));
     renderAnnouncement();
     renderNotifications();
     if (newItems.length) showToast(newItems.length === 1 ? `New announcement: ${newItems[0].title || 'Company update'}` : `${newItems.length} new announcements are ready.`);
+    showPendingBirthdayCelebration();
   } catch {}
 }
 function startAnnouncementNotifications() {
   knownAnnouncementIds = new Set((state.announcements || []).map(item => String(item.id)));
   window.clearInterval(notificationRefreshTimer);
   notificationRefreshTimer = window.setInterval(refreshAnnouncementNotifications, 60_000);
+  showPendingBirthdayCelebration();
 }
 function renderVectorIcons() {
   $$('#app-grid .app-icon').forEach((element, index) => { if (!state.apps[index]?.iconUrl) element.innerHTML = appIcon(state.apps[index]?.icon); });
@@ -712,8 +762,16 @@ function setupEvents() {
     const notification = event.target.closest('[data-notification-id]');
     if (!notification) return;
     markAnnouncementRead(notification.dataset.notificationId);
+    if (notification.dataset.notificationType === 'birthday') {
+      setNotificationPanel(false);
+      const item = birthdayNotificationItems().find(candidate => String(candidate.id) === String(notification.dataset.notificationId));
+      if (item) showBirthdayCelebration(item);
+      return;
+    }
     location.assign(`/announcements.html?announcement=${encodeURIComponent(notification.dataset.notificationId)}`);
   });
+  $('#birthday-celebration-dialog').addEventListener('click', event => { if (event.target === event.currentTarget || event.target.closest('[data-birthday-dialog-close]')) event.currentTarget.close(); });
+  $('#birthday-celebration-dialog').addEventListener('cancel', event => { event.preventDefault(); event.currentTarget.close(); });
   document.addEventListener('click', event => {
     const panel = $('#notification-panel');
     if (!panel.hidden && !event.target.closest('#notification-panel, #notification-button')) setNotificationPanel(false);

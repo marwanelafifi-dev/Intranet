@@ -30,6 +30,12 @@ In **Administration > Notifications**, administrators approve Google Group addre
 
 Email sends from `intranet@si-ware.com` through Gmail SMTP. Before opening the Notifications page, add a unique long `NOTIFICATION_SECRET_KEY` to the untracked Ubuntu `.env` and restart the service. An administrator with both **Manage settings** and **Notifications** page access can then save the Gmail App Password in the UI and enable or disable email delivery at any time. The password is encrypted on the server and stored in `data/notification-secrets.json`; it is never returned to the browser. Keep that file out of Git and Docker images, restrict it to the service account, include it in backups, and do not change `NOTIFICATION_SECRET_KEY` unless you intend to enter the app password again.
 
+## Birthday celebrations and HR field privacy
+
+Birthday is an optional Google Workspace custom field (or a manual Our Team CSV/editor field). It is private HR data: the server evaluates it in the Africa/Cairo timezone and never sends it to ordinary employee browsers, so it cannot appear in directory, dashboard, or organization-chart cards. In **Administration > Notifications**, a full administrator can enable **Birthday celebrations**. On an eligible colleague’s birthday, every other signed-in employee receives one in-app notification and a once-per-day celebration pop-up with an optional “Send wishes” mail link. The celebrant never receives their own notification, and no birthday email is sent. Full administrators may view birthdays in the protected directory/profile data.
+
+Employee Grade is also protected. A full administrator can view all grades; otherwise, an employee sees only their own grade and a manager sees grades only for people in that manager’s reporting branch. An employee cannot see a manager’s grade or grades belonging to unrelated colleagues. This filtering is applied by the server before a directory payload is returned.
+
 ## Google Workspace content sync
 
 Configure sources in **Administration > Settings > Google Workspace content sync**, not in `.env`. Select employee/intern OUs from the live Google list; Guests and Consultants are not selectable. The 3rd Floor Meeting Room (`c_1886rrgqhtprciftkps7n738rs2fo@resource.calendar.google.com`) and Recreational Area Space (`c_188bj799if2eoj4el09lt4nbmlrmg@resource.calendar.google.com`) are preselected. Sync remains off until an administrator enables and saves it. Use **Sync now** for an immediate check. Grant the delegated service account these four read-only scopes: `https://www.googleapis.com/auth/admin.directory.user.readonly`, `https://www.googleapis.com/auth/admin.directory.orgunit.readonly`, `https://www.googleapis.com/auth/calendar.events.readonly`, and `https://www.googleapis.com/auth/admin.directory.group.member.readonly`. The last scope allows notification audience checks for Google Groups; the delegated administrator needs Groups read access.
@@ -45,12 +51,17 @@ Google sign-in alone does not provide directory or calendar data. To automatical
 ```dotenv
 GOOGLE_SYNC_SUBJECT=directory-sync@si-ware.com
 GOOGLE_RECENTLY_JOINED_LOOKBACK_DAYS=30
-# Optional Workspace custom fields; the date must be YYYY-MM-DD.
+# Optional Workspace custom fields. The sync automatically recognizes fields
+# named Sector, Employee Grade, LinkedIn, and Birthday when unambiguous.
+# Use these paths only if your Google schema uses another field name.
 GOOGLE_HIRE_DATE_FIELD=Employment.hireDate
-GOOGLE_DIVISION_FIELD=Employment.division
+GOOGLE_SECTOR_FIELD=Organization_Info.sector
+GOOGLE_EMPLOYEE_GRADE_FIELD=Organization_Info.employeeGrade
+GOOGLE_LINKEDIN_FIELD=Organization_Info.linkedin
+GOOGLE_BIRTHDAY_FIELD=Organization_Info.birthday
 ```
 
-The server polls every 15 minutes after sync is enabled. Google Directory search results can lag, so new accounts may not appear immediately. Only active, non-guest users directly in the selected OUs are imported; child OUs are not included unless selected, and accounts created more than the configured lookback ago are not backfilled. Imported cards are matched by Google's stable user ID or company email. Each sync refreshes Google-sourced profile fields; Sector (set by an administrator through Our Team or CSV import) and LinkedIn (set by the employee) are intranet-owned and preserved. Existing Division values remain stored but are not shown as Sector. The Workspace account creation timestamp is **not** used as an employment start date: without the optional hire-date field, Joined remains “To be confirmed.” Employment type is inferred for the four named Egypt employment/intern OUs; other missing HR details require manual completion in Administration. Imported cards appear to employees automatically, so select only OUs approved for employee-wide publication.
+The server polls every 15 minutes after sync is enabled. Google Directory search results can lag, so new accounts may not appear immediately. Only active, non-guest users directly in the selected OUs are imported; child OUs are not included unless selected, and accounts created more than the configured lookback ago are not backfilled. Imported cards are matched by Google's stable user ID or company email. Each sync refreshes Google-sourced profile fields, including Sector, Employee Grade, LinkedIn, and Birthday where Google provides them. The same values remain available through the Our Team CSV/editor as a fallback when their Google custom field is empty. Legacy Division is retired and removed. The Workspace account creation timestamp is **not** used as an employment start date: without the optional hire-date field, Joined remains “To be confirmed.” Employment type is inferred for the four named Egypt employment/intern OUs; other missing HR details require manual completion in Administration. Imported cards appear to employees automatically, so select only OUs approved for employee-wide publication.
 
 For bulk updates in Administration > Our Team, keep only the CSV columns you need. Each row must include Company Email or Employee ID; blank and omitted values leave other fields unchanged. For example, `Employee ID,Sector` updates Sector by ID. Rows without a matching colleague and without Name are skipped and shown in an import report, while matching rows are saved. The import never creates a card for an unmatched email-only row. Add Name only when you intend to create a new colleague.
 

@@ -80,13 +80,43 @@ export function workspaceSyncConfig(env = process.env) {
   const subject = String(env.GOOGLE_SYNC_SUBJECT || '').trim().toLowerCase();
   if ((ous.length || calendars.length) && (!keyFile || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subject))) throw new Error('Google sync needs GOOGLE_SERVICE_ACCOUNT_KEY_FILE and GOOGLE_SYNC_SUBJECT.');
   const lookbackDays = Math.min(365, Math.max(1, Number(env.GOOGLE_RECENTLY_JOINED_LOOKBACK_DAYS) || 30));
-  return { keyFile, subject, ous, calendars, lookbackDays, hireDateField:String(env.GOOGLE_HIRE_DATE_FIELD || '').trim(), divisionField:String(env.GOOGLE_DIVISION_FIELD || '').trim(), enabled:Boolean(ous.length || calendars.length) };
+  return {
+    keyFile, subject, ous, calendars, lookbackDays,
+    hireDateField:String(env.GOOGLE_HIRE_DATE_FIELD || '').trim(),
+    sectorField:String(env.GOOGLE_SECTOR_FIELD || '').trim(),
+    employeeGradeField:String(env.GOOGLE_EMPLOYEE_GRADE_FIELD || '').trim(),
+    linkedInField:String(env.GOOGLE_LINKEDIN_FIELD || '').trim(),
+    birthdayField:String(env.GOOGLE_BIRTHDAY_FIELD || '').trim(),
+    enabled:Boolean(ous.length || calendars.length)
+  };
 }
 
-function customField(user, path) {
-  if (!/^[A-Za-z][\w-]*\.[A-Za-z][\w-]*$/.test(path)) return '';
-  const [schema, field] = path.split('.');
-  return text(user.customSchemas?.[schema]?.[field]);
+const fieldKey = value => String(value || '').toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+
+function customField(user, path, aliases = []) {
+  const configuredPath = String(path || '').trim();
+  const separator = configuredPath.lastIndexOf('.');
+  if (separator > 0) {
+    const configured = text(user.customSchemas?.[configuredPath.slice(0, separator)]?.[configuredPath.slice(separator + 1)]);
+    if (configured) return configured;
+  }
+  const preferred = new Set(aliases.map(fieldKey));
+  if (!preferred.size) return '';
+  for (const schema of Object.values(user.customSchemas || {})) {
+    for (const [field, value] of Object.entries(schema || {})) {
+      if (preferred.has(fieldKey(field))) return text(value);
+    }
+  }
+  return '';
+}
+
+function linkedInProfile(value) {
+  const raw = text(value, 300);
+  if (!raw) return '';
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return /(^|\.)linkedin\.com$/i.test(url.hostname) ? url.href : '';
+  } catch { return ''; }
 }
 
 function joinedLabel(value) {
@@ -121,7 +151,10 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
     const imported = {
       name:fullName, role:text(organization.title) || placeholder,
       department:text(organization.department) || placeholder,
-      division:customField(user, config.divisionField) || placeholder,
+      sector:customField(user, config.sectorField, ['sector']),
+      employeeGrade:customField(user, config.employeeGradeField, ['employee grade', 'employeegrade', 'grade']),
+      linkedinUrl:linkedInProfile(customField(user, config.linkedInField, ['linkedin', 'linkedin url', 'linkedin profile'])),
+      birthday:customField(user, config.birthdayField, ['birthday', 'birth date', 'birthdate']),
       directManager:text(manager) || placeholder,
       joined:joinedLabel(customField(user, config.hireDateField)) || accountCreationLabel(user.creationTime) || placeholder,
       companyEmail:email, phone:text(phone, 40), employeeId:employeeId(user), organizationUnit:text(user.orgUnitPath, 240), employmentType,
@@ -131,11 +164,18 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
       const intranetOverrides = existing.intranetOverrides || {};
       let dirty = false;
       for (const [key, value] of Object.entries(imported)) {
-        // Sector belongs to the intranet CSV/editor. Google sync must never replace it.
-        if (key === 'sector') continue;
-        if (intranetOverrides[key] === true) continue;
+        // Optional Google custom fields fall back to CSV/admin values when empty.
+        if (['sector', 'employeeGrade', 'linkedinUrl', 'birthday'].includes(key) && !value) continue;
+        if (!['sector', 'employeeGrade', 'linkedinUrl', 'birthday'].includes(key) && intranetOverrides[key] === true) continue;
         if (existing[key] !== value) { existing[key] = value; dirty = true; }
       }
+      if (existing.intranetOverrides?.sector || existing.intranetOverrides?.linkedinUrl || existing.intranetOverrides?.employeeGrade || existing.intranetOverrides?.birthday) {
+        const { sector, linkedinUrl, employeeGrade, birthday, ...remainingOverrides } = existing.intranetOverrides;
+        existing.intranetOverrides = remainingOverrides;
+        dirty = true;
+      }
+      if ('division' in existing) { delete existing.division; dirty = true; }
+      if (existing.googleImportedFields?.division) { delete existing.googleImportedFields.division; dirty = true; }
       if (intranetOverrides.team !== true && existing.team !== imported.department) { existing.team = imported.department; dirty = true; }
       // Photos are fill-only. A later Google photo can complete an empty card,
       // but sync never clears or replaces an existing Google or intranet photo.
@@ -150,7 +190,7 @@ export function mergeDirectoryMembers(data, users, config, now = new Date()) {
     }
     const member = {
       id:memberId, googleUserId:String(user.id), source:'google-directory',
-      ...imported, sector:'', photoUrl:googlePhotoUrl, googleImportedFields:{ ...imported, photoUrl:googlePhotoUrl }, team:imported.department,
+      ...imported, photoUrl:googlePhotoUrl, googleImportedFields:{ ...imported, photoUrl:googlePhotoUrl }, team:imported.department,
       initials:fullName.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
       color:'#dceeff', message:''
     };

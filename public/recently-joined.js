@@ -48,6 +48,14 @@ function directManagerDetails(member) {
   };
 }
 
+function birthdayLabel(value) {
+  const match = String(value || '').trim().match(/^(?:\d{4}[-/])?(\d{1,2})[-/](\d{1,2})(?:[-/]\d{2,4})?$/);
+  if (!match) return '';
+  const month = Number(match[1]), day = Number(match[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  return new Intl.DateTimeFormat('en', { month:'long', day:'numeric', timeZone:'Africa/Cairo' }).format(new Date(Date.UTC(2026, month - 1, day, 12)));
+}
+
 function memberCard(member) {
   const name = String(member.name || 'Colleague');
   const initials = String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2));
@@ -58,10 +66,12 @@ function memberCard(member) {
   const manager = directManagerDetails(member);
   const facts = [
     manager ? { label:'Direct manager', value:manager.name, email:manager.email, fullWidth:true } : null,
+    { label:'Employee grade', value:member.employeeGrade },
     { label:'Sector', value:visibleSector(member) },
     { label:'Department', value:member.department || member.team },
     { label:'Employment', value:member.employmentType },
-    { label:'Joined', value:member.joined }
+    { label:'Joined', value:member.joined },
+    { label:'Birthday', value:birthdayLabel(member.birthday) }
   ].filter(fact => fact?.value && fact.value !== 'To be confirmed');
   const biographyAction = (member.bioEnabled === true || member.bioEnabled === 'true') && String(member.bio || '').trim() ? `<button class="member-bio-action" type="button" data-member-profile="${members.indexOf(member)}">Read bio</button>` : '';
   return `<article class="new-member-announcement" data-member-id="${escapeHtml(member.id || '')}"><div class="member-card-main">${avatar}<div class="member-card-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Role not listed')}</p></div></div><dl class="member-directory-facts">${facts.map(fact => `<div${fact.fullWidth ? ' class="member-directory-fact--manager"' : ''}><dt>${fact.label}</dt><dd>${escapeHtml(fact.value)}${fact.email ? `<small>${escapeHtml(fact.email)}</small>` : ''}</dd></div>`).join('')}</dl><div class="member-card-footer">${contactLinks(member)}${biographyAction}<span class="member-profile-cue" aria-hidden="true">View profile <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span></div><button class="member-row-open" type="button" data-member-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s full profile"></button></article>`;

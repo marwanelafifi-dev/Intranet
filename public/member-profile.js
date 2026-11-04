@@ -32,6 +32,14 @@ function detail(label, value, fullWidth = false, secondaryValue = '') {
   return text ? `<div${fullWidth ? ' class="member-profile-fact--full"' : ''}><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text)}${secondary ? `<small>${escapeHtml(secondary)}</small>` : ''}</dd></div>` : '';
 }
 
+function birthdayLabel(value) {
+  const match = String(value || '').trim().match(/^(?:\d{4}[-/])?(\d{1,2})[-/](\d{1,2})(?:[-/]\d{2,4})?$/);
+  if (!match) return '';
+  const month = Number(match[1]), day = Number(match[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  return new Intl.DateTimeFormat('en', { month:'long', day:'numeric', timeZone:'Africa/Cairo' }).format(new Date(Date.UTC(2026, month - 1, day, 12)));
+}
+
 function directManagerDetails(member, directory = []) {
   const email = String(member.directManager || '').trim();
   if (!email || email === 'To be confirmed') return null;
@@ -63,11 +71,13 @@ function profileMarkup(member, directory) {
   const facts = [
     detail('Employee ID', member.employeeId || 'Not assigned in Google Workspace'),
     detail('Employment type', member.employmentType),
+    detail('Employee grade', member.employeeGrade),
     detail('Sector', visibleSector(member)),
     detail('Department', member.department || member.team),
     detail('Direct manager', manager?.name, true, manager?.email),
     detail('Organization unit', member.organizationUnit),
-    detail('Joined', member.joined)
+    detail('Joined', member.joined),
+    detail('Birthday', birthdayLabel(member.birthday))
   ].join('');
   const email = String(member.companyEmail || '').trim();
   const phone = String(member.phone || '').trim();

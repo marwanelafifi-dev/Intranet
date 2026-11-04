@@ -52,7 +52,7 @@ test('bulk import accepts a reduced template with either identifier column', () 
 test('Sector-only CSV update matches by email and preserves the rest of the colleague record', () => {
   const existing = {
     id:'google-member-1', name:'Ayman Ahmed', companyEmail:'ayman.ahmed@si-ware.com',
-    role:'Engineer', department:'Research', division:'Legacy division', team:'Specialist team',
+    role:'Engineer', department:'Research', employeeGrade:'G5', birthday:'1990-01-01', team:'Specialist team',
     profilePhotoUrl:'/uploads/ayman.jpg', linkedinUrl:'https://www.linkedin.com/in/ayman/',
     intranetOverrides:{ profilePhotoUrl:true }, googleUserId:'google-1', initials:'AA'
   };
@@ -61,6 +61,19 @@ test('Sector-only CSV update matches by email and preserves the rest of the coll
   const matched = findExistingCsvMember([existing], { email:row[0] }, 0);
   assert.equal(matched, existing);
   assert.deepEqual(csvMemberRecord(row, columns, matched, 0), { ...existing, sector:'Energy' });
+});
+
+test('CSV imports Sector, Employee Grade, LinkedIn, and Birthday together', () => {
+  const existing = { id:'member-4', name:'Taylor Lee', companyEmail:'taylor@si-ware.com', sector:'', employeeGrade:'', birthday:'', linkedinUrl:'' };
+  const columns = new Map(['Company Email', 'Sector', 'Employee Grade', 'LinkedIn URL', 'Birthday'].map((heading, index) => [csvKey(heading), index]));
+  const record = csvMemberRecord(['taylor@si-ware.com', 'Product', 'G7', 'linkedin.com/in/taylor-lee', '1992-08-10'], columns, existing, 0);
+  assert.deepEqual(record, { ...existing, sector:'Product', employeeGrade:'G7', linkedinUrl:'https://linkedin.com/in/taylor-lee', birthday:'1992-08-10' });
+});
+
+test('legacy Division CSV values are ignored', () => {
+  const existing = { id:'member-5', name:'Alex Smith', companyEmail:'alex@si-ware.com', sector:'Operations' };
+  const columns = new Map(['Company Email', 'Division'].map((heading, index) => [csvKey(heading), index]));
+  assert.deepEqual(csvMemberRecord(['alex@si-ware.com', 'Legacy division'], columns, existing, 0), existing);
 });
 
 test('Employee ID alone matches a colleague and can update Sector without changing other fields', () => {

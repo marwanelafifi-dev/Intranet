@@ -12,6 +12,7 @@ import { describeContentChanges } from './audit-details.mjs';
 import { archiveExpiredEvents, auditRetentionDays, hasArchiveRunToday } from './audit-archive.mjs';
 import { workspaceSyncConfig, createWorkspaceClient, syncWorkspaceContent, eligibleEmployeeOu } from './google-workspace-sync.mjs';
 import { importedGroupAnnouncements } from './inbound-group-email.mjs';
+import { birthdayNotificationFor } from './birthday-notifications.mjs';
 import { adminViewPermissions, adminActionPermissions, adminContentKeyPages, adminContentKeys, canOpenAdmin, removedContent, rolePermissionError } from './public/admin-permissions.js';
 import { defaultGlobalPageContent, normaliseGlobalPageContent } from './public/global-page-content.js';
 import { intranetPagePermissions, intranetRoutePermissions, intranetContentPermissions, firstAvailableIntranetPage } from './public/intranet-permissions.js';
@@ -146,7 +147,7 @@ const safeText = value => String(value || '').replace(/[\u0000-\u001f<>]/g, ' ')
 const emailAddress = value => String(value || '').trim().toLowerCase();
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const notificationEmailList = value => [...new Set((Array.isArray(value) ? value : String(value || '').split(/[\n,;]/)).map(emailAddress).filter(isEmailAddress))].slice(0, 250);
-const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, emailEnabled:false, emailDefaultEnabled:false, inboundEmailEnabled:false, inboundStartedAt:'', approvedGroups:[], defaultGroup:'', sender:notificationSender });
+const defaultNotificationSettings = () => ({ inAppEnabled:true, inAppDefaultEnabled:true, birthdayEnabled:false, emailEnabled:false, emailDefaultEnabled:false, inboundEmailEnabled:false, inboundStartedAt:'', approvedGroups:[], defaultGroup:'', sender:notificationSender });
 const notificationSettings = data => ({ ...defaultNotificationSettings(), ...(data.adminSettings?.notificationSettings || {}) });
 const normaliseAnnouncementNotification = value => {
   const item = value && typeof value === 'object' ? value : {};
@@ -522,6 +523,32 @@ const employeeDashboardKeys = new Set([
   'forms','faqs','serviceRequests','apps','announcements','sessions','feeds','moments',
   'events','eventsPageContent','homePageContent','knowledgePageContent','momentsPageContent','recentlyJoinedPageContent','globalPageContent','_version'
 ]);
+const memberEmail = member => emailAddress(member?.companyEmail);
+const employeeGradeVisibleTo = (members, actorEmail, member) => {
+  const viewer = emailAddress(actorEmail);
+  if (!viewer || !member) return false;
+  if (memberEmail(member) === viewer) return true;
+  const byEmail = new Map((Array.isArray(members) ? members : []).map(candidate => [memberEmail(candidate), candidate]).filter(([address]) => address));
+  const visited = new Set();
+  let current = member;
+  while (current?.directManager) {
+    const managerEmail = emailAddress(current.directManager);
+    if (!managerEmail || visited.has(managerEmail)) return false;
+    if (managerEmail === viewer) return true;
+    visited.add(managerEmail);
+    current = byEmail.get(managerEmail);
+  }
+  return false;
+};
+const employeeDirectoryForActor = (members, actor, fullAccess = false) => (Array.isArray(members) ? members : []).map(member => {
+  if (fullAccess) return member;
+  const { birthday, googleImportedFields, ...publicMember } = member;
+  if (employeeGradeVisibleTo(members, actor?.email, member)) publicMember.employeeGrade = member.employeeGrade;
+  else delete publicMember.employeeGrade;
+  // Imported source metadata can contain the same protected HR fields. It is
+  // administration-only and must never become a side channel in employee data.
+  return publicMember;
+});
 const eventAudienceHash = email => createHash('sha256').update(String(email || '').trim().toLowerCase()).digest('hex');
 const publicEvents = events => (Array.isArray(events) ? events : []).filter(event => event.hidden !== true).map(({ privateAudienceHashes, privateDetails, hidden, ...event }) => event);
 const calendarMeetingLinks = value => {
@@ -591,8 +618,15 @@ async function dashboardResponse(data, actor, admin = false) {
       return { ...announcement, ...(announcement.source?.type === 'group-email' ? { source:{ type:'group-email', group:announcement.source.group, fromEmail:announcement.source.fromEmail, receivedAt:announcement.source.receivedAt } } : {}), notification:publicAnnouncementNotification(announcement.notification, data, Boolean(group)) };
     }))).filter(Boolean);
   }
-  const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled, approvedGroups:settings.approvedGroups, defaultGroup:settings.defaultGroup }; })() : undefined;
-  return { ...visible, ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
+  // Birthdays are HR data. They are evaluated only on the server, then removed
+  // from every employee-facing directory payload before it reaches a browser.
+  const birthdayNotifications = !admin ? (() => {
+    const notification = birthdayNotificationFor(data.newMembers, actor?.email, notificationSettings(data).birthdayEnabled);
+    return notification ? [notification] : [];
+  })() : undefined;
+  if (!admin && Array.isArray(visible.newMembers)) visible.newMembers = employeeDirectoryForActor(data.newMembers, actor, can(data, actor, 'access.manage'));
+  const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, birthdayEnabled:settings.birthdayEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled, approvedGroups:settings.approvedGroups, defaultGroup:settings.defaultGroup }; })() : undefined;
+  return { ...visible, ...(!admin ? { birthdayNotifications } : {}), ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
   const changedKeys = Object.keys(next).filter(key => adminContentKeyPages[key] && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
@@ -919,14 +953,20 @@ async function dashboard() {
     if (JSON.stringify(data.globalPageContent || {}) !== JSON.stringify(globalPageContent)) { data.globalPageContent = globalPageContent; changed = true; }
     const seededMembers = new Map(seed.newMembers.map(member => [member.id, member]));
     const seededPolicies = new Map((seed.policies || []).map(policy => [policy.id, policy]));
-    if (data.newMembers.some(member => !member.directManager || !member.employmentType || !member.department || !member.division)) {
-      data.newMembers = data.newMembers.map(member => ({
-        ...member,
-        directManager: member.directManager || seededMembers.get(member.id)?.directManager || 'To be confirmed',
-        employmentType: employmentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time',
-        department: member.department || member.team || 'To be confirmed',
-        division: member.division || 'To be confirmed'
-      }));
+    if (data.newMembers.some(member => !member.directManager || !member.employmentType || !member.department || 'division' in member || 'division' in (member.googleImportedFields || {}) || 'division' in (member.intranetOverrides || {}))) {
+      data.newMembers = data.newMembers.map(member => {
+        const { division, ...withoutDivision } = member;
+        const { division: importedDivision, ...googleImportedFields } = member.googleImportedFields || {};
+        const { division: overrideDivision, ...intranetOverrides } = member.intranetOverrides || {};
+        return {
+          ...withoutDivision,
+          directManager: member.directManager || seededMembers.get(member.id)?.directManager || 'To be confirmed',
+          employmentType: employmentTypes.includes(member.employmentType) ? member.employmentType : 'Full Time',
+          department: member.department || member.team || 'To be confirmed',
+          ...(Object.keys(googleImportedFields).length ? { googleImportedFields } : {}),
+          ...(Object.keys(intranetOverrides).length ? { intranetOverrides } : {})
+        };
+      });
       changed = true;
     }
     const chairman = data.newMembers.find(member => String(member.companyEmail || '').trim().toLowerCase() === 'hisham.haddara@si-ware.com');
@@ -1279,10 +1319,11 @@ const server = createServer(async (req, res) => {
       if (appPassword) { secrets.gmailAppPassword = encryptNotificationSecret(appPassword); await writeFile(notificationSecretsFile, JSON.stringify(secrets, null, 2), { mode:0o600 }); }
       const inAppEnabled = typeof body.inAppEnabled === 'boolean' ? body.inAppEnabled : current.inAppEnabled;
       const inAppDefaultEnabled = typeof body.inAppDefaultEnabled === 'boolean' ? body.inAppDefaultEnabled : current.inAppDefaultEnabled;
+      const birthdayEnabled = typeof body.birthdayEnabled === 'boolean' ? body.birthdayEnabled : current.birthdayEnabled;
       const emailDefaultEnabled = typeof body.emailDefaultEnabled === 'boolean' ? body.emailDefaultEnabled : current.emailDefaultEnabled;
-      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, emailEnabled, emailDefaultEnabled, inboundEmailEnabled, inboundStartedAt, approvedGroups, defaultGroup, sender:notificationSender, updatedAt:new Date().toISOString() };
+      data.adminSettings.notificationSettings = { ...current, inAppEnabled, inAppDefaultEnabled, birthdayEnabled, emailEnabled, emailDefaultEnabled, inboundEmailEnabled, inboundStartedAt, approvedGroups, defaultGroup, sender:notificationSender, updatedAt:new Date().toISOString() };
       data._version += 1;
-      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, emailEnabled, inboundEmailEnabled, approvedGroups, defaultGroup, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
+      auditEvent(data, actor, { action:'notifications.settings.updated', resource:'Notification delivery', route:'/admin.html', outcome:'success', changes:{ inAppEnabled, birthdayEnabled, emailEnabled, inboundEmailEnabled, approvedGroups, defaultGroup, appPasswordUpdated:Boolean(appPassword), appPasswordRemoved:body.clearAppPassword === true } });
       await save(data);
       return json(res, 200, await notificationStatus(data));
     }
@@ -1477,8 +1518,10 @@ const server = createServer(async (req, res) => {
           member.bio = String(member.bio || '').trim();
           member.bioEnabled = member.bioEnabled === true || member.bioEnabled === 'true';
           const existing = existingById.get(String(member.id));
-          if (!existing || String(member.division || '').trim() === String(existing.division || '').trim()) return;
-          member.intranetOverrides = { ...(existing.intranetOverrides || {}), ...(member.intranetOverrides || {}), division:true };
+          if (!existing) return;
+          delete member.division;
+          delete member.googleImportedFields?.division;
+          delete member.intranetOverrides?.division;
         });
       }
       const contentDetails = describeContentChanges(data, next, changedKeys);
