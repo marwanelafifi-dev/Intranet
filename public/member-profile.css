@@ -23,7 +23,7 @@
 .member-profile-close:hover{background:#e3efff;color:#1458b6}
 .member-profile-close:focus-visible,.member-profile-contacts a:focus-visible{outline:2px solid #1458b6;outline-offset:2px}
 .member-profile-close svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-.member-profile-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px;margin:22px 0 0;padding:19px 0;border-top:1px solid var(--line,#d7e4f5);border-bottom:1px solid var(--line,#d7e4f5)}
+.member-profile-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px 16px;margin:22px 0 0;padding:19px 0;border-top:1px solid var(--line,#d7e4f5);border-bottom:1px solid var(--line,#d7e4f5)}
 .member-profile-facts div{min-width:0}
 .member-profile-facts .member-profile-fact--full{grid-column:1/-1}
 .member-profile-facts dt{margin-bottom:4px;color:var(--muted,#526a87);font-size:11px;font-weight:700}
@@ -45,4 +45,4 @@ html.dark .member-profile-bio{border-color:#477295}html.dark .member-profile-bio
 html.dark .member-bio-action{border-color:#55718f;background:#173757;color:#b9dcff}html.dark .member-bio-action:hover{background:#214b73;color:#edf4ff}
 html.dark .member-profile-contacts a{color:#9ac4ff}
 html.dark .member-photo-viewer{border-color:#34577d;box-shadow:0 20px 48px rgb(0 0 0 / 42%)}html.dark .member-photo-viewer-heading button:hover{background:#24486d;color:#d8ebff}html.dark .member-photo-viewer img{background:#10213a}
-@media(max-width:550px){.member-profile-card{padding:19px}.member-profile-heading{grid-template-columns:54px minmax(0,1fr) 30px;gap:11px}.member-profile-avatar{width:54px;height:54px;font-size:17px}.member-profile-heading h2{font-size:18px}.member-profile-facts{gap:15px}.member-profile-contacts a{display:grid;gap:2px}.member-profile-contacts b{text-align:left}}
+@media(max-width:550px){.member-profile-card{padding:19px}.member-profile-heading{grid-template-columns:54px minmax(0,1fr) 30px;gap:11px}.member-profile-avatar{width:54px;height:54px;font-size:17px}.member-profile-heading h2{font-size:18px}.member-profile-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.member-profile-contacts a{display:grid;gap:2px}.member-profile-contacts b{text-align:left}}

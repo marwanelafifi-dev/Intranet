@@ -70,8 +70,8 @@ function profileMarkup(member, directory) {
   const manager = directManagerDetails(member, directory);
   const facts = [
     detail('Employee ID', member.employeeId || 'Not assigned in Google Workspace'),
-    detail('Employment type', member.employmentType),
     detail('Employee grade', member.employeeGrade),
+    detail('Employment type', member.employmentType),
     detail('Sector', visibleSector(member)),
     detail('Department', member.department || member.team),
     detail('Direct manager', manager?.name, true, manager?.email),
