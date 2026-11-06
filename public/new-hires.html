@@ -40,7 +40,7 @@
           <p class="policy-eyebrow" data-newsi-copy="heroEyebrow">New Si-Warians!</p>
           <h1><span data-newsi-copy="heroLead">Start strong,</span> <em data-newsi-copy="heroAccent">from day one.</em></h1>
           <p data-newsi-copy="heroText">Everything you need to begin with confidence—your essential actions, company policies, support channels and everyday tools—in one focused workspace.</p>
-          <div class="onboarding-signal" aria-live="polite"><span data-newsi-copy="heroJourneyLabel">First-week essentials</span><b id="onboarding-hero-progress">5 essential actions ahead</b></div>
+          <div class="onboarding-signal" aria-live="polite"><span data-newsi-copy="heroJourneyLabel">First-week essentials</span><b id="onboarding-hero-progress">Loading essentials</b></div>
           <div class="policy-hero-actions"><a href="#first-week" data-newsi-copy="heroAction">Begin your checklist</a></div>
         </div>
         <aside class="policy-hero-aside onboarding-hero-aside"><span aria-hidden="true"></span><b data-newsi-copy="asideTitle">Move forward with confidence</b><p data-newsi-copy="asideText">Choose the next action that unlocks your workday. Your progress stays visible, so you always know what to do next.</p><a href="#help"><span data-newsi-copy="asideAction">Find the right support</span> <span aria-hidden="true">→</span></a></aside>
@@ -58,15 +58,9 @@
           <article class="policy-card" id="first-week">
             <h2 data-newsi-copy="checklistTitle">First-week checklist</h2>
             <p data-newsi-copy="checklistText">Complete these essentials in your first five working days.</p>
-            <div class="checklist-summary" aria-live="polite"><div><b id="checklist-progress-label">0 of 5 complete</b><small id="checklist-progress-description">Choose one task to begin. Each confirmed task is recorded once.</small></div><span class="checklist-next-step">Start with the task that gives you access.</span></div>
+            <div class="checklist-summary" aria-live="polite"><div><b id="checklist-progress-label">Loading checklist</b><small id="checklist-progress-description">Retrieving your current tasks.</small></div><span class="checklist-next-step">Preparing your essentials</span></div>
             <div class="checklist-progress-track" aria-hidden="true"><span id="checklist-progress-bar"></span></div>
-            <ul class="policy-checklist" id="first-week-checklist">
-              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="systems" /><span>Sign in to Gmail, ClickUp, Document Drive and the Time Tracker.</span></label></li>
-              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="hr-profile" /><span>Complete your HR profile and emergency-contact information in MOHR.</span></label></li>
-              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="manager" /><span>Meet your manager to agree your 30-day priorities and team rhythm.</span></label></li>
-              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="orientation" /><span>Book your orientation, information-security and workplace-safety sessions.</span></label></li>
-              <li><label class="checklist-item"><input type="checkbox" data-checklist-item="knowledge" /><span>Save this page and explore the Knowledge Hub for your role.</span></label></li>
-            </ul>
+            <ul class="policy-checklist" id="first-week-checklist"><li class="checklist-loading">Loading your current first-week tasks…</li></ul>
           </article>
           <article class="policy-card" id="policies">
             <h2 data-newsi-copy="policiesTitle">Essential policies</h2>
@@ -122,7 +116,7 @@
     <dialog class="checklist-lock-guidance" id="checklist-lock-guidance" aria-labelledby="checklist-lock-guidance-title"><h2 id="checklist-lock-guidance-title">Required action needed</h2><p id="checklist-lock-guidance-message">Complete the required action before marking this task complete.</p><button type="button" id="checklist-lock-guidance-close">Got it</button></dialog>
     <dialog class="onboarding-welcome" id="policy-acknowledgement-welcome" aria-labelledby="policy-acknowledgement-welcome-title"><button class="onboarding-welcome-close" id="policy-acknowledgement-welcome-close" type="button" aria-label="Close welcome message">×</button><img src="/siware-logo.png" alt="Si-Ware Systems" /><h2 id="policy-acknowledgement-welcome-title"><span data-newsi-copy="welcomeThanks">Thank you,</span> <span id="policy-acknowledgement-welcome-name">colleague</span>.</h2><p data-newsi-copy="welcomeRecorded">Your policy acknowledgement has been recorded.</p><p data-newsi-copy="welcomeBody">Welcome to Si-Ware Systems - we are glad to have you with us.</p><button class="onboarding-welcome-action" id="policy-acknowledgement-welcome-continue" data-newsi-copy="welcomeAction" type="button">Continue your first week</button></dialog>
     <script type="module" src="/policies.js?v=20261023-training-rules"></script>
-    <script src="/first-week-checklist.js?v=20261023-explicit-resource-link-gate" defer></script>
+    <script src="/first-week-checklist.js?v=20261106-live-checklist" defer></script>
     <script type="module" src="/destination-nav.js"></script>
   </body>
 </html>
