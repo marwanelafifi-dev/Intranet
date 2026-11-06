@@ -38,7 +38,7 @@ export function csvMemberRecord(row, columns, existing, index) {
     sector:['sector'], employeeGrade:['employee grade', 'grade'], birthday:['birthday', 'birth date', 'birthdate'], directManager:['direct manager', 'manager'],
     employeeId:['employee id', 'employee number', 'employee code'], joined:['joined', 'join date', 'start date'],
     companyEmail:['company email', 'work email', 'email'], phone:['phone', 'phone number', 'mobile'],
-    linkedinUrl:['linkedin url', 'linkedin', 'linkedin profile'], message:['welcome message', 'message', 'intro'],
+    linkedinUrl:['linkedin url', 'linkedin', 'linkedin profile'], message:['welcome message', 'welcome note', 'message', 'intro'], welcomeNoteAt:['welcome note timestamp', 'welcome message timestamp', 'welcome note date'],
     bioEnabled:['biography enabled', 'bio enabled', 'show bio'], bio:['biography', 'bio', 'professional biography'],
     photoUrl:['photo url', 'photo', 'image url'], photoFilename:['photo filename', 'image filename']
   };
@@ -54,6 +54,7 @@ export function csvMemberRecord(row, columns, existing, index) {
     else if (['false', 'no', '0'].includes(enabled)) values.bioEnabled = false;
     else throw new Error(`Row ${index + 2} Biography Enabled must be Yes or No.`);
   }
+  if (values.message.length > 1200) throw new Error(`Row ${index + 2} Welcome Note must be 1,200 characters or fewer.`);
   if (values.bio.length > 6000) throw new Error(`Row ${index + 2} Biography must be 6,000 characters or fewer.`);
   const record = { ...(existing || { id:`member-${Date.now()}-${index}`, color:'#dceeff' }) };
   for (const [field, value] of Object.entries(values)) {
@@ -63,6 +64,8 @@ export function csvMemberRecord(row, columns, existing, index) {
     record[field] = value;
   }
   if (values.bioEnabled !== '') record.bioEnabled = values.bioEnabled;
+  if (values.message && values.message !== String(existing?.message || '').trim()) record.welcomeNoteAt = values.welcomeNoteAt && Number.isFinite(Date.parse(values.welcomeNoteAt)) ? new Date(values.welcomeNoteAt).toISOString() : new Date().toISOString();
+  else if (!values.message) record.welcomeNoteAt = '';
   if (values.name || !existing) record.initials = record.name.split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase();
   if (values.department || !existing) record.team = record.department || 'To be confirmed';
   if (!existing) Object.assign(record, {
@@ -71,7 +74,7 @@ export function csvMemberRecord(row, columns, existing, index) {
     employeeGrade:record.employeeGrade || '', birthday:record.birthday || '', directManager:record.directManager || 'To be confirmed',
     employeeId:record.employeeId || '', joined:record.joined || 'To be confirmed',
     companyEmail:record.companyEmail || '', phone:record.phone || '', linkedinUrl:record.linkedinUrl || '',
-    message:record.message || '', bio:record.bio || '', bioEnabled:record.bioEnabled === true,
+    message:record.message || '', welcomeNoteAt:record.welcomeNoteAt || '', bio:record.bio || '', bioEnabled:record.bioEnabled === true,
     photoUrl:record.photoUrl || '', photoFilename:record.photoFilename || ''
   });
   return record;

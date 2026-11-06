@@ -1512,12 +1512,19 @@ const server = createServer(async (req, res) => {
       }
       if (changedKeys.includes('newMembers')) {
         const existingById = new Map(data.newMembers.map(member => [String(member.id), member]));
+        const oversizedWelcomeNote = next.newMembers.find(member => String(member.message || '').trim().length > 1200);
         const oversizedBiography = next.newMembers.find(member => String(member.bio || '').trim().length > 6000);
+        if (oversizedWelcomeNote) return json(res, 422, { error:'Welcome notes must be 1,200 characters or fewer.' });
         if (oversizedBiography) return json(res, 422, { error:'Professional biographies must be 6,000 characters or fewer.' });
         next.newMembers.forEach(member => {
+          member.message = String(member.message || '').trim();
           member.bio = String(member.bio || '').trim();
           member.bioEnabled = member.bioEnabled === true || member.bioEnabled === 'true';
           const existing = existingById.get(String(member.id));
+          if (member.message && member.message !== String(existing?.message || '').trim()) member.welcomeNoteAt = new Date().toISOString();
+          else if (!member.message) member.welcomeNoteAt = '';
+          else if (existing?.welcomeNoteAt) member.welcomeNoteAt = existing.welcomeNoteAt;
+          else if (!Number.isFinite(Date.parse(member.welcomeNoteAt))) member.welcomeNoteAt = new Date().toISOString();
           if (!existing) return;
           delete member.division;
           delete member.googleImportedFields?.division;

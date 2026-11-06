@@ -5,3 +5,5 @@
 .employee-bio-editor .employee-bio-toggle{display:flex;align-items:flex-start;gap:10px;color:var(--ink)}
 .employee-bio-toggle input{margin:2px 0 0}.employee-bio-toggle span{display:grid;gap:3px}.employee-bio-toggle b{font-size:13px}.employee-bio-toggle small{font-weight:500}
 html.dark .employee-bio-editor{border-color:#365779}html.dark .employee-bio-toggle{color:#edf4ff}html.dark .employee-bio-editor textarea{border-color:#55718f;background:#10243e;color:#edf4ff}
+.employee-welcome-note{display:grid;gap:8px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #d6e3f0}.employee-welcome-note>span{display:grid;gap:3px}.employee-welcome-note b{color:#123d6c}.employee-welcome-note small{color:#526a87;line-height:1.45}.employee-welcome-note textarea{min-height:110px;resize:vertical}.employee-welcome-note-time{font-variant-numeric:tabular-nums}
+html.dark .employee-welcome-note{border-color:#365a7c}.dark .employee-welcome-note b{color:#d5eaff}.dark .employee-welcome-note small{color:#b8cfe4}

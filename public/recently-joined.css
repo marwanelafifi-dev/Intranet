@@ -29,6 +29,7 @@
 .member-card-main{display:flex;align-items:center;gap:12px;min-width:0}
 .new-member-announcement .new-member-avatar{flex:none;display:grid;width:46px;height:46px;place-items:center;border-radius:12px;font-size:12px}
 .new-member-announcement img.new-member-avatar{object-fit:cover}
+.member-card-welcome-note{margin:18px 0 0;padding-top:16px;border-top:1px solid var(--line,#d7e4f5)}.member-card-welcome-note>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.member-card-welcome-note b{color:var(--ink,#102b4e);font-size:12px}.member-card-welcome-note time{color:var(--muted,#526a87);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.member-card-welcome-note p{margin:7px 0 0;color:var(--muted,#526a87);font-size:13px;line-height:1.55;white-space:pre-line}
 .new-member-announcement .new-member-avatar[hidden]{display:none}
 .member-card-identity{min-width:0}
 .member-card-identity h3{margin:0;color:var(--ink);font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}

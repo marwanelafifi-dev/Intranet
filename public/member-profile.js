@@ -40,6 +40,11 @@ function birthdayLabel(value) {
   return new Intl.DateTimeFormat('en', { month:'long', day:'numeric', timeZone:'Africa/Cairo' }).format(new Date(Date.UTC(2026, month - 1, day, 12)));
 }
 
+function welcomeNoteTimestamp(value) {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? new Intl.DateTimeFormat('en', { dateStyle:'medium', timeStyle:'short', timeZone:'Africa/Cairo' }).format(new Date(parsed)) : '';
+}
+
 function directManagerDetails(member, directory = []) {
   const email = String(member.directManager || '').trim();
   if (!email || email === 'To be confirmed') return null;
@@ -89,6 +94,7 @@ function profileMarkup(member, directory) {
     linkedInUrl ? `<a href="${escapeHtml(linkedInUrl)}" target="_blank" rel="noopener noreferrer"><span>LinkedIn</span><b>View profile ↗</b></a>` : ''
   ].filter(Boolean).join('');
   const welcomeNote = String(member.message || '').trim();
+  const welcomeNoteTime = welcomeNoteTimestamp(member.welcomeNoteAt);
   const biography = member.bioEnabled === true || member.bioEnabled === 'true' ? String(member.bio || '').trim() : '';
 
   return `<div class="member-profile-card">
@@ -99,7 +105,7 @@ function profileMarkup(member, directory) {
     </header>
     ${biography ? `<section class="member-profile-bio" aria-labelledby="member-profile-bio-title"><h3 id="member-profile-bio-title">Professional biography</h3><p>${escapeHtml(biography)}</p></section>` : ''}
     ${facts ? `<dl class="member-profile-facts">${facts}</dl>` : ''}
-    ${welcomeNote ? `<section class="member-profile-note"><h3>Welcome note</h3><p>${escapeHtml(welcomeNote)}</p></section>` : ''}
+    ${welcomeNote ? `<section class="member-profile-note"><div><h3>Welcome note</h3>${welcomeNoteTime ? `<time datetime="${escapeHtml(member.welcomeNoteAt)}">${escapeHtml(welcomeNoteTime)}</time>` : ''}</div><p>${escapeHtml(welcomeNote)}</p></section>` : ''}
     ${contacts ? `<nav class="member-profile-contacts" aria-label="Contact ${escapeHtml(name)}">${contacts}</nav>` : ''}
   </div>`;
 }

@@ -14,6 +14,11 @@ function joinedTimestamp(member) {
   return Number.isFinite(joined) ? joined : Number.isFinite(created) ? created : 0;
 }
 
+function welcomeNoteTimestamp(value) {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? new Intl.DateTimeFormat('en', { dateStyle:'medium', timeStyle:'short', timeZone:'Africa/Cairo' }).format(new Date(parsed)) : '';
+}
+
 const contactIcons = {
   email:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="m4.5 7 7.5 5.5L19.5 7"></path></svg>',
   phone:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.1 3.8h2.8l1.3 4-2 1.5c1.1 2.2 2.9 4 5.1 5.1l1.5-2 4 1.3v2.8c0 1-.8 1.7-1.8 1.7C11.6 18.2 5.8 12.4 5.8 5.6c0-1 .3-1.8 1.3-1.8Z"></path></svg>',
@@ -74,7 +79,8 @@ function memberCard(member) {
     { label:'Birthday', value:birthdayLabel(member.birthday) }
   ].filter(fact => fact?.value && fact.value !== 'To be confirmed');
   const biographyAction = (member.bioEnabled === true || member.bioEnabled === 'true') && String(member.bio || '').trim() ? `<button class="member-bio-action" type="button" data-member-profile="${members.indexOf(member)}">Read bio</button>` : '';
-  return `<article class="new-member-announcement" data-member-id="${escapeHtml(member.id || '')}"><div class="member-card-main">${avatar}<div class="member-card-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Role not listed')}</p></div></div><dl class="member-directory-facts">${facts.map(fact => `<div${fact.fullWidth ? ' class="member-directory-fact--manager"' : ''}><dt>${fact.label}</dt><dd>${escapeHtml(fact.value)}${fact.email ? `<small>${escapeHtml(fact.email)}</small>` : ''}</dd></div>`).join('')}</dl><div class="member-card-footer">${contactLinks(member)}${biographyAction}<span class="member-profile-cue" aria-hidden="true">View profile <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span></div><button class="member-row-open" type="button" data-member-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s full profile"></button></article>`;
+  const welcomeNote = String(member.message || '').trim(), welcomeNoteTime = welcomeNoteTimestamp(member.welcomeNoteAt);
+  return `<article class="new-member-announcement" data-member-id="${escapeHtml(member.id || '')}"><div class="member-card-main">${avatar}<div class="member-card-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Role not listed')}</p></div></div><dl class="member-directory-facts">${facts.map(fact => `<div${fact.fullWidth ? ' class="member-directory-fact--manager"' : ''}><dt>${fact.label}</dt><dd>${escapeHtml(fact.value)}${fact.email ? `<small>${escapeHtml(fact.email)}</small>` : ''}</dd></div>`).join('')}</dl>${welcomeNote ? `<section class="member-card-welcome-note"><div><b>Welcome note</b>${welcomeNoteTime ? `<time datetime="${escapeHtml(member.welcomeNoteAt)}">${escapeHtml(welcomeNoteTime)}</time>` : ''}</div><p>${escapeHtml(welcomeNote)}</p></section>` : ''}<div class="member-card-footer">${contactLinks(member)}${biographyAction}<span class="member-profile-cue" aria-hidden="true">View profile <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span></div><button class="member-row-open" type="button" data-member-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s full profile"></button></article>`;
 }
 
 function renderMembers(resetPage = false) {
