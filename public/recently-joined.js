@@ -177,11 +177,9 @@ async function loadTeam() {
       organizationUnit:String(member.organizationUnit || '').trim()
     }));
     populateFilters();
-    renderWelcomeNotes();
     renderMembers();
   } catch (error) {
     select('#all-new-members').innerHTML = `<div class="member-empty-state" role="alert"><h3>Directory unavailable</h3><p>${escapeHtml(error.message)}. Please refresh this page or contact People Operations.</p></div>`;
-    select('#welcome-notes-list').innerHTML = `<div class="welcome-notes-empty" role="alert"><h3>Welcome Notes unavailable</h3><p>${escapeHtml(error.message)}. Please refresh this page or contact People Operations.</p></div>`;
   } finally {
     document.documentElement.dataset.recentlyJoinedReady = 'true';
   }
@@ -215,12 +213,6 @@ select('#all-new-members').addEventListener('click', event => {
     const member = members[Number(trigger.dataset.memberProfile)];
     if (member) openMemberProfile(member, trigger, members);
   }
-});
-select('#welcome-notes-list').addEventListener('click', event => {
-  const trigger = event.target.closest('[data-welcome-note-profile]');
-  if (!trigger) return;
-  const member = members[Number(trigger.dataset.welcomeNoteProfile)];
-  if (member) openMemberProfile(member, trigger, members);
 });
 
 loadTeam();

@@ -1112,7 +1112,7 @@ await dashboard();
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|organization-chart|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower(?:-2)?|employee-voice)\.html$/i.test(url.pathname);
+    const protectedDocument = url.pathname === '/' || /\/(?:index|admin|profile|new-hires|recently-joined|organization-chart|welcome-notes|apps|announcements|social-media|moments|knowledge-hub|events|news|whistleblower(?:-2)?|employee-voice)\.html$/i.test(url.pathname);
     if (isAuthenticationConfigured() && !sessionFor(req) && ['GET','HEAD'].includes(req.method) && protectedDocument) { res.writeHead(302, { location:'/login.html?returnTo=' + encodeURIComponent(url.pathname) }); return res.end(); }
     const documentRoute = url.pathname.toLowerCase(), requiredPage = intranetRoutePermissions[documentRoute];
     if (['GET','HEAD'].includes(req.method) && (requiredPage || documentRoute === '/admin.html')) {
