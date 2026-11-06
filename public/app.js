@@ -220,12 +220,12 @@ function announcementPreview(value, title = '') {
   return text.length > 86 ? `${text.slice(0, 83).trimEnd()}…` : text;
 }
 function renderAnnouncement() {
-  const items = state.announcements.filter(item => item.hidden !== true && item.hidden !== 'true').slice(0, 4);
+  const items = state.announcements.filter(item => item.hidden !== true && item.hidden !== 'true').slice(0, 1);
   const welcome = state.newMembers.filter(member => String(member.message || '').trim()).sort((left, right) => (Date.parse(right.welcomeNoteAt) || 0) - (Date.parse(left.welcomeNoteAt) || 0) || String(left.name || '').localeCompare(String(right.name || '')))[0];
-  $('#announcement-title').textContent = welcome ? 'Welcome note' : 'Latest announcements';
   const welcomeMarkup = welcome ? `<button class="priority-welcome-note" type="button" data-member-profile="${escapeHtml(welcome.id)}" aria-label="Open ${escapeHtml(welcome.name || 'colleague')}'s welcome note"><span class="priority-welcome-avatar">${welcome.profilePhotoUrl || welcome.photoUrl ? `<img src="${escapeHtml(welcome.profilePhotoUrl || welcome.photoUrl)}" alt="" />` : escapeHtml(welcome.initials || String(welcome.name || 'Colleague').split(/\s+/).map(part => part[0]).join('').slice(0, 2))}</span><span class="priority-welcome-copy"><span><b>${escapeHtml(welcome.name || 'Colleague')}</b>${welcomeNoteTimestamp(welcome.welcomeNoteAt) ? `<time datetime="${escapeHtml(welcome.welcomeNoteAt)}">${escapeHtml(welcomeNoteTimestamp(welcome.welcomeNoteAt))}</time>` : ''}</span><strong>${escapeHtml(welcome.role || 'Colleague')}</strong><em>${escapeHtml(welcome.message)}</em></span><span class="priority-welcome-open" aria-hidden="true">View profile →</span></button>` : '';
-  const announcementsMarkup = items.length ? `${welcome ? '<p class="hero-announcements-label">Latest announcements</p>' : ''}${items.map(item => `<article class="priority-announcement" data-open-announcement="${escapeHtml(item.id)}" tabindex="0" role="link" aria-label="View full announcement: ${escapeHtml(item.title)}"><div><span>${escapeHtml(item.tag || 'Company update')}</span><time>${escapeHtml(item.date || 'Just now')}</time></div><h3>${escapeHtml(item.title)}</h3><small class="priority-targeting">${escapeHtml(item.department || 'All departments')} · ${escapeHtml(item.audience || 'All employees')}</small><small class="priority-preview">${escapeHtml(announcementPreview(item.body || item.message || item.description || item.bodyHtml, item.title))}</small><div class="priority-footer"><span class="priority-open">View full announcement <b aria-hidden="true">→</b></span><small class="priority-author">${item.source?.type === 'group-email' ? `Sent from Email Account: ${escapeHtml(item.source.fromEmail)}` : `Posted by ${escapeHtml(item.postedBy || 'Intranet team')}`}</small></div></article>`).join('')}` : welcome ? '<p class="hero-announcements-label">Latest announcements</p><p class="priority-empty">No announcements have been published yet.</p>' : '<p class="priority-empty">No announcements have been published yet.</p>';
-  $('#announcement-spotlight').innerHTML = `${welcomeMarkup}${announcementsMarkup}`;
+  const announcementsMarkup = items.length ? items.map(item => `<article class="priority-announcement" data-open-announcement="${escapeHtml(item.id)}" tabindex="0" role="link" aria-label="View full announcement: ${escapeHtml(item.title)}"><div><span>${escapeHtml(item.tag || 'Company update')}</span><time>${escapeHtml(item.date || 'Just now')}</time></div><h3>${escapeHtml(item.title)}</h3><small class="priority-targeting">${escapeHtml(item.department || 'All departments')} · ${escapeHtml(item.audience || 'All employees')}</small><small class="priority-preview">${escapeHtml(announcementPreview(item.body || item.message || item.description || item.bodyHtml, item.title))}</small><div class="priority-footer"><span class="priority-open">View full announcement <b aria-hidden="true">→</b></span><small class="priority-author">${item.source?.type === 'group-email' ? `Sent from Email Account: ${escapeHtml(item.source.fromEmail)}` : `Posted by ${escapeHtml(item.postedBy || 'Intranet team')}`}</small></div></article>`).join('') : '<p class="priority-empty">No announcements have been published yet.</p>';
+  $('#welcome-spotlight').innerHTML = welcomeMarkup || '<p class="priority-empty">No welcome notes have been published yet.</p>';
+  $('#announcement-spotlight').innerHTML = announcementsMarkup;
 }
 function visibleAnnouncements() {
   return (state.announcements || [])
@@ -767,12 +767,12 @@ function setupEvents() {
     const member = state.newMembers.find(item => String(item.id) === trigger.dataset.memberProfile);
     if (member) openMemberProfile(member, trigger, state.newMembers);
   });
-  $('#announcement-spotlight').addEventListener('click', event => {
+  ['#announcement-spotlight', '#welcome-spotlight'].forEach(selector => $(selector).addEventListener('click', event => {
     const trigger = event.target.closest('[data-member-profile]');
     if (!trigger) return;
     const member = state.newMembers.find(item => String(item.id) === trigger.dataset.memberProfile);
     if (member) openMemberProfile(member, trigger, state.newMembers);
-  });
+  }));
   $('#profile-button').addEventListener('click', () => { const menu = $('#profile-menu'); menu.hidden = !menu.hidden; $('#profile-button').setAttribute('aria-expanded', String(!menu.hidden)); });
   $('#notification-button').addEventListener('click', () => setNotificationPanel($('#notification-panel').hidden));
   $('#notification-panel').addEventListener('click', event => {
