@@ -83,6 +83,20 @@ function memberCard(member) {
   return `<article class="new-member-announcement" data-member-id="${escapeHtml(member.id || '')}"><div class="member-card-main">${avatar}<div class="member-card-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Role not listed')}</p></div></div><dl class="member-directory-facts">${facts.map(fact => `<div${fact.fullWidth ? ' class="member-directory-fact--manager"' : ''}><dt>${fact.label}</dt><dd>${escapeHtml(fact.value)}${fact.email ? `<small>${escapeHtml(fact.email)}</small>` : ''}</dd></div>`).join('')}</dl>${welcomeNote ? `<section class="member-card-welcome-note"><div><b>Welcome note</b>${welcomeNoteTime ? `<time datetime="${escapeHtml(member.welcomeNoteAt)}">${escapeHtml(welcomeNoteTime)}</time>` : ''}</div><p>${escapeHtml(welcomeNote)}</p></section>` : ''}<div class="member-card-footer">${contactLinks(member)}${biographyAction}<span class="member-profile-cue" aria-hidden="true">View profile <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></span></div><button class="member-row-open" type="button" data-member-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s full profile"></button></article>`;
 }
 
+function welcomeNoteCard(member) {
+  const name = String(member.name || 'Colleague');
+  const initials = String(member.initials || name.split(/\s+/).map(part => part[0]).join('').slice(0, 2));
+  const photoUrl = member.profilePhotoUrl || member.photoUrl;
+  const avatar = photoUrl ? `<img class="welcome-note-avatar" src="${escapeHtml(photoUrl)}" alt="" loading="lazy" />` : `<span class="welcome-note-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(initials)}</span>`;
+  const timestamp = welcomeNoteTimestamp(member.welcomeNoteAt);
+  return `<article class="welcome-note-directory-entry"><div class="welcome-note-directory-head">${avatar}<div><h3>${escapeHtml(name)}</h3><p>${escapeHtml(member.role || 'Colleague')}</p></div>${timestamp ? `<time datetime="${escapeHtml(member.welcomeNoteAt)}">${escapeHtml(timestamp)}</time>` : ''}</div><p class="welcome-note-directory-message">${escapeHtml(String(member.message || '').trim())}</p><span class="welcome-note-directory-open" aria-hidden="true">View profile <span>→</span></span><button class="welcome-note-directory-action" type="button" data-welcome-note-profile="${members.indexOf(member)}" aria-label="View ${escapeHtml(name)}'s profile and welcome note"></button></article>`;
+}
+
+function renderWelcomeNotes() {
+  const notes = members.filter(member => String(member.message || '').trim()).slice().sort((left, right) => (Date.parse(right.welcomeNoteAt) || 0) - (Date.parse(left.welcomeNoteAt) || 0) || String(left.name || '').localeCompare(String(right.name || '')));
+  select('#welcome-notes-list').innerHTML = notes.length ? notes.map(welcomeNoteCard).join('') : '<div class="welcome-notes-empty"><h3>No Welcome Notes yet</h3><p>New colleague welcomes will appear here.</p></div>';
+}
+
 function renderMembers(resetPage = false) {
   const search = select('#member-search').value.trim().toLocaleLowerCase();
   const type = select('#member-type-filter').value;
@@ -163,9 +177,11 @@ async function loadTeam() {
       organizationUnit:String(member.organizationUnit || '').trim()
     }));
     populateFilters();
+    renderWelcomeNotes();
     renderMembers();
   } catch (error) {
     select('#all-new-members').innerHTML = `<div class="member-empty-state" role="alert"><h3>Directory unavailable</h3><p>${escapeHtml(error.message)}. Please refresh this page or contact People Operations.</p></div>`;
+    select('#welcome-notes-list').innerHTML = `<div class="welcome-notes-empty" role="alert"><h3>Welcome Notes unavailable</h3><p>${escapeHtml(error.message)}. Please refresh this page or contact People Operations.</p></div>`;
   } finally {
     document.documentElement.dataset.recentlyJoinedReady = 'true';
   }
@@ -199,6 +215,12 @@ select('#all-new-members').addEventListener('click', event => {
     const member = members[Number(trigger.dataset.memberProfile)];
     if (member) openMemberProfile(member, trigger, members);
   }
+});
+select('#welcome-notes-list').addEventListener('click', event => {
+  const trigger = event.target.closest('[data-welcome-note-profile]');
+  if (!trigger) return;
+  const member = members[Number(trigger.dataset.welcomeNoteProfile)];
+  if (member) openMemberProfile(member, trigger, members);
 });
 
 loadTeam();

@@ -107,3 +107,6 @@
 }
 
 .priority-preview{display:block;overflow:hidden;margin-top:3px;color:#d4e6fc;font-size:10px;font-weight:600;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}.priority-preview:empty{display:none}.priority-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:5px}.priority-footer .priority-open{display:inline;margin:0}.priority-footer .priority-author{display:inline;margin:0;color:#d4e6fc;font-size:10px;font-weight:700;white-space:nowrap}
+
+/* The two hero feeds share one clear, compact label language. */
+.hero-inline-announcements .priority-pill{display:inline-block;margin:0 0 7px;padding:4px 8px;border:0;border-radius:20px;background:#e7f8f1;color:#087f63;font-family:Manrope,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:normal;line-height:1.2;text-transform:uppercase}.priority-view-all{color:#97f0e7;font-size:10px;font-weight:800;text-decoration:none}.priority-view-all:hover{text-decoration:underline;text-underline-offset:3px}.priority-view-all:focus-visible{outline:2px solid #fff;outline-offset:3px;border-radius:4px}
