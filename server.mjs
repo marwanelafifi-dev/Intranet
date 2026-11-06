@@ -624,9 +624,11 @@ async function dashboardResponse(data, actor, admin = false) {
     const notification = birthdayNotificationFor(data.newMembers, actor?.email, notificationSettings(data).birthdayEnabled);
     return notification ? [notification] : [];
   })() : undefined;
+  const welcomeMemberIds = new Set((data.newMembers || []).filter(member => String(member.message || '').trim()).map(member => String(member.id)));
+  const welcomeNotifications = !admin ? (Array.isArray(data.welcomeNotifications) ? data.welcomeNotifications : []).filter(notification => notification?.type === 'welcome' && welcomeMemberIds.has(String(notification.memberId))).slice(0, 120) : undefined;
   if (!admin && Array.isArray(visible.newMembers)) visible.newMembers = employeeDirectoryForActor(data.newMembers, actor, can(data, actor, 'access.manage'));
   const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, birthdayEnabled:settings.birthdayEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled, approvedGroups:settings.approvedGroups, defaultGroup:settings.defaultGroup }; })() : undefined;
-  return { ...visible, ...(!admin ? { birthdayNotifications } : {}), ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
+  return { ...visible, ...(!admin ? { birthdayNotifications, welcomeNotifications } : {}), ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
 }
 function dashboardMutationError(data, actor, next, operation = '') {
   const changedKeys = Object.keys(next).filter(key => adminContentKeyPages[key] && JSON.stringify(next[key]) !== JSON.stringify(data[key]));
@@ -1513,6 +1515,7 @@ const server = createServer(async (req, res) => {
       }
       if (changedKeys.includes('newMembers')) {
         const existingById = new Map(data.newMembers.map(member => [String(member.id), member]));
+        let welcomeNotifications = Array.isArray(data.welcomeNotifications) ? data.welcomeNotifications.slice() : [];
         const oversizedWelcomeNote = next.newMembers.find(member => String(member.message || '').trim().length > 1200);
         const oversizedBiography = next.newMembers.find(member => String(member.bio || '').trim().length > 6000);
         if (oversizedWelcomeNote) return json(res, 422, { error:'Welcome notes must be 1,200 characters or fewer.' });
@@ -1522,8 +1525,16 @@ const server = createServer(async (req, res) => {
           member.bio = String(member.bio || '').trim();
           member.bioEnabled = member.bioEnabled === true || member.bioEnabled === 'true';
           const existing = existingById.get(String(member.id));
-          if (member.message && member.message !== String(existing?.message || '').trim()) member.welcomeNoteAt = new Date().toISOString();
-          else if (!member.message) member.welcomeNoteAt = '';
+          const noteChanged = member.message && member.message !== String(existing?.message || '').trim();
+          if (noteChanged) {
+            member.welcomeNoteAt = new Date().toISOString();
+            const name = String(member.name || 'our newest colleague').trim();
+            welcomeNotifications = welcomeNotifications.filter(notification => String(notification?.memberId) !== String(member.id));
+            welcomeNotifications.unshift({ id:`welcome-${randomUUID()}`, type:'welcome', tag:'Welcome Notes', memberId:String(member.id || ''), title:`Please join us in welcoming ${name}`, body:`Please join us in extending a warm welcome to ${name} as they join the Si-Ware Systems family.`, createdAt:member.welcomeNoteAt });
+          } else if (!member.message) {
+            member.welcomeNoteAt = '';
+            welcomeNotifications = welcomeNotifications.filter(notification => String(notification?.memberId) !== String(member.id));
+          }
           else if (existing?.welcomeNoteAt) member.welcomeNoteAt = existing.welcomeNoteAt;
           else if (!Number.isFinite(Date.parse(member.welcomeNoteAt))) member.welcomeNoteAt = new Date().toISOString();
           if (!existing) return;
@@ -1531,6 +1542,8 @@ const server = createServer(async (req, res) => {
           delete member.googleImportedFields?.division;
           delete member.intranetOverrides?.division;
         });
+        const retainedMemberIds = new Set(next.newMembers.map(member => String(member.id)));
+        data.welcomeNotifications = welcomeNotifications.filter(notification => retainedMemberIds.has(String(notification?.memberId))).slice(0, 120);
       }
       const contentDetails = describeContentChanges(data, next, changedKeys);
       changedKeys.forEach(key => { data[key] = key === 'globalPageContent' ? normaliseGlobalPageContent(next[key]) : next[key]; });

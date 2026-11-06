@@ -10,6 +10,7 @@ let state, activeTag = 'All', knowledgePage = 1;
 let calendarSelectedDate = cairoDateKey(new Date());
 let calendarVisibleMonth = calendarSelectedDate.slice(0, 7);
 let knownAnnouncementIds = new Set();
+let knownWelcomeNotificationIds = new Set();
 let notificationRefreshTimer;
 const knowledgePageSize = 10;
 function appIcon(name) {
@@ -239,8 +240,11 @@ function notificationAnnouncements() {
 function birthdayNotificationItems() {
   return (state.birthdayNotifications || []).filter(item => item?.type === 'birthday' && item?.id);
 }
+function welcomeNotificationItems() {
+  return (state.welcomeNotifications || []).filter(item => item?.type === 'welcome' && item?.id);
+}
 function notificationItems() {
-  return [...birthdayNotificationItems(), ...notificationAnnouncements()];
+  return [...birthdayNotificationItems(), ...welcomeNotificationItems(), ...notificationAnnouncements()];
 }
 function notificationStorageKey() {
   return `siware-announcement-notifications:${String(state?.user?.email || state?.user?.id || state?.user?.name || 'employee').trim().toLowerCase()}`;
@@ -253,7 +257,7 @@ function saveNotificationIds(ids) {
 }
 function notificationTime(item) {
   if (item.type === 'birthday') return 'Today';
-  const value = item.publishedAt || item.date;
+  const value = item.createdAt || item.publishedAt || item.date;
   const time = value ? new Date(value) : null;
   return time && !Number.isNaN(time.getTime()) ? new Intl.DateTimeFormat('en', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'Africa/Cairo' }).format(time) : (item.date || 'New');
 }
@@ -269,6 +273,7 @@ function renderNotifications() {
   panel.querySelector('.notification-panel-head h2').textContent = 'Notifications';
   panel.querySelectorAll('[data-notification-id]').forEach(item => {
     const notification = items.find(candidate => String(candidate.id) === String(item.dataset.notificationId));
+    if (notification?.type === 'welcome') item.dataset.notificationType = 'welcome';
     if (notification?.type !== 'birthday') return;
     item.dataset.notificationType = 'birthday';
     item.classList.add('is-birthday');
@@ -330,18 +335,24 @@ async function refreshAnnouncementNotifications() {
     const dashboard = await request('/api/dashboard');
     const announcements = Array.isArray(dashboard.announcements) ? dashboard.announcements : [];
     const birthdayNotifications = Array.isArray(dashboard.birthdayNotifications) ? dashboard.birthdayNotifications : [];
+    const welcomeNotifications = Array.isArray(dashboard.welcomeNotifications) ? dashboard.welcomeNotifications : [];
     const newItems = announcements.filter(item => item.hidden !== true && item.hidden !== 'true' && item.notification?.inAppEnabled !== false && item.notification?.inAppVisible !== false && !knownAnnouncementIds.has(String(item.id)));
+    const newWelcomeItems = welcomeNotifications.filter(item => !knownWelcomeNotificationIds.has(String(item.id)));
     state.announcements = announcements;
     state.birthdayNotifications = birthdayNotifications;
+    state.welcomeNotifications = welcomeNotifications;
     announcements.forEach(item => knownAnnouncementIds.add(String(item.id)));
+    welcomeNotifications.forEach(item => knownWelcomeNotificationIds.add(String(item.id)));
     renderAnnouncement();
     renderNotifications();
     if (newItems.length) showToast(newItems.length === 1 ? `New announcement: ${newItems[0].title || 'Company update'}` : `${newItems.length} new announcements are ready.`);
+    if (newWelcomeItems.length) showToast(newWelcomeItems.length === 1 ? `Welcome note: ${newWelcomeItems[0].title || 'Please welcome our newest colleague'}` : `${newWelcomeItems.length} new welcome notes are ready.`);
     showPendingBirthdayCelebration();
   } catch {}
 }
 function startAnnouncementNotifications() {
   knownAnnouncementIds = new Set((state.announcements || []).map(item => String(item.id)));
+  knownWelcomeNotificationIds = new Set((state.welcomeNotifications || []).map(item => String(item.id)));
   window.clearInterval(notificationRefreshTimer);
   notificationRefreshTimer = window.setInterval(refreshAnnouncementNotifications, 60_000);
   showPendingBirthdayCelebration();
@@ -784,6 +795,13 @@ function setupEvents() {
       setNotificationPanel(false);
       const item = birthdayNotificationItems().find(candidate => String(candidate.id) === String(notification.dataset.notificationId));
       if (item) showBirthdayCelebration(item);
+      return;
+    }
+    if (notification.dataset.notificationType === 'welcome') {
+      setNotificationPanel(false);
+      const welcome = welcomeNotificationItems().find(candidate => String(candidate.id) === String(notification.dataset.notificationId));
+      const member = state.newMembers.find(candidate => String(candidate.id) === String(welcome?.memberId));
+      if (member) openMemberProfile(member, notification, state.newMembers);
       return;
     }
     location.assign(`/announcements.html?announcement=${encodeURIComponent(notification.dataset.notificationId)}`);
