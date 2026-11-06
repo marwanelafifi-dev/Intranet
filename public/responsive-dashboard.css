@@ -88,6 +88,24 @@
   .company-news-widget .news-shifter-controls { flex-wrap: wrap; }
 }
 
+/* The home hero has three peer regions: copy, latest announcement, and welcome notes. */
+@media (min-width: 1180px) {
+  .hero {
+    grid-template-columns: minmax(0, 1.08fr) minmax(185px, .52fr) minmax(280px, .8fr) !important;
+    column-gap: clamp(18px, 2.25vw, 36px) !important;
+  }
+
+  .hero-copy { grid-column: 1; grid-row: 1; }
+  .hero-inline-announcements { grid-column: 2; grid-row: 1; align-self: center; }
+  .hero-announcements { grid-column: 3; grid-row: 1; width: 100%; justify-self: stretch !important; }
+}
+
+@media (min-width: 651px) and (max-width: 1179px) {
+  .hero-copy { grid-column: 1; grid-row: 1; }
+  .hero-inline-announcements { grid-column: 1; grid-row: 2; }
+  .hero-announcements { grid-column: 2; grid-row: 1 / span 2; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-grid { scroll-behavior: auto; }
 }
