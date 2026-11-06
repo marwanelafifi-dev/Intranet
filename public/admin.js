@@ -492,6 +492,7 @@ const previewCollectionTargets = {
 };
 function previewFieldsFor(key, record = {}) {
   const fields = editableCollections[key]?.fields || [];
+  if (key === 'newMembers') return [...fields, ['message','Welcome note','textarea',true]];
   return key === 'sessions' ? [['title','Title'], ['presenterName','Presenter'], ...fields.filter(([name]) => name !== 'title')] : fields;
 }
 function previewValue(record, key, name) {
