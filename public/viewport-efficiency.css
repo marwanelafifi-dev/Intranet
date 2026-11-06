@@ -110,3 +110,6 @@
 
 /* The two hero feeds share one clear, compact label language. */
 .hero-inline-announcements .priority-pill{display:inline-block;margin:0 0 7px;padding:4px 8px;border:0;border-radius:20px;background:#e7f8f1;color:#087f63;font-family:Manrope,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:normal;line-height:1.2;text-transform:uppercase}.priority-view-all{color:#97f0e7;font-size:10px;font-weight:800;text-decoration:none}.priority-view-all:hover{text-decoration:underline;text-underline-offset:3px}.priority-view-all:focus-visible{outline:2px solid #fff;outline-offset:3px;border-radius:4px}
+
+/* IDs avoid inherited heading rules producing a near-match between the two labels. */
+#latest-announcements-title,#welcome-notes-title{margin:0;padding:4px 8px;border:0;border-radius:20px;background:#e7f8f1;color:#087f63;font:800 9px/1.2 Manrope,Arial,sans-serif;letter-spacing:0;text-transform:uppercase}
