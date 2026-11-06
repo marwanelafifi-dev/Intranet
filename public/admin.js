@@ -1008,7 +1008,7 @@ function applyHomePreviewLayout(frame) {
     const doc = frame.contentDocument, page = doc?.querySelector('.dashboard');
     if (!page) return;
     const layout = dashboard.settings?.layout || [];
-    const defaultLayout = ['apps', 'announcements', 'new-members', 'welcome-notes', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+    const defaultLayout = ['apps', 'announcements', 'new-members', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
     const sizes = dashboard.settings?.widgetSizes || {}, customSizes = Object.entries(sizes).some(([key, size]) => size && size !== (defaultHomeWidgetSizes[key] || 'standard'));
     page.classList.toggle('layout-custom', layout.join(',') !== defaultLayout.join(',') || customSizes);
     doc.querySelectorAll('[data-widget]').forEach(widget => {
@@ -1546,12 +1546,12 @@ async function renderComplianceAcknowledgements() {
   } catch (error) { panel.innerHTML = `<h2>Compliance acknowledgements</h2><p class="notice warning">${escapeHtml(error.message)}</p>`; }
 }
 function renderAppearance() {
-  const labels = { apps:'Main Apps', announcements:'Announcements', 'new-members':'Recently Joined', 'welcome-notes':'Welcome notes', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
+  const labels = { apps:'Main Apps', announcements:'Announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
   const settings = dashboard.settings || { layout:[], hiddenWidgets:[] };
   $('#view-appearance').innerHTML = `<p class="view-intro">Control homepage section order and visibility. Shared brand files remain approved assets, while this workspace safely publishes layout changes.</p><article class="panel"><div class="collection-heading"><div><h2>Homepage sections</h2><p>Use the accessible move controls to set order. Hidden sections remain saved.</p></div><button class="action-button primary" id="save-appearance">Save layout</button></div><div class="layout-editor">${settings.layout.map((key, index) => `<div class="layout-admin-row" data-layout-key="${key}"><span><b>${escapeHtml(labels[key] || key)}</b><small>${settings.hiddenWidgets.includes(key) ? 'Hidden from employees' : 'Visible to employees'}</small></span><label class="visibility"><input type="checkbox" data-layout-visible="${key}" ${settings.hiddenWidgets.includes(key) ? '' : 'checked'} /> Visible</label><div><button type="button" class="tool-button" data-layout-move="${key}:-1" ${index === 0 ? 'disabled' : ''}>Move up</button><button type="button" class="tool-button" data-layout-move="${key}:1" ${index === settings.layout.length - 1 ? 'disabled' : ''}>Move down</button></div></div>`).join('')}</div></article>`;
 }
-const defaultHomeWidgetSizes = { apps:'full', announcements:'wide', 'new-members':'compact', 'welcome-notes':'full', 'company-news':'full' };
-const defaultHomeLayout = ['apps', 'announcements', 'new-members', 'welcome-notes', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+const defaultHomeWidgetSizes = { apps:'full', announcements:'wide', 'new-members':'compact', 'company-news':'full' };
+const defaultHomeLayout = ['apps', 'announcements', 'new-members', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
 const homeHistory = { undo:[], redo:[] };
 function homeSnapshot(source = dashboard) {
   const settings = source?.settings || {};
@@ -1721,7 +1721,7 @@ function renderGlobalPages() {
   });
 }
 function renderHomeEditor() {
-  const labels = { apps:'Main Apps', announcements:'Hero & announcements', 'new-members':'Recently Joined', 'welcome-notes':'Welcome notes', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
+  const labels = { apps:'Main Apps', announcements:'Hero & announcements', 'new-members':'Recently Joined', 'company-news':'Company news', social:'Company channels', news:'Industry pulse', moments:'Moments', knowledge:'Knowledge Hub', events:'Events & key dates', whistleblower:'Employee Voice' };
   const destinations = { apps:'apps', announcements:'announcements', 'new-members':'people', social:'social', moments:'moments', knowledge:'knowledge', events:'events', whistleblower:'whistleblower' };
   dashboard.settings ||= { layout:[], hiddenWidgets:[], widgetSizes:{}, removedWidgets:[] };
   dashboard.settings.layout ||= [];
@@ -1733,7 +1733,6 @@ function renderHomeEditor() {
   // Normalize it here as well as on the employee page so administration stays accurate.
   dashboard.settings.layout = dashboard.settings.layout.map(key => key === 'new-warians' ? 'company-news' : key);
   if (!dashboard.settings.layout.includes('apps') && !dashboard.settings.removedWidgets.includes('apps')) dashboard.settings.layout.unshift('apps');
-  if (!dashboard.settings.layout.includes('welcome-notes') && !dashboard.settings.removedWidgets.includes('welcome-notes')) dashboard.settings.layout.splice(dashboard.settings.layout.indexOf('new-members') + 1, 0, 'welcome-notes');
   dashboard.homePageContent ||= {};
   const copy = { heroTitle:'Make room for what’s next.', heroDescription:'One place to find your people, sharpen your craft, and keep the work moving with purpose.', heroAction:'Explore what’s happening', heroActionUrl:'#knowledge', ...dashboard.homePageContent };
   const layout = dashboard.settings.layout;

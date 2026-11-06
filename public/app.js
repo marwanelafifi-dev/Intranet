@@ -39,10 +39,10 @@ const policyIndex = [
   { title: 'Attendance & Leave policy', detail: 'Time logging, leave requests and flexible work.', href: '/new-hires.html#policies' },
   { title: 'Health & Safety policy', detail: 'Safe workplaces, labs and ways of working.', href: '/new-hires.html#policies' }
 ];
-const dashboardLayout = ['apps', 'announcements', 'new-members', 'welcome-notes', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
-const newsFirstDashboardLayout = ['company-news', 'announcements', 'new-members', 'welcome-notes', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+const dashboardLayout = ['apps', 'announcements', 'new-members', 'company-news', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
+const newsFirstDashboardLayout = ['company-news', 'announcements', 'new-members', 'social', 'news', 'moments', 'knowledge', 'events', 'whistleblower'];
 const dashboardLayoutVersion = 'company-news-v1';
-const defaultHomeWidgetSizes = { apps:'full', announcements:'wide', 'new-members':'compact', 'welcome-notes':'full', 'company-news':'full' };
+const defaultHomeWidgetSizes = { apps:'full', announcements:'wide', 'new-members':'compact', 'company-news':'full' };
 const memberEmploymentTypes = ['Full Time', 'Part Time', 'Summer Intern', 'Graduate Intern'];
 const supportPortalDefaults = [
   { id: 'portal-company', name: 'Company Portal', description: 'Submit and track Administration, Finance & People Team requests', url: '', icon: 'building' },
@@ -123,7 +123,10 @@ function normalizeState(data) {
   }
   data.settings.layoutVersion = dashboardLayoutVersion;
   if (!data.settings.layout.includes('new-members')) data.settings.layout = [...dashboardLayout];
-  if (!data.settings.layout.includes('welcome-notes') && !data.settings.removedWidgets.includes('welcome-notes')) data.settings.layout.splice(data.settings.layout.indexOf('new-members') + 1, 0, 'welcome-notes');
+  if (data.settings.layout.includes('welcome-notes')) data.settings.layout = data.settings.layout.filter(key => key !== 'welcome-notes');
+  data.settings.hiddenWidgets = data.settings.hiddenWidgets.filter(key => key !== 'welcome-notes');
+  data.settings.removedWidgets = data.settings.removedWidgets.filter(key => key !== 'welcome-notes');
+  delete data.settings.widgetSizes['welcome-notes'];
   return data;
 }
 
@@ -218,7 +221,11 @@ function announcementPreview(value, title = '') {
 }
 function renderAnnouncement() {
   const items = state.announcements.filter(item => item.hidden !== true && item.hidden !== 'true').slice(0, 4);
-  $('#announcement-spotlight').innerHTML = items.length ? items.map(item => `<article class="priority-announcement" data-open-announcement="${escapeHtml(item.id)}" tabindex="0" role="link" aria-label="View full announcement: ${escapeHtml(item.title)}"><div><span>${escapeHtml(item.tag || 'Company update')}</span><time>${escapeHtml(item.date || 'Just now')}</time></div><h3>${escapeHtml(item.title)}</h3><small class="priority-targeting">${escapeHtml(item.department || 'All departments')} · ${escapeHtml(item.audience || 'All employees')}</small><small class="priority-preview">${escapeHtml(announcementPreview(item.body || item.message || item.description || item.bodyHtml, item.title))}</small><div class="priority-footer"><span class="priority-open">View full announcement <b aria-hidden="true">→</b></span><small class="priority-author">${item.source?.type === 'group-email' ? `Sent from Email Account: ${escapeHtml(item.source.fromEmail)}` : `Posted by ${escapeHtml(item.postedBy || 'Intranet team')}`}</small></div></article>`).join('') : '<p class="priority-empty">No announcements have been published yet.</p>';
+  const welcome = state.newMembers.filter(member => String(member.message || '').trim()).sort((left, right) => (Date.parse(right.welcomeNoteAt) || 0) - (Date.parse(left.welcomeNoteAt) || 0) || String(left.name || '').localeCompare(String(right.name || '')))[0];
+  $('#announcement-title').textContent = welcome ? 'Welcome note' : 'Latest announcements';
+  const welcomeMarkup = welcome ? `<button class="priority-welcome-note" type="button" data-member-profile="${escapeHtml(welcome.id)}" aria-label="Open ${escapeHtml(welcome.name || 'colleague')}'s welcome note"><span class="priority-welcome-avatar">${welcome.profilePhotoUrl || welcome.photoUrl ? `<img src="${escapeHtml(welcome.profilePhotoUrl || welcome.photoUrl)}" alt="" />` : escapeHtml(welcome.initials || String(welcome.name || 'Colleague').split(/\s+/).map(part => part[0]).join('').slice(0, 2))}</span><span class="priority-welcome-copy"><span><b>${escapeHtml(welcome.name || 'Colleague')}</b>${welcomeNoteTimestamp(welcome.welcomeNoteAt) ? `<time datetime="${escapeHtml(welcome.welcomeNoteAt)}">${escapeHtml(welcomeNoteTimestamp(welcome.welcomeNoteAt))}</time>` : ''}</span><strong>${escapeHtml(welcome.role || 'Colleague')}</strong><em>${escapeHtml(welcome.message)}</em></span><span class="priority-welcome-open" aria-hidden="true">View profile →</span></button>` : '';
+  const announcementsMarkup = items.length ? `${welcome ? '<p class="hero-announcements-label">Latest announcements</p>' : ''}${items.map(item => `<article class="priority-announcement" data-open-announcement="${escapeHtml(item.id)}" tabindex="0" role="link" aria-label="View full announcement: ${escapeHtml(item.title)}"><div><span>${escapeHtml(item.tag || 'Company update')}</span><time>${escapeHtml(item.date || 'Just now')}</time></div><h3>${escapeHtml(item.title)}</h3><small class="priority-targeting">${escapeHtml(item.department || 'All departments')} · ${escapeHtml(item.audience || 'All employees')}</small><small class="priority-preview">${escapeHtml(announcementPreview(item.body || item.message || item.description || item.bodyHtml, item.title))}</small><div class="priority-footer"><span class="priority-open">View full announcement <b aria-hidden="true">→</b></span><small class="priority-author">${item.source?.type === 'group-email' ? `Sent from Email Account: ${escapeHtml(item.source.fromEmail)}` : `Posted by ${escapeHtml(item.postedBy || 'Intranet team')}`}</small></div></article>`).join('')}` : welcome ? '' : '<p class="priority-empty">No announcements have been published yet.</p>';
+  $('#announcement-spotlight').innerHTML = `${welcomeMarkup}${announcementsMarkup}`;
 }
 function visibleAnnouncements() {
   return (state.announcements || [])
@@ -624,29 +631,6 @@ function renderNewMembers() {
     photo.replaceWith(fallback);
   }, { once:true }));
 }
-function renderWelcomeNotes() {
-  const root = $('#welcome-note-list');
-  const members = state.newMembers
-    .filter(member => String(member.message || '').trim())
-    .sort((left, right) => (Date.parse(right.welcomeNoteAt) || 0) - (Date.parse(left.welcomeNoteAt) || 0) || String(left.name || '').localeCompare(String(right.name || '')));
-  root.innerHTML = members.length ? members.map(member => {
-    const name = String(member.name || 'Colleague'), initials = member.initials || name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2);
-    const photo = member.profilePhotoUrl || member.photoUrl;
-    const avatar = photo ? `<img class="welcome-note-avatar new-member-photo" data-member-photo="${escapeHtml(member.id)}" src="${escapeHtml(photo)}" alt="Photo of ${escapeHtml(name)}" />` : `<span class="welcome-note-avatar" style="--member-color:${escapeHtml(member.color || '#e7f0ff')}" aria-hidden="true">${escapeHtml(initials)}</span>`;
-    const timestamp = welcomeNoteTimestamp(member.welcomeNoteAt);
-    return `<button class="welcome-note-entry" type="button" data-member-profile="${escapeHtml(member.id)}" aria-label="Open ${escapeHtml(name)}'s profile and welcome note">${avatar}<span class="welcome-note-copy"><span><b>${escapeHtml(name)}</b><small>${escapeHtml(member.role || 'Colleague')}</small></span><span class="welcome-note-message">${escapeHtml(member.message)}</span></span>${timestamp ? `<time datetime="${escapeHtml(member.welcomeNoteAt)}">${escapeHtml(timestamp)}</time>` : ''}</button>`;
-  }).join('') : '<p class="welcome-notes-empty">Welcome notes will appear here when they are published for a colleague.</p>';
-  const memberById = new Map(members.map(member => [String(member.id), member]));
-  $$('#welcome-note-list .new-member-photo').forEach(photo => photo.addEventListener('error', () => {
-    const member = memberById.get(photo.dataset.memberPhoto);
-    if (!member) return;
-    const fallback = document.createElement('span');
-    fallback.className = 'welcome-note-avatar';
-    fallback.style.setProperty('--member-color', member.color || '#e7f0ff');
-    fallback.textContent = member.initials || String(member.name || '').split(/\s+/).map(part => part[0]).join('').slice(0, 2);
-    photo.replaceWith(fallback);
-  }, { once:true }));
-}
 function renderHomePageContent() {
   const content = state.homePageContent || {};
   const title = $('#hero-title'), description = $('.hero-copy > p:not(.eyebrow)'), action = $('#hero-action');
@@ -681,7 +665,7 @@ function applyLayout() {
     whistleblowerLink.href = '/whistleblower-2.html';
     whistleblowerLink.textContent = 'Open reporting form';
   }
-  const widgetPermissions = { apps:'intranet.apps', announcements:'intranet.announcements', 'new-members':'intranet.people', 'welcome-notes':'intranet.people', 'company-news':'intranet.news', knowledge:'intranet.knowledge', whistleblower:'intranet.whistleblower', moments:'intranet.moments', social:'intranet.social', events:'intranet.events' };
+  const widgetPermissions = { apps:'intranet.apps', announcements:'intranet.announcements', 'new-members':'intranet.people', 'company-news':'intranet.news', knowledge:'intranet.knowledge', whistleblower:'intranet.whistleblower', moments:'intranet.moments', social:'intranet.social', events:'intranet.events' };
   $$('[data-widget]').forEach(widget => {
     const position = state.settings.layout.indexOf(widget.dataset.widget);
     widget.hidden = state.settings.hiddenWidgets.includes(widget.dataset.widget) || Boolean(widgetPermissions[widget.dataset.widget] && !state.user.permissions?.includes(widgetPermissions[widget.dataset.widget])) || (widget.dataset.widget === 'whistleblower' && !employeeVoiceAvailable && !googleFormAvailable);
@@ -689,7 +673,7 @@ function applyLayout() {
     widget.style.order = position < 0 ? 99 : position;
   });
 }
-function renderAll() { renderHomePageContent(); renderApps(); renderAnnouncement(); renderNewMembers(); renderWelcomeNotes(); renderNews(); renderCompanyNews(); renderTags(); renderSessions(); renderMoments(); renderEvents(); renderProfile(); renderNotifications(); renderVectorIcons(); applyLayout(); }
+function renderAll() { renderHomePageContent(); renderApps(); renderAnnouncement(); renderNewMembers(); renderNews(); renderCompanyNews(); renderTags(); renderSessions(); renderMoments(); renderEvents(); renderProfile(); renderNotifications(); renderVectorIcons(); applyLayout(); }
 function attachmentPreviewKind(url) {
   const pathname = String(url || '').split(/[?#]/)[0].toLowerCase();
   if (/\.(png|jpe?g|webp|gif)$/.test(pathname)) return 'photo';

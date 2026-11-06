@@ -983,7 +983,7 @@ async function dashboard() {
     if (!data.settings) { data.settings = seed.settings; changed = true; }
     else if (data.settings.layout?.includes('actions')) { data.settings.layout = data.settings.layout.map(item => item === 'actions' ? 'new-members' : item); changed = true; }
     else if (!data.settings.layout?.includes('new-members')) { data.settings.layout = expectedLayout; changed = true; }
-    else if (!data.settings.layout?.includes('welcome-notes') && !data.settings.removedWidgets?.includes('welcome-notes')) { data.settings.layout.splice(data.settings.layout.indexOf('new-members') + 1, 0, 'welcome-notes'); changed = true; }
+    else if (data.settings.layout?.includes('welcome-notes')) { data.settings.layout = data.settings.layout.filter(key => key !== 'welcome-notes'); changed = true; }
     if (!Number.isInteger(data._version)) { data._version = 1; changed = true; }
     if (!Array.isArray(data.auditEvents)) { data.auditEvents = []; changed = true; }
     if (!Array.isArray(data.activityEvents)) { data.activityEvents = []; changed = true; }
