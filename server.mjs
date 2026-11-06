@@ -625,7 +625,10 @@ async function dashboardResponse(data, actor, admin = false) {
     return notification ? [notification] : [];
   })() : undefined;
   const welcomeMemberIds = new Set((data.newMembers || []).filter(member => String(member.message || '').trim()).map(member => String(member.id)));
-  const welcomeNotifications = !admin ? (Array.isArray(data.welcomeNotifications) ? data.welcomeNotifications : []).filter(notification => notification?.type === 'welcome' && welcomeMemberIds.has(String(notification.memberId))).slice(0, 120) : undefined;
+  const actorEmail = emailAddress(actor?.email);
+  const actorMemberIds = new Set((data.newMembers || []).filter(member => actorEmail && memberEmail(member) === actorEmail).map(member => String(member.id)));
+  const welcomeNotificationOversight = can(data, actor, 'access.manage') || can(data, actor, 'page.people');
+  const welcomeNotifications = !admin ? (Array.isArray(data.welcomeNotifications) ? data.welcomeNotifications : []).filter(notification => notification?.type === 'welcome' && welcomeMemberIds.has(String(notification.memberId)) && (welcomeNotificationOversight || !actorMemberIds.has(String(notification.memberId)))).slice(0, 120) : undefined;
   if (!admin && Array.isArray(visible.newMembers)) visible.newMembers = employeeDirectoryForActor(data.newMembers, actor, can(data, actor, 'access.manage'));
   const notificationDefaults = admin ? (() => { const settings = notificationSettings(data); return { inAppEnabled:settings.inAppEnabled, inAppDefaultEnabled:settings.inAppDefaultEnabled, birthdayEnabled:settings.birthdayEnabled, emailEnabled:settings.emailEnabled, emailDefaultEnabled:settings.emailDefaultEnabled, approvedGroups:settings.approvedGroups, defaultGroup:settings.defaultGroup }; })() : undefined;
   return { ...visible, ...(!admin ? { birthdayNotifications, welcomeNotifications } : {}), ...(admin ? { notificationDefaults } : {}), user:actor ? { name:actor.name, email:actor.email, role:actor.role, avatarUrl:actor.avatarUrl || '', title:actor.role === 'ADMIN' ? 'Administrator' : actor.role.replace('_', ' ') } : data.user };
